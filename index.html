@@ -677,7 +677,7 @@ const TYPE_META = {
 function typeMeta(t) { return TYPE_META[t] || { label: t || '', color: '#334155', bg: '#E2E8F0' }; }
 function TypeChip(t) { const m = typeMeta(t); return `<span class="chip" style="background:${m.bg};color:${m.color}">${esc(m.label)}</span>`; }
 function startHourLabel(slot) { const raw = (String(slot || '').split('-')[0] || '').trim(); return /^\d{1,2}$/.test(raw) ? `${Number(raw)}H` : `${raw}H`; }
-function courseSlotLabel(s) { return `${s.courseCode} - ${s.courseSize}HV - ${startHourLabel(s.slot)}`; }
+function courseSlotLabel(s) { return `${s.courseCode}`; }
 
 function timeTint(t) {
   if (t === 'DAT' || t === 'Lý thuyết' || t === 'Bổ túc' || t === 'Học thường') return ['#D9F2E4', '#007A38'];
