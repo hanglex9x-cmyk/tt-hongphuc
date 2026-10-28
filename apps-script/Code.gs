@@ -713,8 +713,11 @@ function apiNotifications() {
   const cabinNS = students.filter(s => s.cabinHours === 0 && s.openDate && s.openDate <= T)
     .map(s => ({ code: s.code, name: s.name, courseCode: s.courseCode, homeTeacherName: s.homeTeacherName }));
   /* Nhắc việc theo yêu cầu chị Hồng (28/10): khóa sắp bế giảng ≤3 ngày + HV sắp xuống DAT ≤2 ngày,
-     kèm cờ thiếu DAT/cabin cho từng HV — ngày lấy theo khóa (NgayBeGiang / NgayBatDauDAT), HV thuộc khóa nào tính theo khóa đó. */
-  const daysTo_ = (ds) => Math.round((new Date(ds) - new Date(T)) / 86400000);
+     kèm cờ thiếu DAT/cabin cho từng HV — ngày lấy theo khóa (NgayBeGiang / NgayBatDauDAT), HV thuộc khóa nào tính theo khóa đó.
+     LƯU Ý: riêng phần nhắc này tính theo NGÀY THẬT (Asia/Ho_Chi_Minh), không theo mốc neo NgayHienTai của dữ liệu —
+     vì bế giảng/xuống DAT là việc ngoài đời, mốc neo đứng yên sẽ làm nhắc không bao giờ kích hoạt. */
+  const realToday_ = Utilities.formatDate(new Date(), 'Asia/Ho_Chi_Minh', 'yyyy-MM-dd');
+  const daysTo_ = (ds) => Math.round((new Date(ds) - new Date(realToday_)) / 86400000);
   const closingSoon = students.filter(s => s.closeDate && daysTo_(s.closeDate) >= 0 && daysTo_(s.closeDate) <= 3)
     .map(s => ({ id: s.id, code: s.code, name: s.name, courseCode: s.courseCode, closeDate: s.closeDate, daysLeft: daysTo_(s.closeDate), datOk: s.datKmDone >= s.datKmTotal, cabinOk: s.cabinHours >= 3, done: s.gradResult === 'Đậu' || s.hasLicense }));
   const datStartSoon = students.filter(s => s.datStartDate && daysTo_(s.datStartDate) >= 0 && daysTo_(s.datStartDate) <= 2)
