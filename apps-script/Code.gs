@@ -728,7 +728,10 @@ function apiNotifications() {
   const wk = weekHoursByVehicle_();
   const threshold = num_(cfg_('NguongXeQuaGioTuan', 56)) || 56;
   const overuse = Object.keys(wk).filter(k => wk[k] > threshold).map(k => ({ plate: k, hoursWeek: wk[k] }));
+  const datRow_ = (s) => ({ id: s.id, code: s.code, name: s.name, courseCode: s.courseCode, closeDate: s.closeDate, daysLeft: Math.round((new Date(s.closeDate) - new Date(T)) / 86400000), datKmDone: s.datKmDone, datKmTotal: s.datKmTotal, cabinOk: s.cabinHours >= 3, homeTeacherName: s.homeTeacherName });
   return { alerts, notifications: notifs,
+    datOverdue: { count: overdue.length, rows: overdue.map(datRow_) },
+    datDueSoon: { count: soon.length, rows: soon.map(datRow_) },
     reminders: { closingSoon: { count: closingSoon.length, rows: closingSoon }, datStartSoon: { count: datStartSoon.length, rows: datStartSoon } },
     vehicleDocAlerts: { count: docAlerts.length, rows: docAlerts },
     vehicleServiceAlerts: { count: svcAlerts.length, rows: svcAlerts },
