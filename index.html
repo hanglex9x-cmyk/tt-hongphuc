@@ -31,10 +31,10 @@ b,strong{font-weight:700}
 .header-glass{background:linear-gradient(118deg,#007A38 0%,#00B050 52%,#00A047 78%,#1E3A8A 135%);border-bottom:1px solid rgba(255,255,255,.35);box-shadow:0 10px 30px rgba(0,90,45,.28);color:#fff;position:sticky;top:0;z-index:40}
 .header-inner{display:flex;width:100%;align-items:center;gap:12px;padding:10px 12px}
 @media(min-width:768px){.header-inner{padding:10px 24px}}
-@media(max-width:767px){.header-inner{gap:8px;padding:8px 10px;align-items:flex-start}.header-inner .hamb{height:40px;width:40px;flex:none}}
-.header-inner h1{margin:0;font-size:min(12.5px,3.25vw);font-weight:800;letter-spacing:0;line-height:1.3;white-space:nowrap}
+@media(max-width:767px){.header-inner{gap:6px;padding:8px;align-items:flex-start}.header-inner .hamb{height:36px;width:36px;flex:none}.header-inner>svg{width:36px;height:36px;flex:none}}
+.header-inner h1{margin:0;font-size:min(12.5px,3.05vw);font-weight:800;letter-spacing:0;line-height:1.3;white-space:nowrap}
 @media(min-width:768px){.header-inner h1{font-size:18px}}
-.header-inner .sub{margin:1px 0 0;font-size:min(9px,2vw);color:#DBEAFE;line-height:1.4;white-space:nowrap}
+.header-inner .sub{margin:1px 0 0;font-size:min(8.5px,1.85vw);color:#DBEAFE;line-height:1.4;white-space:nowrap}
 @media(min-width:768px){.header-inner .sub{font-size:12px}}
 @media(min-width:768px){.header-inner .sub{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}
 .brand-yellow{color:#FFD400;text-shadow:0 1px 6px rgba(0,60,30,.55),0 0 2px rgba(0,60,30,.4)}
@@ -557,7 +557,7 @@ function renderShell() {
       ${Logo(42)}
       <div style="min-width:0;flex:1">
         <h1>TRUNG TÂM ĐÀO TẠO LÁI XE <span class="brand-yellow">HỒNG PHÚC</span></h1>
-        <p class="sub">404 QL1A, P. Thới An, Quận 12, TP.HCM · SĐT: 0949 155 955</p>
+        <p class="sub">404 QL1A, P. Thới An, Quận 12, TP.HCM · <span style="white-space:nowrap">SĐT: 0949 155 955</span></p>
       </div>
       <div class="admin-box">
         <p style="font-size:14px;font-weight:700">Quản trị viên</p>
