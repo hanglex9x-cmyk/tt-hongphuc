@@ -213,6 +213,8 @@ table.tbl-plain td{border-bottom:1px solid rgba(220,232,223,.6);padding:10px 8px
 .hline b{font-weight:800}
 .hline.more{color:var(--dim);font-weight:700}
 @media(min-width:768px){.half-cell{min-height:112px}.hline{font-size:12px}}
+.mscroll{overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%;padding-bottom:6px}
+.mgrid{display:grid;grid-template-columns:repeat(7,minmax(104px,1fr));gap:4px;min-width:752px}
 @media(min-width:768px){.month-cell{min-height:78px;padding:8px}.month-cell .cnt{font-size:11px}}
 .tdot{display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:500}
 .tdot i{display:inline-block;height:8px;width:8px;border-radius:99px;font-style:normal}
@@ -759,6 +761,17 @@ function HalfLine(s) {
   const full = `${s.slot || ''} · ${s.groupLabel || s.studentName || ''} · ${m.label}${s.centerName ? ' · ' + shortCenterName(s.centerName) : ''}`;
   return `<span class="hline" title="${esc(full)}"><b>${esc(startHourLabel(s.slot))}</b> ${esc(nm)} <span style="color:${m.color};font-weight:700">${esc(m.s || m.label)}</span>${ab ? ` ${esc(ab)}` : ''}</span>`;
 }
+/* Ô ngày mini dùng chung cho lưới 2 tuần + lưới tháng: số ngày + số buổi + tối đa 8 dòng buổi rút gọn + vạch mốc; bấm ô chọn ngày xem chi tiết */
+function DayMiniCell(id, d, list, mks, selDate, out) {
+  const MAXL = 8;
+  const sorted = [...(list || [])].sort((x, y) => String(x.slot).localeCompare(String(y.slot)));
+  return `<button type="button" class="month-cell half-cell ${out ? 'out' : ''} ${d === TODAY ? 'today' : ''} ${d === selDate ? 'sel' : ''}" aria-label="Xem chi tiết lịch ngày ${fmtDate(d)}" onclick="svSelectDay('${id}','${d}')">
+    <span class="dnum" ${d === TODAY ? 'style="color:#007A38"' : ''}>${Number(d.slice(8, 10))}${sorted.length ? `<span class="cnt" style="margin-left:5px">${sorted.length} buổi</span>` : ''}</span>
+    ${sorted.slice(0, MAXL).map(HalfLine).join('')}
+    ${sorted.length > MAXL ? `<span class="hline more">+${sorted.length - MAXL} buổi nữa — bấm ô xem thêm</span>` : ''}
+    ${(mks && mks.length) ? `<span class="mmark" style="background:${mks[0].kind === 'exam' ? '#1E3A8A' : '#B45309'}"></span>` : ''}
+  </button>`;
+}
 function TypeLegend() {
   const items = [['Lý thuyết (theo khóa)', '#00B050'], ['DAT', '#0097A7'], ['Sa hình / KTRA sa hình', '#F57C00'], ['Cabin (theo nhóm)', '#455A64'], ['Nghỉ', '#E53935']];
   return `<div class="type-legend" aria-label="Chú thích màu loại buổi"><span style="font-size:12px;font-weight:600;letter-spacing:.03em;color:var(--dim)">CHÚ THÍCH MÀU LOẠI BUỔI:</span>${items.map(([l, c]) => `<span style="display:flex;align-items:center;gap:6px;font-weight:500"><span class="sw" style="background:${c}"></span>${l}</span>`).join('')}<span style="display:flex;align-items:center;gap:6px;font-weight:500"><span class="sw" style="border:2px solid #E53935;background:transparent"></span>Buổi trùng lịch (xe / học viên — lỗi)</span><span style="display:flex;align-items:center;gap:6px;font-weight:500"><span class="sw" style="border:2px solid #FFC107;background:transparent"></span>Trùng giáo viên (cảnh báo)</span></div>`;
@@ -1000,7 +1013,7 @@ function svRenderMain(id) {
   if (st.mode === 'week') head = `<b style="font-size:16px">Tuần ${fmtDate(st.weekStart)} – ${fmtDate(addDays(st.weekStart, 6))}</b>`;
   else if (st.mode === 'half') { const [y, m] = st.monthCursor.split('-'); head = `<b style="font-size:16px">Tháng ${Number(m)}/${y} · ${st.half === 1 ? 'Ngày 1–15' : `Ngày 15–${lastDayOf(st.monthCursor)}`}</b>`; }
   else { const [y, m] = st.monthCursor.split('-'); head = `<b style="font-size:16px">Tháng ${Number(m)}/${y}</b>`; }
-  head += `<span style="margin-left:8px;font-size:14px;color:var(--dim)">${filtered.length} thẻ buổi hiển thị${hasFilter ? ' (đang lọc)' : ''}${fStudent ? ` · Chỉ HV: ${esc(fStudent.name)} (${esc(fStudent.courseCode)})` : ''} · Tên HV rút gọn 2 từ cuối · ${st.mode === 'week' ? 'Bấm vào thẻ buổi để sửa trực tiếp' : 'Bấm vào ô ngày để xem chi tiết bên dưới'}</span>`;
+  head += `<span style="margin-left:8px;font-size:14px;color:var(--dim)">${filtered.length} thẻ buổi hiển thị${hasFilter ? ' (đang lọc)' : ''}${fStudent ? ` · Chỉ HV: ${esc(fStudent.name)} (${esc(fStudent.courseCode)})` : ''} · Tên HV rút gọn 2 từ cuối · ${st.mode === 'week' ? 'Bấm vào thẻ buổi để sửa trực tiếp' : st.mode === 'month' ? 'Khung lịch kéo ngang trên điện thoại (hiện 3 ô ngày) · Bấm vào ô ngày để xem chi tiết bên dưới' : 'Bấm vào ô ngày để xem chi tiết bên dưới'}</span>`;
   let spHtml = '';
   if (window._DASH_SP && window._DASH_SP.total > 0) {
     const sp = window._DASH_SP;
@@ -1041,17 +1054,9 @@ function svRenderMain(id) {
     const d2 = st.half === 1 ? addDays(first, 14) : addDays(first, last - 1);
     const selDate = (st.selectedDate >= d1 && st.selectedDate <= d2) ? st.selectedDate : d1;
     const weeks = []; for (let w = mondayOf(d1); w <= d2; w = addDays(w, 7)) weeks.push(w);
-    const MAXL = 8;
     const hcell = (d) => {
       if (d < d1 || d > d2) return `<div class="month-cell out half-cell" aria-hidden="true"><span class="dnum">&nbsp;</span></div>`;
-      const list = [...(byDate[d] || [])].sort((x, y) => String(x.slot).localeCompare(String(y.slot)));
-      const mks = markersByDate[d] || [];
-      return `<button type="button" class="month-cell half-cell ${d === TODAY ? 'today' : ''} ${d === selDate ? 'sel' : ''}" aria-label="Xem chi tiết lịch ngày ${fmtDate(d)}" onclick="svSelectDay('${id}','${d}')">
-        <span class="dnum" ${d === TODAY ? 'style="color:#007A38"' : ''}>${Number(d.slice(8, 10))}${list.length ? `<span class="cnt" style="margin-left:5px">${list.length} buổi</span>` : ''}</span>
-        ${list.slice(0, MAXL).map(HalfLine).join('')}
-        ${list.length > MAXL ? `<span class="hline more">+${list.length - MAXL} buổi nữa — bấm ô xem thêm</span>` : ''}
-        ${mks.length ? `<span class="mmark" style="background:${mks[0].kind === 'exam' ? '#1E3A8A' : '#B45309'}"></span>` : ''}
-      </button>`;
+      return DayMiniCell(id, d, byDate[d] || [], markersByDate[d] || [], selDate, false);
     };
     const cluster = (dows) => `<div class="half-cluster"><div class="half-grid" style="grid-template-columns:repeat(${dows.length},minmax(0,1fr))">${dows.map(di => `<p class="half-dow">${DOW_LABELS[di]}</p>`).join('')}${weeks.map(w => dows.map(di => hcell(addDays(w, di))).join('')).join('')}</div></div>`;
     const selList = byDate[selDate] || [];
@@ -1063,24 +1068,13 @@ function svRenderMain(id) {
       ${selList.length === 0 ? `<p style="font-size:14px;color:var(--dim);margin:0">Không có buổi chi tiết nào trong ngày này${hasFilter ? ' theo bộ lọc hiện tại' : ''}.</p>` : `<ul style="list-style:none;margin:0;padding:0">${selList.map(SessionRow).join('')}</ul>`}
     </div>`;
   } else {
+    /* Lưới tháng full: 7 cột trong khung kéo ngang — điện thoại hiện 3 ô ngày, vuốt/kéo trái-phải xem các thứ còn lại; ô hiện dòng buổi rút gọn như lưới 2 tuần */
     const gridStart = mondayOf(st.monthCursor);
     const days = Array.from({ length: 42 }, (_, i) => addDays(gridStart, i));
-    const cells = days.map(d => {
-      const inMonth = d.slice(0, 7) === st.monthCursor.slice(0, 7);
-      const list = byDate[d] || [];
-      const types = [...new Set(list.map(s => s.type))];
-      const mks = markersByDate[d] || [];
-      const total = hasFilter ? list.length : (dayTotals[d] ?? list.length);
-      return `<button type="button" class="month-cell ${inMonth ? '' : 'out'} ${d === TODAY ? 'today' : ''} ${d === st.selectedDate ? 'sel' : ''}" aria-label="Xem chi tiết lịch ngày ${fmtDate(d)}" onclick="svSelectDay('${id}','${d}')">
-        <span class="dnum" ${d === TODAY ? 'style="color:#007A38"' : ''}>${Number(d.slice(8, 10))}</span>
-        ${total > 0 ? `<span class="cnt">${total} buổi</span>` : '<span class="cnt">&nbsp;</span>'}
-        ${types.length ? `<span class="mdots">${types.map(t => `<i style="background:${typeMeta(t).color}"></i>`).join('')}</span>` : ''}
-        ${mks.length ? `<span class="mmark" style="background:${mks[0].kind === 'exam' ? '#1E3A8A' : '#B45309'}"></span>` : ''}
-      </button>`;
-    }).join('');
+    const cells = days.map(d => DayMiniCell(id, d, byDate[d] || [], markersByDate[d] || [], st.selectedDate, d.slice(0, 7) !== st.monthCursor.slice(0, 7))).join('');
     const selList = byDate[st.selectedDate] || [];
     const selMks = markersByDate[st.selectedDate] || [];
-    body = `<div class="month-grid">${DOW_LABELS.map(l => `<p style="margin:0;padding:4px 0;text-align:center;font-size:12px;font-weight:700;color:var(--dim)">${l}</p>`).join('')}${cells}</div>
+    body = `<div class="mscroll"><div class="mgrid">${DOW_LABELS.map(l => `<p class="half-dow">${l}</p>`).join('')}${cells}</div></div>
     <div style="margin-top:12px">
       <p style="margin:0 0 8px;font-size:14px"><b>Chi tiết ngày ${fmtDate(st.selectedDate)}${st.selectedDate === TODAY ? ' (hôm nay)' : ''} — ${selList.length} buổi chi tiết${hasFilter ? ' sau lọc' : ''}</b></p>
       ${selMks.map(mk => `<p style="margin:0 0 8px;border-radius:12px;padding:8px 12px;font-size:14px;font-weight:600;color:#fff;background:${mk.kind === 'exam' ? '#1E3A8A' : '#B45309'}">${mk.kind === 'exam' ? 'Kỳ thi sát hạch' : 'Bế giảng'}: ${esc(mk.label)}</p>`).join('')}
