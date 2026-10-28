@@ -3,13 +3,21 @@
 // Database: Google Sheet QuanLy_TrungTamLaiXe_HongPhuc
 // Web App: Execute as Me (hanglex9x@gmail.com), Anyone with link
 // ============================================================
+// BẢN TỐI ƯU TỐC ĐỘ (28/10/2026) — hợp đồng API giữ nguyên 100%:
+//  1) ss_() chỉ openById 1 lần / lần chạy (trước đây: 1 lần / tab).
+//  2) Các tập dữ liệu dẫn xuất (allStudents_, allSchedules_, conflicts_...)
+//     được memoize theo request: dựng 1 lần, dùng chung; ghi xong tự xóa đệm.
+//  3) CacheService 180s cho các action đọc không tham số; mọi action ghi
+//     thành công đều xóa toàn bộ khóa cache đọc (bustReadCache_ ở route_).
+// ============================================================
 const SHEET_ID = '1_YsxPojVSBm9rJ2u4x-maKBddtozyfflO2ff-wRpD9A';
 
 const TARGET_KM = { 'B1': 710, 'B2': 810, 'C1': 825, 'C': 825 };
 const TUITION = { 'B1': 18000000, 'B2': 20000000, 'C1': 25000000, 'C': 24000000, 'Nâng dấu': 13000000 };
 
 // ---------- Hạ tầng ----------
-function ss_() { return SpreadsheetApp.openById(SHEET_ID); }
+let _ssObj = null;
+function ss_() { if (!_ssObj) _ssObj = SpreadsheetApp.openById(SHEET_ID); return _ssObj; }
 
 const _cache = {};
 function tab_(name) {
@@ -28,10 +36,19 @@ function tab_(name) {
   _cache[name] = t;
   return t;
 }
+// Đệm dữ liệu dẫn xuất theo request: mỗi tập dữ liệu chỉ dựng 1 lần / lần chạy.
+// Mọi thao tác ghi đều đi qua dropTab_() -> invalidateDerived_() để xóa đệm,
+// nên trong cùng 1 request, dữ liệu đọc sau khi ghi luôn là dữ liệu mới.
+const _memo = {};
+function memo_(key, fn) { if (!(key in _memo)) _memo[key] = fn(); return _memo[key]; }
+function invalidateDerived_() { for (const k in _memo) delete _memo[k]; }
+function dropTab_(name) { delete _cache[name]; invalidateDerived_(); }
 function cfg_(key, def) {
-  const t = tab_('CauHinh');
-  for (const o of t.objs) if (String(o['Khoa']) === key) return o['GiaTri'];
-  return def;
+  return memo_('cfg:' + key, () => {
+    const t = tab_('CauHinh');
+    for (const o of t.objs) if (String(o['Khoa']) === key) return o['GiaTri'];
+    return def;
+  });
 }
 function today_() { return String(cfg_('NgayHienTai', '2026-10-27')).slice(0, 10); }
 function num_(v) { const n = Number(v); return isNaN(n) ? 0 : n; }
@@ -68,14 +85,14 @@ function writeRow_(tabName, id, fields) {
   const headers = t.headers;
   const vals = headers.map(h => (fields[h] !== undefined ? fields[h] : o[h]));
   t.sheet.getRange(o._row, 1, 1, headers.length).setValues([vals]);
-  delete _cache[tabName];
+  dropTab_(tabName);
   return true;
 }
 function appendObj_(tabName, fields) {
   const t = tab_(tabName);
   const vals = t.headers.map(h => (fields[h] !== undefined ? fields[h] : ''));
   t.sheet.appendRow(vals);
-  delete _cache[tabName];
+  dropTab_(tabName);
   return true;
 }
 function deleteRow_(tabName, id) {
@@ -83,43 +100,49 @@ function deleteRow_(tabName, id) {
   const o = findRow_(tabName, id);
   if (!o) return false;
   t.sheet.deleteRow(o._row);
-  delete _cache[tabName];
+  dropTab_(tabName);
   return true;
 }
 
 // ---------- Bổ trợ nghiệp vụ ----------
 function courses_() {
-  return tab_('KhoaHoc').objs.map(o => ({
+  return memo_('courses', () => tab_('KhoaHoc').objs.map(o => ({
     code: str_(o['MaKhoa']), licenseClass: str_(o['Hang']), tuition: num_(o['HocPhi']),
     openDate: dstr_(o['NgayKhaiGiang']), closeDate: dstr_(o['NgayBeGiang']),
     datStart: dstr_(o['NgayBatDauDAT']), size: num_(o['SiSo'])
-  }));
+  })));
 }
-function courseMap_() { const m = {}; courses_().forEach(c => m[c.code] = c); return m; }
+function courseMap_() {
+  return memo_('courseMap', () => { const m = {}; courses_().forEach(c => m[c.code] = c); return m; });
+}
 
 function paymentsByStudent_() {
-  const m = {};
-  for (const p of tab_('ThanhToan').objs) {
-    const sid = num_(p['IDHocVien']);
-    if (!m[sid]) m[sid] = { paid: 0, rows: [] };
-    const loai = str_(p['Loai']);
-    if (loai === 'Học phí' || loai === 'Hoàn phí') m[sid].paid += num_(p['SoTien']);
-    m[sid].rows.push(p);
-  }
-  return m;
+  return memo_('payMap', () => {
+    const m = {};
+    for (const p of tab_('ThanhToan').objs) {
+      const sid = num_(p['IDHocVien']);
+      if (!m[sid]) m[sid] = { paid: 0, rows: [] };
+      const loai = str_(p['Loai']);
+      if (loai === 'Học phí' || loai === 'Hoàn phí') m[sid].paid += num_(p['SoTien']);
+      m[sid].rows.push(p);
+    }
+    return m;
+  });
 }
 function datKmByStudent_() {
-  const T = today_();
-  const m = {};
-  for (const s of tab_('LichHoc').objs) {
-    if (str_(s['LoaiBuoi']) !== 'DAT' || !s['IDHocVien']) continue;
-    if (dstr_(s['Ngay']) > T) continue;
-    if (str_(s['DiemDanh']) !== 'Đã học') continue;
-    const km = s['KmThucTe'] !== '' && s['KmThucTe'] !== null && s['KmThucTe'] !== undefined ? num_(s['KmThucTe']) : num_(s['KmKeHoach']);
-    const sid = num_(s['IDHocVien']);
-    m[sid] = (m[sid] || 0) + km;
-  }
-  return m;
+  return memo_('kmMap', () => {
+    const T = today_();
+    const m = {};
+    for (const s of tab_('LichHoc').objs) {
+      if (str_(s['LoaiBuoi']) !== 'DAT' || !s['IDHocVien']) continue;
+      if (dstr_(s['Ngay']) > T) continue;
+      if (str_(s['DiemDanh']) !== 'Đã học') continue;
+      const km = s['KmThucTe'] !== '' && s['KmThucTe'] !== null && s['KmThucTe'] !== undefined ? num_(s['KmThucTe']) : num_(s['KmKeHoach']);
+      const sid = num_(s['IDHocVien']);
+      m[sid] = (m[sid] || 0) + km;
+    }
+    return m;
+  });
 }
 function studentObj_(o, payMap, kmMap) {
   const cm = courseMap_();
@@ -160,14 +183,23 @@ function studentObj_(o, payMap, kmMap) {
   };
 }
 function allStudents_() {
-  const payMap = paymentsByStudent_();
-  const kmMap = datKmByStudent_();
-  return tab_('HocVien').objs.map(o => studentObj_(o, payMap, kmMap));
+  return memo_('students', () => {
+    const payMap = paymentsByStudent_();
+    const kmMap = datKmByStudent_();
+    return tab_('HocVien').objs.map(o => studentObj_(o, payMap, kmMap));
+  });
+}
+function teacherLook_() {
+  // Map ID giáo viên -> màu/tên ngắn, dựng 1 lần (giữ ngữ nghĩa cũ: trùng ID thì bản ghi sau thắng).
+  return memo_('teacherLook', () => {
+    const m = {};
+    for (const t of tab_('GiaoVien').objs) m[num_(t['ID'])] = { color: str_(t['Mau']), short: str_(t['TenNgan']) };
+    return m;
+  });
 }
 function scheduleObj_(s) {
-  const teachers = tab_('GiaoVien').objs;
-  let color = '#CFD8DC', short = '';
-  for (const t of teachers) if (num_(t['ID']) === num_(s['IDGiaoVien'])) { color = str_(t['Mau']); short = str_(t['TenNgan']); }
+  const tl = teacherLook_()[num_(s['IDGiaoVien'])];
+  const color = tl ? tl.color : '#CFD8DC', short = tl ? tl.short : '';
   const sid = s['IDHocVien'] === '' || s['IDHocVien'] === null ? null : num_(s['IDHocVien']);
   return {
     id: num_(s['ID']), date: dstr_(s['Ngay']), slot: str_(s['KhungGio']), startMinutes: num_(s['PhutBatDau']),
@@ -183,14 +215,17 @@ function scheduleObj_(s) {
   };
 }
 function allSchedules_() {
-  const cs = courseMap_();
-  return tab_('LichHoc').objs.map(o => {
-    const s = scheduleObj_(o);
-    s.courseSize = cs[s.courseCode] ? cs[s.courseCode].size : 0;
-    return s;
+  return memo_('schedules', () => {
+    const cs = courseMap_();
+    return tab_('LichHoc').objs.map(o => {
+      const s = scheduleObj_(o);
+      s.courseSize = cs[s.courseCode] ? cs[s.courseCode].size : 0;
+      return s;
+    });
   });
 }
 function conflicts_() {
+  return memo_('conflicts', () => {
   const rows = allSchedules_().filter(s => s.studentId);
   const out = [];
   function groupBy(keyFn, kind, severity) {
@@ -204,6 +239,7 @@ function conflicts_() {
   groupBy(s => s.date + '|' + s.slot + '|hv' + s.studentId, 'Trùng học viên', 'error');
   groupBy(s => s.teacherId ? s.date + '|' + s.slot + '|gv' + s.teacherId : null, 'Trùng giáo viên', 'warning');
   return out;
+  });
 }
 function slotHours_(slot) {
   const p = String(slot).replace('h', '').split('-');
@@ -211,6 +247,7 @@ function slotHours_(slot) {
   return Math.max(1, num_(p[1]) - num_(p[0]));
 }
 function weekHoursByVehicle_() {
+  return memo_('weekHours', () => {
   const T = today_();
   const d = new Date(T + 'T00:00:00');
   const dow = (d.getDay() + 6) % 7; // Mon=0
@@ -227,6 +264,7 @@ function weekHoursByVehicle_() {
     hrs[s.plate] = (hrs[s.plate] || 0) + slotHours_(s.slot);
   }
   return hrs;
+  });
 }
 
 // ---------- API: Đọc ----------
@@ -250,7 +288,6 @@ function apiGetDashboard() {
   const passed = exams.filter(e => str_(e['KetQua']) === 'Đậu');
   const examined = exams.filter(e => str_(e['KetQua']) === 'Đậu' || str_(e['KetQua']) === 'Rớt');
   const licensed = students.filter(s => s.hasLicense);
-  const payMap = paymentsByStudent_();
   let revMonth = 0;
   for (const p of tab_('ThanhToan').objs) {
     if (str_(p['Loai']) === 'Học phí' && dstr_(p['Ngay']).slice(0, 7) === T.slice(0, 7)) revMonth += num_(p['SoTien']);
@@ -299,6 +336,15 @@ function apiGetDashboard() {
 function apiGetDatSummary() {
   const students = allStudents_();
   const T = today_();
+  // Đếm số buổi DAT đã học theo học viên trong 1 lượt quét LichHoc
+  // (trước đây: lọc lại toàn bộ 2.640 dòng cho từng học viên -> 165 x 2.640 vòng lặp).
+  const datDoneCount = {};
+  for (const x of tab_('LichHoc').objs) {
+    if (str_(x['LoaiBuoi']) !== 'DAT' || str_(x['DiemDanh']) !== 'Đã học') continue;
+    if (dstr_(x['Ngay']) > T) continue;
+    const sid = num_(x['IDHocVien']);
+    datDoneCount[sid] = (datDoneCount[sid] || 0) + 1;
+  }
   const rows = students.map(s => {
     const course = courseMap_()[s.courseCode] || {};
     const phaseEnd = new Date(course.closeDate); phaseEnd.setDate(phaseEnd.getDate() - 30);
@@ -311,8 +357,7 @@ function apiGetDatSummary() {
     else if (s.datKmDone <= 0) status = 'Chưa chạy';
     else if (pct + 10 >= g2Pct) status = 'Đúng tiến độ';
     else status = 'Chậm tiến độ';
-    const doneSessions = tab_('LichHoc').objs.filter(x => num_(x['IDHocVien']) === s.id && str_(x['LoaiBuoi']) === 'DAT' && str_(x['DiemDanh']) === 'Đã học' && dstr_(x['Ngay']) <= T);
-    const hoursDone = doneSessions.length * 2;
+    const hoursDone = (datDoneCount[s.id] || 0) * 2;
     const avg = hoursDone ? Math.round(s.datKmDone / hoursDone * 10) / 10 : 40;
     const rem = Math.max(0, s.datKmTotal - s.datKmDone);
     return {
@@ -404,10 +449,17 @@ function apiListPayments(p) {
     totalDebtAll: students.reduce((a, s) => a + s.tuitionPayable, 0) - students.reduce((a, s) => a + s.tuitionPaid, 0)
   };
 }
-const _stuCache = {};
+function studentsById_() {
+  // Map ID -> học viên, dựng 1 lần / request. Giữ bản ghi ĐẦU tiên khi trùng ID,
+  // khớp đúng ngữ nghĩa Array.find() của bystId_() trước đây.
+  return memo_('stuById', () => {
+    const m = {};
+    for (const s of allStudents_()) if (!(s.id in m)) m[s.id] = s;
+    return m;
+  });
+}
 function bystId_(id) {
-  if (!_stuCache.list) _stuCache.list = allStudents_();
-  return _stuCache.list.find(s => s.id === id);
+  return studentsById_()[id];
 }
 function apiListCenters() {
   const centers = tab_('TrungTamLienKet').objs.map(o => ({
@@ -500,7 +552,7 @@ function apiListExamRounds() {
     id: num_(o['ID']), name: str_(o['TenDot']), examDate: dstr_(o['NgayThi']),
     location: str_(o['NoiThi']), dossierStatus: str_(o['TrangThaiHoSo']),
     registrations: regs.filter(r => num_(r['IDDot']) === num_(o['ID'])).map(r => {
-      const st = students.find(s => s.id === num_(r['IDHocVien'])) || {};
+      const st = studentsById_()[num_(r['IDHocVien'])] || {};
       return { id: num_(r['ID']), studentId: num_(r['IDHocVien']), sbd: str_(r['SBD']),
         code: st.code || str_(r['MaHV']), name: st.name || str_(r['HoTen']), courseCode: st.courseCode || '',
         licenseClass: st.licenseClass || '', dob: st.dob || '', cccd: st.cccd || '' };
@@ -514,7 +566,7 @@ function apiListExamRounds() {
 function apiListExams() {
   const students = allStudents_();
   const rows = tab_('KetQuaThi').objs.map(o => {
-    const st = students.find(s => s.id === num_(o['IDHocVien'])) || {};
+    const st = studentsById_()[num_(o['IDHocVien'])] || {};
     return { id: num_(o['ID']), studentId: num_(o['IDHocVien']), code: st.code || str_(o['MaHV']),
       name: st.name || str_(o['HoTen']), courseCode: st.courseCode || str_(o['MaKhoa']), licenseClass: st.licenseClass || '',
       examDate: dstr_(o['NgayThi']), sbd: str_(o['SBD']), theory: str_(o['LyThuyet']),
@@ -597,8 +649,8 @@ function apiGetGovReports() {
   const byCourse = courses_().map(c => {
     const sts = students.filter(s => s.courseCode === c.code);
     const ex = exams.filter(e => {
-      const st = sts.find(s => s.id === num_(e['IDHocVien']));
-      return st && str_(e['KetQua']) !== 'Chưa thi';
+      const st = studentsById_()[num_(e['IDHocVien'])];
+      return st && st.courseCode === c.code && str_(e['KetQua']) !== 'Chưa thi';
     });
     return { courseCode: c.code, licenseClass: c.licenseClass, openDate: c.openDate, closeDate: c.closeDate,
       total: sts.length, graduated: sts.filter(s => s.gradResult === 'Đậu').length,
@@ -610,7 +662,7 @@ function apiGetGovReports() {
   exams.forEach(e => {
     const d = dstr_(e['NgayThi']);
     if (!byDate[d]) byDate[d] = { examDate: d, total: 0, passed: 0, students: [] };
-    const st = students.find(s => s.id === num_(e['IDHocVien'])) || {};
+    const st = studentsById_()[num_(e['IDHocVien'])] || {};
     byDate[d].total++;
     if (str_(e['KetQua']) === 'Đậu') byDate[d].passed++;
     byDate[d].students.push({ code: st.code || str_(e['MaHV']), name: st.name || str_(e['HoTen']),
@@ -1020,11 +1072,11 @@ function apiUpdateGraduation(p) {
   if (o) {
     const row = t.headers.map(h => vals[h] !== undefined ? vals[h] : o[h]);
     t.sheet.getRange(o._row, 1, 1, t.headers.length).setValues([row]);
-    delete _cache['TotNghiep'];
+    dropTab_('TotNghiep');
   } else {
     t.sheet.appendRow([num_(p.studentId), st ? st.code : '', st ? st.name : '', st ? st.courseCode : '',
       vals.NgayThiTN, vals.KetQua, vals.SoChungChi, vals.NgayCap]);
-    delete _cache['TotNghiep'];
+    dropTab_('TotNghiep');
   }
   writeRow_('HocVien', num_(p.studentId), { NgayThiTotNghiep: vals.NgayThiTN, KetQuaTotNghiep: vals.KetQua,
     SoChungChi: vals.SoChungChi, NgayCapChungChi: vals.NgayCap });
@@ -1050,7 +1102,7 @@ function apiSendNotification(p) {
   if (o) {
     const row = t.headers.map(h => h === 'GiaTri' ? JSON.stringify(list) : o[h]);
     t.sheet.getRange(o._row, 1, 1, t.headers.length).setValues([row]);
-    delete _cache['CauHinh'];
+    dropTab_('CauHinh');
   }
   logHistory_('sendNotification', '', 'Gửi thông báo: ' + (p.title || ''));
   return { ok: true };
@@ -1113,10 +1165,44 @@ const WRITE_ACTIONS = {
   sendnotification: apiSendNotification, enrolladmission: apiEnrollAdmission,
   checkcccd: apiCheckCccd
 };
+// ---------- CacheService cho action đọc không tham số ----------
+// Chỉ cache các action KHÔNG nhận tham số (kết quả không phụ thuộc đầu vào).
+// Mọi action ghi trả về ok === true đều xóa toàn bộ khóa cache đọc ngay trong
+// route_() -> dữ liệu sau khi ghi không bao giờ bị cũ. Lỗi cache (quá 100KB,
+// CacheService tạm lỗi...) đều được nuốt để không chặn luồng chính; TTL 180s
+// là lớp bảo hiểm cuối cho trường hợp Sheet bị sửa tay ngoài API.
+const READ_CACHE_TTL = 180; // giây
+const READ_CACHE_ACTIONS = {
+  getdashboard: 1, getreports: 1, getgovreports: 1, listnotifications: 1,
+  getlookups: 1, listcenters: 1, getfleet: 1, listexamrounds: 1
+};
+function readCacheKey_(a) { return 'hp1:' + a; }
+function bustReadCache_() {
+  try {
+    const c = CacheService.getScriptCache();
+    Object.keys(READ_CACHE_ACTIONS).forEach(a => c.remove(readCacheKey_(a)));
+  } catch (e) { /* cache lỗi không được chặn luồng chính */ }
+}
 function route_(action, params) {
   const a = String(action || '').toLowerCase();
-  if (READ_ACTIONS[a]) return READ_ACTIONS[a](params || {});
-  if (WRITE_ACTIONS[a]) return WRITE_ACTIONS[a](params || {});
+  if (READ_ACTIONS[a]) {
+    if (READ_CACHE_ACTIONS[a]) {
+      const key = readCacheKey_(a);
+      try {
+        const hit = CacheService.getScriptCache().get(key);
+        if (hit) return JSON.parse(hit);
+      } catch (e) { /* bỏ qua, tính mới */ }
+      const res = READ_ACTIONS[a](params || {});
+      try { CacheService.getScriptCache().put(key, JSON.stringify(res), READ_CACHE_TTL); } catch (e) { /* quá giới hạn thì thôi */ }
+      return res;
+    }
+    return READ_ACTIONS[a](params || {});
+  }
+  if (WRITE_ACTIONS[a]) {
+    const res = WRITE_ACTIONS[a](params || {});
+    if (res && res.ok === true) bustReadCache_();
+    return res;
+  }
   return { ok: false, error: 'Action không hợp lệ: ' + action };
 }
 function doGet(e) {
