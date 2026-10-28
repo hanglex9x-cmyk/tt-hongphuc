@@ -3131,6 +3131,28 @@ const LEVEL_STYLE = {
   info: { bg: '#E3F2FD', color: '#1E3A8A', label: 'Thông tin' },
 };
 function healthState(daysLeft) { return daysLeft < 0 ? 'Đã hết hạn' : 'Sắp hết hạn'; }
+function alertGroupRows_(d, kind) {
+  if (!d) return null;
+  if (kind === 'DAT quá hạn') return ((d.datOverdue || {}).rows) || null;
+  if (kind === 'DAT sắp hết hạn') return ((d.datDueSoon || {}).rows) || null;
+  if (kind === 'Sắp bế giảng') return ((d.reminders || {}).closingSoon || {}).rows || null;
+  if (kind === 'Sắp xuống DAT') return ((d.reminders || {}).datStartSoon || {}).rows || null;
+  return null;
+}
+function showAlertStudents(kind) {
+  const rows = alertGroupRows_(window._NOTI, kind) || [];
+  const isDat = kind === 'DAT quá hạn' || kind === 'DAT sắp hết hạn';
+  const body = rows.length ? `<div class="stack-sm">${rows.map(x => `<div class="alert-row" style="background:var(--surface-alt)">
+      <span style="flex:1;min-width:0"><b>${esc(x.name)}</b> · ${esc(x.code || '')} · ${esc(x.courseCode || '')}<br>
+      <span style="font-size:13px;color:var(--dim)">${isDat
+        ? `DAT ${fmtKm(x.datKmDone)}/${fmtKm(x.datKmTotal)} km · Hạn khóa ${fmtDate(x.closeDate)} (${x.daysLeft < 0 ? 'đã quá hạn ' + (-x.daysLeft) + ' ngày' : (x.daysLeft === 0 ? 'hết hạn hôm nay' : 'còn ' + x.daysLeft + ' ngày')})`
+        : `${kind === 'Sắp xuống DAT' ? 'Xuống DAT' : 'Bế giảng'} ${fmtDate(x.closeDate || x.datStartDate)} (${x.daysLeft === 0 ? 'hôm nay' : 'còn ' + x.daysLeft + ' ngày'})${x.datOk === false ? ' · <b style="color:#C62828">Chưa đủ DAT</b>' : ''}`}
+      ${x.cabinOk === false ? ' · <b style="color:#C62828">Thiếu cabin</b>' : ''}${x.homeTeacherName ? ` · GV: ${esc(x.homeTeacherName)}` : ''}</span></span>
+      <button type="button" class="btn btn-sm" style="flex-shrink:0" onclick="closeModal();openStudentDetail(${x.id})">Hồ sơ</button>
+    </div>`).join('')}</div>`
+    : '<p style="font-size:14px;color:var(--dim);margin:0">Danh sách trống.</p>';
+  openModal(`${kind} — ${rows.length} học viên`, body);
+}
 RENDERERS.alerts = async (main) => {
   const d = await call('listnotifications', {});
   window._NOTI = d;
@@ -3146,7 +3168,13 @@ RENDERERS.alerts = async (main) => {
   main.innerHTML = `<div class="stack">
     ${Section('Cảnh báo tự động', 'Hệ thống tự quét mỗi lần mở app: lịch trùng, DAT chưa đủ / sắp hết hạn, mốc km, xe quá giờ, bằng đã có mà chưa báo', `
       <div class="stack-sm">
-        ${(d.alerts || []).map(a => { const ls = LEVEL_STYLE[a.level] || LEVEL_STYLE.info; return `<div class="alert-row" style="background:${ls.bg};color:${ls.color}">
+        ${(d.alerts || []).map(a => { const ls = LEVEL_STYLE[a.level] || LEVEL_STYLE.info; const grows = alertGroupRows_(d, a.kind);
+          if (grows) return `<button type="button" class="alert-row" style="background:${ls.bg};color:${ls.color};width:100%;text-align:left;cursor:pointer;font:inherit" onclick="showAlertStudents('${esc(a.kind)}')" aria-label="${esc(a.kind)} — bấm để xem danh sách học viên">
+          <span class="chip" style="background:#fff;color:${ls.color};font-weight:700">${esc(a.kind)}</span>
+          <span style="flex:1">${esc(a.message)}</span>
+          <span style="font-size:12px;font-weight:800;white-space:nowrap;text-decoration:underline">Xem ${grows.length} HV ›</span>
+        </button>`;
+          return `<div class="alert-row" style="background:${ls.bg};color:${ls.color}">
           <span class="chip" style="background:#fff;color:${ls.color};font-weight:700">${esc(a.kind)}</span>
           <span style="flex:1">${esc(a.message)}</span>
           <span style="font-size:12px;font-weight:700;white-space:nowrap">${ls.label}</span>
