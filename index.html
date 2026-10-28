@@ -190,6 +190,27 @@ table.tbl-plain td{border-bottom:1px solid rgba(220,232,223,.6);padding:10px 8px
 .sess-card .meta{font-size:11px;font-weight:600;color:var(--dim)}
 .sess-card .sc-meta{margin:0;font-size:13.5px;color:#1F2937}
 .sess-card .warnline{margin-top:4px;border-radius:6px;padding:2px 6px;font-weight:700;font-size:11px}
+.swipe-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;scroll-snap-type:x proximity;max-width:100%;padding-bottom:6px}
+.swipe-cols{display:flex;gap:8px;align-items:flex-start}
+.swipe-cols .day-col{flex:0 0 104px;min-width:0;scroll-snap-align:start;margin-bottom:6px}
+@media(min-width:768px){.swipe-cols .day-col{flex-basis:126px}}
+.day-head{display:flex;flex-direction:column;align-items:center;border-radius:14px;background:#fff;box-shadow:0 2px 10px rgba(12,36,23,.08);padding:10px 4px 8px;margin-bottom:10px;border-bottom:4px solid var(--acc,#00B050)}
+.day-head .dh-dow{font-size:30px;font-weight:800;line-height:1.05;color:#0C2417}
+.day-head .dh-date{font-size:17px;font-weight:800;color:#0C2417}
+.day-head .dh-today{margin-top:3px;font-size:10px;font-weight:800;color:#007A38;background:#D9F2E4;border-radius:99px;padding:1px 8px}
+.day-col.today .day-head{background:#EAF7EE}
+.sess-card2{position:relative;border-radius:14px;background:#fff;padding:10px 6px 10px 19px;font-size:13px;box-shadow:0 2px 10px rgba(12,36,23,.08);margin-bottom:10px;overflow:hidden}
+.sess-card2::before{content:'';position:absolute;left:0;top:0;bottom:0;width:12px;background:var(--bar,#00B050)}
+.sess-card2.clickable{cursor:pointer}
+.sess-card2.clickable:hover{box-shadow:0 0 0 2px #00B050}
+.sc2-top{display:flex;align-items:center;gap:7px;margin:0}
+.sc2-badge{border-radius:999px;padding:3px 7px;font-size:10px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;white-space:nowrap}
+.sc2-time{font-size:12px;font-weight:800;white-space:nowrap}
+.sess-card2 .nm{margin:5px 0 2px;font-size:15.5px;letter-spacing:0;line-height:1.25;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sess-card2 .sc2-gv{margin:5px 0 0;text-align:right}
+.sess-card2 .sc2-gv span{display:inline-block;color:#fff;font-size:12px;font-weight:800;padding:3px 9px;border-radius:999px;line-height:1.2}
+.sc2-sub{margin:0;font-size:11.5px;font-weight:600;color:#37474F;line-height:1.45}
+.sess-card2 .warnline{margin-top:5px;border-radius:6px;padding:2px 6px;font-weight:700;font-size:11px}
 .sess-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px;border-radius:12px;padding:8px 12px;font-size:14px;background:var(--surface-alt);margin-bottom:6px}
 .sess-row.clickable{cursor:pointer}
 .sess-row.clickable:hover{box-shadow:0 0 0 2px #00B050}
@@ -322,6 +343,7 @@ function clearReadCache() {
   RANGE_CACHE.clear();
   LK = null;   // cache getlookups riêng (khai báo ở khối dưới, gán lúc chạy)
   CONF = null; // cache listconflicts riêng
+  lsClearSWR(); // cả bản lưu localStorage (khai báo ở khối SWR phía dưới)
 }
 async function call(action, params, opts) {
   const cacheable = CACHEABLE_ACTIONS.has(action) && !(opts && opts.force);
@@ -337,6 +359,48 @@ async function write(action, params) {
   if (!r || r.ok === false) throw new Error((r && r.error) || 'Không lưu được');
   clearReadCache(); // ghi thành công → bỏ toàn bộ cache đọc, tránh dữ liệu cũ
   return r;
+}
+// ---------- SWR (stale-while-revalidate) qua localStorage ----------
+// Payload các action đọc hay mở được lưu trên máy người dùng; lần mở app sau
+// hiện bản đã lưu NGAY (không chờ API 1–2s), đồng thời gọi API ở nền — nếu dữ
+// liệu mới khác bản đã lưu thì onFresh được gọi để vẽ lại. Bản lưu quá 7 ngày
+// bị bỏ. Ghi dữ liệu (write) hoặc refresh(true) xóa hết qua clearReadCache().
+function lsGetSWR(key) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const o = JSON.parse(raw);
+    if (!o || typeof o.t !== 'number' || Date.now() - o.t > 7 * 86400000) return null;
+    return o.v;
+  } catch (e) { return null; }
+}
+function lsSetSWR(key, v) { try { localStorage.setItem(key, JSON.stringify({ t: Date.now(), v })); } catch (e) {} }
+function lsClearSWR() {
+  try {
+    const ks = [];
+    for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith('hp_swr_')) ks.push(k); }
+    ks.forEach(k => localStorage.removeItem(k));
+  } catch (e) {}
+}
+function swrKey(action, params) {
+  const dep = String(API_URL).split('/').slice(-2)[0].replace(/[^a-zA-Z0-9]/g, '').slice(-8);
+  return 'hp_swr_' + dep + '_' + readCacheKey(action, params);
+}
+function modalOpen_() { const m = document.getElementById('modal-root'); return !!(m && m.innerHTML.trim()); }
+async function callSWR(action, params, onFresh) {
+  const key = swrKey(action, params);
+  const cached = lsGetSWR(key);
+  const net = (async () => {
+    const r = await apiGet(action, params);
+    if (r && r.ok === false) throw new Error(r.error || 'Lỗi không xác định');
+    lsSetSWR(key, r);
+    return r;
+  })();
+  if (cached !== null && cached !== undefined) {
+    net.then(fresh => { try { if (onFresh && JSON.stringify(fresh) !== JSON.stringify(cached)) onFresh(fresh); } catch (e) {} }).catch(() => {});
+    return cached;
+  }
+  return net;
 }
 // ---------- Prefetch nền (v3) ----------
 // Sau khi dashboard render xong lần đầu (và chỉ 1 lần/phiên), nạp sẵn vào
@@ -562,7 +626,17 @@ window._importers = {};
 const state = { view: 'dashboard', focusStudentId: null, focusStudentLabel: '' };
 let LK = null; // lookups cache
 async function getLookups(force) {
-  if (!LK || force) LK = await call('getlookups', {});
+  if (LK && !force) return LK;
+  if (!force) {
+    const cached = lsGetSWR(swrKey('getlookups', {}));
+    if (cached) {
+      LK = cached;
+      call('getlookups', {}).then(r => { LK = r; lsSetSWR(swrKey('getlookups', {}), r); }).catch(() => {});
+      return LK;
+    }
+  }
+  LK = await call('getlookups', {});
+  lsSetSWR(swrKey('getlookups', {}), LK);
   return LK;
 }
 let CONF = null; // {count, conflicts:[...]} + map sessionId -> {level, parts:[kind]}
@@ -717,24 +791,28 @@ function timeTint(t) {
 }
 function TimeChip(s) { const [bg, c] = timeTint(s.type); return `<span class="chip" style="background:${bg};color:${c};font-size:13px;padding:4px 10px">🕐 ${esc(String(s.slot || '').replace(/-/g, '–'))}</span>`; }
 
-function SessionCard(s) {
+function SessionCard(s, acc) {
+  /* Thẻ buổi theo mẫu user gửi 28/10 + chốt 22:12: thanh màu trái theo loại, badge loại + giờ bắt đầu,
+     tên HV 2 từ cỡ nhỏ 1 hàng, dòng Khóa - Số Km, dòng Biển số xe, tên Gv. ở góc dưới phải màu theo thứ. */
   const cf = sessionConflict(s);
   const isGroup = !!s.groupLabel;
+  const m = typeMeta(s.type);
   const bc = cf ? (cf.level === 'error' ? '#E53935' : '#FFC107') : '';
-  const style = bc ? `border:2px solid ${bc};` : '';
-  const kmTxt = s.type === 'DAT' && s.km > 0 ? (s.actualKm != null ? `Thực tế ${s.actualKm} km (KH ${s.km})` : `${s.km} km`) : '';
-  const meta = isGroup
-    ? (s.plate ? `${s.plate}` : '')
-    : [courseSlotLabel(s) + (s.plate ? ` - ${s.plate}` : ''), kmTxt, s.centerName ? shortCenterName(s.centerName) : ''].filter(Boolean).join(' · ');
-  return `<div class="sess-card ${s.editable ? 'clickable' : ''}" style="${style}" ${s.editable ? `role="button" tabindex="0" title="Bấm để sửa buổi học" onclick="openSessionEdit(${s.id})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSessionEdit(${s.id})}"` : (isGroup ? `title="${esc(s.groupLabel)}"` : '')}>
-    <p style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:0">${TimeChip(s)}${TypeChip(s.type)}${s.teacherShort ? `<span style="margin-left:auto">${TeacherPill(s.teacherShort, s.teacherColor)}</span>` : ''}</p>
+  const style = `--bar:${m.color};` + (bc ? `border:2px solid ${bc};` : '');
+  const kmTxt = s.type === 'DAT' && (s.km > 0 || s.actualKm != null) ? `${s.actualKm != null ? s.actualKm : s.km} km` : '';
+  const line3 = [courseSlotLabel(s), kmTxt].filter(Boolean).join(' - ');
+  const line4 = s.plate || '';
+  return `<div class="sess-card2 ${s.editable ? 'clickable' : ''}" style="${style}" ${s.editable ? `role="button" tabindex="0" title="Bấm để sửa buổi học (${esc(s.slot || '')})" onclick="openSessionEdit(${s.id})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSessionEdit(${s.id})}"` : (isGroup ? `title="${esc(s.groupLabel)}"` : '')}>
+    <p class="sc2-top"><span class="sc2-badge" style="background:${m.color};color:#fff">${esc(m.s || m.label)}</span><span class="sc2-time" style="color:${m.color}">${esc(parseSlot(s.slot).start)}</span></p>
     ${isGroup
       ? `<p class="nm">${esc(s.groupLabel)}</p>`
       : `<p class="nm" title="${esc(s.studentName || '')}">${esc(shortStudentName(s.studentName) || '—')}</p>`}
-    ${meta ? `<p class="sc-meta">🚗 ${esc(meta)}</p>` : ''}
+    ${line3 ? `<p class="sc2-sub">${esc(line3)}</p>` : ''}
+    ${line4 ? `<p class="sc2-sub">${esc(line4)}</p>` : ''}
     ${s.attendance && s.attendance !== 'Đã học' ? `<p class="warnline" style="background:${s.attendance === 'HV vắng' ? '#FFF8E1' : '#FDECEA'};color:${s.attendance === 'HV vắng' ? '#B45309' : '#C62828'}">${esc(s.attendance)}</p>` : ''}
     ${s.note ? `<p style="margin:4px 0 0;color:var(--dim);font-style:italic">${esc(s.note)}</p>` : ''}
     ${cf ? `<p class="warnline" style="background:${cf.level === 'error' ? '#FDECEA' : '#FFF8E1'};color:${cf.level === 'error' ? '#E53935' : '#B45309'}">${esc(cf.text)}</p>` : ''}
+    ${s.teacherShort ? `<p class="sc2-gv"><span style="background:${acc || '#065F46'}">Gv. ${esc(s.teacherShort)}</span></p>` : ''}
   </div>`;
 }
 function SessionRow(s) {
@@ -896,7 +974,7 @@ async function editDelete() {
 /* ----- ScheduleViews: xem Tuần / Tháng (dùng ở Lịch hôm nay + DAT) ----- */
 const SVI = {};
 function svRegister(id, defaultMode) {
-  if (!SVI[id]) SVI[id] = { mode: defaultMode || 'week', half: 1, weekStart: mondayOf(TODAY), monthCursor: monthStartOf(TODAY), selectedDate: TODAY, fTeacher: '', fPlate: '', fCenter: '', fType: '', fStudentId: '', studentSearch: '', data: null, centers: [] };
+  if (!SVI[id]) SVI[id] = { mode: defaultMode || 'week', half: 1, _scrollDay: true, weekStart: mondayOf(TODAY), monthCursor: monthStartOf(TODAY), selectedDate: TODAY, fTeacher: '', fPlate: '', fCenter: '', fType: '', fStudentId: '', studentSearch: '', data: null, centers: [] };
   return SVI[id];
 }
 async function svLoad(id) {
@@ -953,11 +1031,11 @@ function svRenderNav(id) {
     ? `<button type="button" class="btn btn-sm" onclick="svNavM('${id}',-1)">‹ Tháng trước</button><button type="button" class="btn btn-sm ${st.half === 1 ? 'btn-green-grad' : ''}" onclick="svHalf('${id}',1)">1–15</button><button type="button" class="btn btn-sm ${st.half === 2 ? 'btn-green-grad' : ''}" onclick="svHalf('${id}',2)">15–${lastDayOf(st.monthCursor)}</button><button type="button" class="btn btn-sm" onclick="svNavM('${id}',1)">Tháng sau ›</button>`
     : `<button type="button" class="btn btn-sm" onclick="svNavM('${id}',-1)">‹ Tháng trước</button><button type="button" class="btn btn-sm" onclick="svNavM('${id}',0)">Tháng này</button><button type="button" class="btn btn-sm" onclick="svNavM('${id}',1)">Tháng sau ›</button>`;
 }
-async function svMode(id, mode) { const st = SVI[id]; st.mode = mode; const root = document.getElementById(id); root.querySelectorAll('[role="tab"]').forEach(b => { b.className = b.dataset.mode === mode ? 'on btn-green-grad' : ''; }); document.getElementById(id + '-main').innerHTML = Loading(); try { await svLoad(id); svRenderMain(id); svRenderNav(id); } catch (e) { document.getElementById(id + '-main').innerHTML = LoadError(e.message); } }
+async function svMode(id, mode) { const st = SVI[id]; st.mode = mode; st._scrollDay = true; const root = document.getElementById(id); root.querySelectorAll('[role="tab"]').forEach(b => { b.className = b.dataset.mode === mode ? 'on btn-green-grad' : ''; }); document.getElementById(id + '-main').innerHTML = Loading(); try { await svLoad(id); svRenderMain(id); svRenderNav(id); } catch (e) { document.getElementById(id + '-main').innerHTML = LoadError(e.message); } }
 function lastDayOf(mc) { return Number(addDays(addMonths(mc, 1), -1).slice(8, 10)); }
-function svHalf(id, h) { const st = SVI[id]; st.half = h; st.selectedDate = h === 1 ? st.monthCursor : addDays(st.monthCursor, 14); svRenderNav(id); svRenderMain(id); }
-async function svNav(id, d) { const st = SVI[id]; st.weekStart = d === 0 ? mondayOf(TODAY) : addDays(st.weekStart, d); document.getElementById(id + '-main').innerHTML = Loading(); try { await svLoad(id); svRenderMain(id); } catch (e) { document.getElementById(id + '-main').innerHTML = LoadError(e.message); } }
-async function svNavM(id, d) { const st = SVI[id]; st.monthCursor = d === 0 ? monthStartOf(TODAY) : addMonths(st.monthCursor, d); document.getElementById(id + '-main').innerHTML = Loading(); try { await svLoad(id); svRenderMain(id); svRenderNav(id); } catch (e) { document.getElementById(id + '-main').innerHTML = LoadError(e.message); } }
+function svHalf(id, h) { const st = SVI[id]; st.half = h; st._scrollDay = true; st.selectedDate = h === 1 ? st.monthCursor : addDays(st.monthCursor, 14); svRenderNav(id); svRenderMain(id); }
+async function svNav(id, d) { const st = SVI[id]; st._scrollDay = true; st.weekStart = d === 0 ? mondayOf(TODAY) : addDays(st.weekStart, d); document.getElementById(id + '-main').innerHTML = Loading(); try { await svLoad(id); svRenderMain(id); } catch (e) { document.getElementById(id + '-main').innerHTML = LoadError(e.message); } }
+async function svNavM(id, d) { const st = SVI[id]; st._scrollDay = true; st.monthCursor = d === 0 ? monthStartOf(TODAY) : addMonths(st.monthCursor, d); document.getElementById(id + '-main').innerHTML = Loading(); try { await svLoad(id); svRenderMain(id); svRenderNav(id); } catch (e) { document.getElementById(id + '-main').innerHTML = LoadError(e.message); } }
 function svSelectDay(id, date) { SVI[id].selectedDate = date; svRenderMain(id); }
 function svFilter(id) {
   const st = SVI[id];
@@ -999,6 +1077,35 @@ function svRenderFilters(id) {
     ${(st.fTeacher || st.fPlate || st.fCenter || st.fType || st.fStudentId) ? `<button type="button" class="btn" onclick="svClear('${id}')">Xóa lọc</button>` : ''}
     <span class="note-dim d-only" style="margin-left:auto">${SLOTS.map(s => `${s}: ${slotHint(s)}`).join(' · ')}</span>`;
 }
+const DOW_SHORT = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
+const DOW_ACCENT = ['#1E88E5', '#F57C00', '#0097A7', '#00B050', '#E53935', '#FB8C00', '#C2185B'];
+function dowIndexOf(d) { return (new Date(Date.UTC(Number(d.slice(0, 4)), Number(d.slice(5, 7)) - 1, Number(d.slice(8, 10)))).getUTCDay() + 6) % 7; }
+/* Cột ngày theo mẫu user gửi: thẻ đầu cột (T4 + 04/10 + gạch màu) + các thẻ buổi xếp dọc */
+function DayColumn(d, list, mks) {
+  const i = dowIndexOf(d);
+  return `<div class="day-col ${d === TODAY ? 'today' : ''}" data-date="${d}">
+    <div class="day-head" style="--acc:${DOW_ACCENT[i]}"><span class="dh-dow">${DOW_SHORT[i]}</span><span class="dh-date">${fmtDate(d).slice(0, 5)}</span>${d === TODAY ? '<span class="dh-today">Hôm nay</span>' : ''}</div>
+    ${(mks || []).map(mk => `<span class="marker-pill" style="background:${mk.kind === 'exam' ? '#1E3A8A' : '#B45309'}">${mk.kind === 'exam' ? 'Thi sát hạch' : 'Bế giảng'}: ${esc(mk.label)}</span>`).join('')}
+    ${(list || []).map(s => SessionCard(s, DOW_ACCENT[i])).join('') || '<p style="padding:8px 0;text-align:center;font-size:12px;color:var(--dim);margin:0">— Không có buổi —</p>'}
+  </div>`;
+}
+/* Dải cột ngày vuốt/kéo ngang: điện thoại hiện 3 cột, kéo sang trái/phải xem ngày kế tiếp — dùng cho Tuần / 2 tuần / Tháng */
+function SwipeStrip(days, byDate, markersByDate) {
+  return `<div class="swipe-wrap"><div class="swipe-cols">${days.map(d => DayColumn(d, byDate[d] || [], markersByDate[d] || [])).join('')}</div></div>`;
+}
+/* Tự thu cỡ chữ tên HV trong thẻ buổi cho VỪA KHUNG đúng 1 hàng (user chốt 28/10: tuyệt đối không xuống hàng, không tràn) — đo bề rộng thật trên máy người dùng rồi giảm size tới khi vừa. */
+function fitCardNames_(root) {
+  if (!root) return;
+  root.querySelectorAll('.sess-card2 .nm').forEach(el => {
+    el.style.fontSize = '';
+    /* Chừa 2px đệm: scrollWidth làm tròn số nguyên nên vừa khít vẫn có thể bị cắt thành "…" khi vẽ phân số px */
+    if (el.clientWidth === 0 || el.scrollWidth <= el.clientWidth - 2) return;
+    let size = 15.5 * (el.clientWidth - 2) / el.scrollWidth;
+    el.style.fontSize = size.toFixed(1) + 'px';
+    let guard = 0;
+    while (el.scrollWidth > el.clientWidth - 2 && size > 8.5 && guard++ < 8) { size -= 0.5; el.style.fontSize = size.toFixed(1) + 'px'; }
+  });
+}
 function svRenderMain(id) {
   const st = SVI[id];
   const host = document.getElementById(id + '-main');
@@ -1013,7 +1120,7 @@ function svRenderMain(id) {
   if (st.mode === 'week') head = `<b style="font-size:16px">Tuần ${fmtDate(st.weekStart)} – ${fmtDate(addDays(st.weekStart, 6))}</b>`;
   else if (st.mode === 'half') { const [y, m] = st.monthCursor.split('-'); head = `<b style="font-size:16px">Tháng ${Number(m)}/${y} · ${st.half === 1 ? 'Ngày 1–15' : `Ngày 15–${lastDayOf(st.monthCursor)}`}</b>`; }
   else { const [y, m] = st.monthCursor.split('-'); head = `<b style="font-size:16px">Tháng ${Number(m)}/${y}</b>`; }
-  head += `<span style="margin-left:8px;font-size:14px;color:var(--dim)">${filtered.length} thẻ buổi hiển thị${hasFilter ? ' (đang lọc)' : ''}${fStudent ? ` · Chỉ HV: ${esc(fStudent.name)} (${esc(fStudent.courseCode)})` : ''} · Tên HV rút gọn 2 từ cuối · ${st.mode === 'week' ? 'Bấm vào thẻ buổi để sửa trực tiếp' : st.mode === 'month' ? 'Khung lịch kéo ngang trên điện thoại (hiện 3 ô ngày) · Bấm vào ô ngày để xem chi tiết bên dưới' : 'Bấm vào ô ngày để xem chi tiết bên dưới'}</span>`;
+  head += `<span style="margin-left:8px;font-size:14px;color:var(--dim)">${filtered.length} thẻ buổi hiển thị${hasFilter ? ' (đang lọc)' : ''}${fStudent ? ` · Chỉ HV: ${esc(fStudent.name)} (${esc(fStudent.courseCode)})` : ''} · Tên HV rút gọn 2 từ cuối · Vuốt/kéo ngang để xem ngày kế tiếp · Bấm vào thẻ buổi để sửa trực tiếp</span>`;
   let spHtml = '';
   if (window._DASH_SP && window._DASH_SP.total > 0) {
     const sp = window._DASH_SP;
@@ -1041,48 +1148,29 @@ function svRenderMain(id) {
   let body = '';
   if (st.mode === 'week') {
     const days = Array.from({ length: 7 }, (_, i) => addDays(st.weekStart, i));
-    const col = (d, i) => {
-      const list = byDate[d] || [];
-      const mks = markersByDate[d] || [];
-      return `<div class="day-col ${d === TODAY ? 'today' : ''}"><p class="dhead-pill"><span>📅 ${DOW_LABELS[i]} · ${fmtDate(d)}${d === TODAY ? ' · Hôm nay' : ''}</span></p>${mks.map(mk => `<span class="marker-pill" style="background:${mk.kind === 'exam' ? '#1E3A8A' : '#B45309'}">${mk.kind === 'exam' ? 'Thi sát hạch' : 'Bế giảng'}: ${esc(mk.label)}</span>`).join('')}${list.map(SessionCard).join('') || '<p style="padding:8px 0;text-align:center;font-size:12px;color:var(--dim);margin:0">— Không có buổi —</p>'}</div>`;
-    };
-    body = `<div class="week-wrap"><div class="week-grid">${days.map(col).join('')}</div></div>`;
+    body = SwipeStrip(days, byDate, markersByDate);
   } else if (st.mode === 'half') {
-    /* Lưới 2 tuần kiểu lịch tháng nhưng gom cụm cột: T2–T4 / T5–T7 / CN cho ô rộng, hiện dòng buổi siêu gọn trong ô; bấm ô xem chi tiết ngày bên dưới */
     const first = st.monthCursor; const last = lastDayOf(first);
-    const d1 = st.half === 1 ? first : addDays(first, 14);
-    const d2 = st.half === 1 ? addDays(first, 14) : addDays(first, last - 1);
-    const selDate = (st.selectedDate >= d1 && st.selectedDate <= d2) ? st.selectedDate : d1;
-    const weeks = []; for (let w = mondayOf(d1); w <= d2; w = addDays(w, 7)) weeks.push(w);
-    const hcell = (d) => {
-      if (d < d1 || d > d2) return `<div class="month-cell out half-cell" aria-hidden="true"><span class="dnum">&nbsp;</span></div>`;
-      return DayMiniCell(id, d, byDate[d] || [], markersByDate[d] || [], selDate, false);
-    };
-    const cluster = (dows) => `<div class="half-cluster"><div class="half-grid" style="grid-template-columns:repeat(${dows.length},minmax(0,1fr))">${dows.map(di => `<p class="half-dow">${DOW_LABELS[di]}</p>`).join('')}${weeks.map(w => dows.map(di => hcell(addDays(w, di))).join('')).join('')}</div></div>`;
-    const selList = byDate[selDate] || [];
-    const selMks = markersByDate[selDate] || [];
-    body = `${cluster([0, 1, 2])}${cluster([3, 4, 5])}${cluster([6])}
-    <div style="margin-top:12px">
-      <p style="margin:0 0 8px;font-size:14px"><b>Chi tiết ngày ${fmtDate(selDate)}${selDate === TODAY ? ' (hôm nay)' : ''} — ${selList.length} buổi chi tiết${hasFilter ? ' sau lọc' : ''}</b></p>
-      ${selMks.map(mk => `<p style="margin:0 0 8px;border-radius:12px;padding:8px 12px;font-size:14px;font-weight:600;color:#fff;background:${mk.kind === 'exam' ? '#1E3A8A' : '#B45309'}">${mk.kind === 'exam' ? 'Kỳ thi sát hạch' : 'Bế giảng'}: ${esc(mk.label)}</p>`).join('')}
-      ${selList.length === 0 ? `<p style="font-size:14px;color:var(--dim);margin:0">Không có buổi chi tiết nào trong ngày này${hasFilter ? ' theo bộ lọc hiện tại' : ''}.</p>` : `<ul style="list-style:none;margin:0;padding:0">${selList.map(SessionRow).join('')}</ul>`}
-    </div>`;
+    const a = st.half === 1 ? 0 : 14; const b = st.half === 1 ? 14 : last - 1;
+    const days = Array.from({ length: b - a + 1 }, (_, k) => addDays(first, a + k));
+    body = SwipeStrip(days, byDate, markersByDate);
   } else {
-    /* Lưới tháng full: 7 cột trong khung kéo ngang — điện thoại hiện 3 ô ngày, vuốt/kéo trái-phải xem các thứ còn lại; ô hiện dòng buổi rút gọn như lưới 2 tuần */
-    const gridStart = mondayOf(st.monthCursor);
-    const days = Array.from({ length: 42 }, (_, i) => addDays(gridStart, i));
-    const cells = days.map(d => DayMiniCell(id, d, byDate[d] || [], markersByDate[d] || [], st.selectedDate, d.slice(0, 7) !== st.monthCursor.slice(0, 7))).join('');
-    const selList = byDate[st.selectedDate] || [];
-    const selMks = markersByDate[st.selectedDate] || [];
-    body = `<div class="mscroll"><div class="mgrid">${DOW_LABELS.map(l => `<p class="half-dow">${l}</p>`).join('')}${cells}</div></div>
-    <div style="margin-top:12px">
-      <p style="margin:0 0 8px;font-size:14px"><b>Chi tiết ngày ${fmtDate(st.selectedDate)}${st.selectedDate === TODAY ? ' (hôm nay)' : ''} — ${selList.length} buổi chi tiết${hasFilter ? ' sau lọc' : ''}</b></p>
-      ${selMks.map(mk => `<p style="margin:0 0 8px;border-radius:12px;padding:8px 12px;font-size:14px;font-weight:600;color:#fff;background:${mk.kind === 'exam' ? '#1E3A8A' : '#B45309'}">${mk.kind === 'exam' ? 'Kỳ thi sát hạch' : 'Bế giảng'}: ${esc(mk.label)}</p>`).join('')}
-      ${selList.length === 0 ? `<p style="font-size:14px;color:var(--dim);margin:0">Không có buổi chi tiết nào trong ngày này${hasFilter ? ' theo bộ lọc hiện tại' : ''}.</p>` : `<ul style="list-style:none;margin:0;padding:0">${selList.map(SessionRow).join('')}</ul>`}
-    </div>`;
+    const first = st.monthCursor; const last = lastDayOf(first);
+    const days = Array.from({ length: last }, (_, k) => addDays(first, k));
+    body = SwipeStrip(days, byDate, markersByDate);
   }
   host.innerHTML = `<p style="margin:0 0 4px">${head}</p>${spHtml}${cabinHtml}<div id="${id}-filters" class="row-wrap" style="margin:12px 0"></div>${TypeLegend()}<div style="margin-top:12px">${body}</div><div style="display:flex;justify-content:flex-end;margin-top:12px">${importExportHtml('schedules', 'lich.csv', 'impmsg-schedules')}</div>`;
   svRenderFilters(id);
+  fitCardNames_(host);
+  requestAnimationFrame(() => fitCardNames_(host));
+  if (st._scrollDay) {
+    st._scrollDay = false;
+    requestAnimationFrame(() => {
+      const strip = host.querySelector('.swipe-wrap');
+      const t = strip && strip.querySelector(`[data-date="${TODAY}"]`);
+      if (strip && t) strip.scrollLeft = Math.max(0, t.getBoundingClientRect().left - strip.getBoundingClientRect().left + strip.scrollLeft - 2);
+    });
+  }
   regExport('schedules', st.mode === 'week' ? 'lich-tuan.csv' : 'lich-thang.csv', ['Ngày', 'Khung giờ', 'Loại', 'Học viên', 'Trung tâm', 'Giáo viên', 'Biển số xe', 'KM', 'Trùng lịch'], () => svFiltered(SVI[id]).map(s => { const cf = sessionConflict(s); return { 'Ngày': s.date, 'Khung giờ': s.slot, 'Loại': typeMeta(s.type).label, 'Học viên': s.studentName || s.groupLabel, 'Trung tâm': s.centerName ? shortCenterName(s.centerName) : '', 'Giáo viên': s.teacherName, 'Biển số xe': s.plate, KM: s.km, 'Trùng lịch': cf ? cf.text : '' }; }));
 }
 window._importers.schedules = async (row) => {
@@ -1128,8 +1216,19 @@ function barChartSvg(data, series, height) {
   return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Biểu đồ cột" style="display:block">${g}</svg><div class="chart-legend">${series.map(s => `<span><span class="sw" style="background:${s.color}"></span>${esc(s.name)}</span>`).join('')}</div>`;
 }
 RENDERERS.dashboard = async (main) => {
-  const [d, conf] = await Promise.all([call('getdashboard', {}), getConflicts()]);
+  // SWR: có bản lưu trên máy thì vẽ ngay bằng bản lưu, dữ liệu mới về sẽ vẽ lại;
+  // danh sách trùng lịch nạp nền riêng, không chặn lần vẽ đầu tiên.
+  const d = await callSWR('getdashboard', {}, fresh => {
+    if (state.view === 'dashboard' && !modalOpen_()) paintDashboard_(main, fresh);
+  });
+  paintDashboard_(main, d);
+};
+function paintDashboard_(main, d) {
   window._DASH = d; window._DASH_SP = d.sessionsProgress;
+  getConflicts().then(() => {
+    const el = document.getElementById('dash-conf');
+    if (el && state.view === 'dashboard') el.innerHTML = ConflictBannerHtml(`go('today')`);
+  }).catch(() => {});
   const k = d.kpis;
   const cards = [
     { label: 'Tổng học viên', value: String(k.totalStudents), sub: (k.byClass || []).map(c => `Hạng ${c.licenseClass}: ${c.count}`).join(' · '), color: BRAND.green },
@@ -1171,7 +1270,7 @@ RENDERERS.dashboard = async (main) => {
     return `<div><div style="display:flex;align-items:baseline;justify-content:space-between;font-size:14px;margin-bottom:4px;gap:8px;flex-wrap:wrap"><b>${esc(g.code)} — Hạng ${esc(g.licenseClass)}</b><span style="color:var(--dim)">${g.studentCount} HV · KG ${g.openDate ? fmtDate(g.openDate) : '—'} · Hạn ${g.closeDate ? fmtDate(g.closeDate) : '—'}</span></div>${segs}</div>`;
   }).join('');
   main.innerHTML = `<div class="stack">
-    ${ConflictBannerHtml(`go('today')`)}
+    <span id="dash-conf">${ConflictBannerHtml(`go('today')`)}</span>
     <div class="kpi-grid">${cards.map(c => `<div class="glass-panel kpi-card"><p class="lb">${esc(c.label)}</p><p class="vl" style="color:${c.color}">${esc(c.value)}</p><p class="sb">${esc(c.sub)}</p></div>`).join('')}</div>
     ${sp && sp.total > 0 ? Section('Tiến độ xếp lịch cả khóa', `Theo lịch đã xếp trong app: ${fmtDate(sp.from)} – ${fmtDate(sp.to)} · ${sp.days} ngày có lịch`, `
       <p style="margin:0;font-size:14px"><b>${sp.scheduled} buổi đã xếp</b> / ${sp.total} buổi tổng khóa · Chưa xếp <b>${sp.remaining}</b> · Trung bình <b>${String(sp.avgPerDay).replace('.', ',')} buổi/ngày</b> · Tiến độ ${sp.scheduled}/${sp.total} (${String(spPct).replace('.', ',')}%)</p>
@@ -1235,7 +1334,7 @@ RENDERERS.dashboard = async (main) => {
   _dashJobs.push(dashLoadDay());
   Promise.all(_dashJobs).catch(() => {});
   prefetchWarm_(); // v3: nạp nền dữ liệu DAT/Kỳ thi/lịch tuần vào cache client
-};
+}
 async function dashMarkerGo(mhv) {
   const lk = await getLookups();
   const s = (lk.students || []).find(x => String(x.maHv) === String(mhv));
@@ -1253,7 +1352,7 @@ async function dashLoadDay() {
   const host = document.getElementById('dash-day');
   if (!host) return;
   try {
-    const r = await call('listschedules', { date: DASH.heatDate });
+    const r = await callSWR('listschedules', { date: DASH.heatDate }, () => { if (state.view === 'dashboard' && !modalOpen_()) dashLoadDay(); });
     regSessions(r.schedules);
     const total = (r.schedules || []).length;
     const rows = (r.schedules || []).slice(0, 8).map(s => `
@@ -1286,7 +1385,7 @@ RENDERERS.today = async (main) => {
     await svInit('svToday');
     return;
   }
-  const [r, lk] = await Promise.all([call('listschedules', { date: TD.date }), getLookups()]);
+  const [r, lk] = await Promise.all([callSWR('listschedules', { date: TD.date }, () => { if (state.view === 'today' && !modalOpen_()) go('today'); }), getLookups()]);
   regSessions(r.schedules);
   const all = r.schedules || [];
   const kw = normText(TD.studentSearch.trim());
