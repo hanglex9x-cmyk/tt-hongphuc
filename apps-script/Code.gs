@@ -7,8 +7,10 @@
 //  1) ss_() chỉ openById 1 lần / lần chạy (trước đây: 1 lần / tab).
 //  2) Các tập dữ liệu dẫn xuất (allStudents_, allSchedules_, conflicts_...)
 //     được memoize theo request: dựng 1 lần, dùng chung; ghi xong tự xóa đệm.
-//  3) CacheService 180s cho các action đọc không tham số; mọi action ghi
-//     thành công đều xóa toàn bộ khóa cache đọc (bustReadCache_ ở route_).
+//  3) [v3] CacheService cho MỌI action đọc (kể cả có tham số): khóa
+//     hp2:<gen>:<action>:<tham số đã sắp xếp>, TTL 1800s. Mọi action ghi
+//     thành công tăng <gen> lên 1 ở route_() -> khóa thế hệ cũ không còn ai
+//     đọc (tự hết hạn). Trigger warmCacheHp mỗi 10 phút giữ cache luôn nóng.
 // ============================================================
 const SHEET_ID = '1_YsxPojVSBm9rJ2u4x-maKBddtozyfflO2ff-wRpD9A';
 
@@ -1165,42 +1167,70 @@ const WRITE_ACTIONS = {
   sendnotification: apiSendNotification, enrolladmission: apiEnrollAdmission,
   checkcccd: apiCheckCccd
 };
-// ---------- CacheService cho action đọc không tham số ----------
-// Chỉ cache các action KHÔNG nhận tham số (kết quả không phụ thuộc đầu vào).
-// Mọi action ghi trả về ok === true đều xóa toàn bộ khóa cache đọc ngay trong
-// route_() -> dữ liệu sau khi ghi không bao giờ bị cũ. Lỗi cache (quá 100KB,
-// CacheService tạm lỗi...) đều được nuốt để không chặn luồng chính; TTL 180s
-// là lớp bảo hiểm cuối cho trường hợp Sheet bị sửa tay ngoài API.
-const READ_CACHE_TTL = 180; // giây
-const READ_CACHE_ACTIONS = {
-  getdashboard: 1, getreports: 1, getgovreports: 1, listnotifications: 1,
-  getlookups: 1, listcenters: 1, getfleet: 1, listexamrounds: 1
-};
-function readCacheKey_(a) { return 'hp1:' + a; }
-function bustReadCache_() {
+// ---------- CacheService cho MỌI action đọc (v3: khóa theo thế hệ) ----------
+// Khóa cache: hp2:<gen>:<action>:<tham số đã sắp xếp theo tên khóa>, trong đó
+// <gen> là "thế hệ" dữ liệu lưu ngay trong CacheService (khóa hp2:gen, mặc
+// định '1'). Mọi action ghi trả về ok === true đều TĂNG gen lên 1 ngay trong
+// route_() -> toàn bộ khóa của thế hệ cũ không còn ai đọc nữa (chúng tự hết
+// hạn theo TTL), nên dữ liệu sau khi ghi không bao giờ bị cũ. Điều kiện kích
+// hoạt giữ nguyên như v2: chỉ khi ghi thành công (checkcccd không trả
+// ok:true nên không tăng gen thừa). Đây là ĐIỂM TĂNG GEN DUY NHẤT: mọi
+// action ghi đều đi qua route_() (doGet/doPost đều gọi route_).
+// TTL 1800s; trigger hâm nóng mỗi 10 phút (warmCacheHp) nạp lại cache trước
+// khi hết hạn nên người dùng thật gần như không bao giờ gặp cache nguội.
+// Chỉ cache khi JSON < 95.000 ký tự (giới hạn CacheService 100KB/khóa):
+// payload lớn (vd listschedulesrange theo tháng ~174KB) tự bỏ qua, không
+// lỗi. Không cache kết quả lỗi (res.ok === false, vd apiGetStudent không
+// tìm thấy HV). Mọi thao tác CacheService đều bọc try/catch: lỗi cache
+// không bao giờ làm hỏng response.
+const READ_CACHE_TTL = 1800; // giây
+const READ_CACHE_MAXLEN = 95000; // ký tự JSON tối đa được phép cache
+const GEN_KEY = 'hp2:gen';
+const GEN_TTL = 21600; // 6 giờ = tối đa CacheService, luôn >> TTL dữ liệu
+// (1800s): nếu gen tự hết hạn và quay về '1' thì mọi khóa dữ liệu của thế hệ
+// '1' cũ cũng đã hết hạn từ lâu -> không có chuyện dữ liệu cũ "sống lại".
+function cacheGen_() {
   try {
-    const c = CacheService.getScriptCache();
-    Object.keys(READ_CACHE_ACTIONS).forEach(a => c.remove(readCacheKey_(a)));
+    const n = parseInt(CacheService.getScriptCache().get(GEN_KEY), 10);
+    return isNaN(n) || n < 1 ? '1' : String(n);
+  } catch (e) { return '1'; }
+}
+function bumpCacheGen_() {
+  try {
+    CacheService.getScriptCache().put(GEN_KEY, String(parseInt(cacheGen_(), 10) + 1), GEN_TTL);
   } catch (e) { /* cache lỗi không được chặn luồng chính */ }
+}
+function readCacheKey_(a, params) {
+  const parts = Object.keys(params || {}).sort().map(k => {
+    const v = params[k];
+    return k + '=' + (v !== null && typeof v === 'object' ? JSON.stringify(v) : String(v));
+  });
+  return 'hp2:' + cacheGen_() + ':' + a + ':' + parts.join('&');
 }
 function route_(action, params) {
   const a = String(action || '').toLowerCase();
   if (READ_ACTIONS[a]) {
-    if (READ_CACHE_ACTIONS[a]) {
-      const key = readCacheKey_(a);
+    const p = params || {};
+    const key = readCacheKey_(a, p);
+    const keyOk = key.length <= 240; // giới hạn khóa CacheService: 250 ký tự
+    if (keyOk) {
       try {
         const hit = CacheService.getScriptCache().get(key);
         if (hit) return JSON.parse(hit);
       } catch (e) { /* bỏ qua, tính mới */ }
-      const res = READ_ACTIONS[a](params || {});
-      try { CacheService.getScriptCache().put(key, JSON.stringify(res), READ_CACHE_TTL); } catch (e) { /* quá giới hạn thì thôi */ }
-      return res;
     }
-    return READ_ACTIONS[a](params || {});
+    const res = READ_ACTIONS[a](p);
+    if (keyOk && !(res && res.ok === false)) {
+      try {
+        const str = JSON.stringify(res);
+        if (str && str.length < READ_CACHE_MAXLEN) CacheService.getScriptCache().put(key, str, READ_CACHE_TTL);
+      } catch (e) { /* quá giới hạn thì thôi */ }
+    }
+    return res;
   }
   if (WRITE_ACTIONS[a]) {
     const res = WRITE_ACTIONS[a](params || {});
-    if (res && res.ok === true) bustReadCache_();
+    if (res && res.ok === true) bumpCacheGen_();
     return res;
   }
   return { ok: false, error: 'Action không hợp lệ: ' + action };
@@ -1229,6 +1259,54 @@ function doPost(e) {
   } catch (err) {
     return json_({ ok: false, error: String(err && err.message || err) });
   }
+}
+// ---------- Hâm nóng cache (warmCacheHp) ----------
+// Nạp sẵn cache cho các action đọc hay dùng bằng cách đi qua chính route_()
+// -> khóa cache sinh ra khớp 100% với request thật của người dùng. Mỗi
+// action bọc try/catch riêng: 1 action lỗi không chặn các action sau.
+// listschedules chỉ hâm ngày hôm nay theo today_() (ngày hệ thống backend),
+// listschedulesrange chỉ hâm TUẦN hiện tại (T2-CN) vì payload tháng ~174KB
+// vượt giới hạn cache, listpayments hâm tháng hiện tại.
+function isoUtc_(ms) {
+  const d = new Date(ms);
+  const p2 = n => String(n).padStart(2, '0');
+  return d.getUTCFullYear() + '-' + p2(d.getUTCMonth() + 1) + '-' + p2(d.getUTCDate());
+}
+function weekRangeOf_(iso) {
+  const p = String(iso).slice(0, 10).split('-').map(Number);
+  const ms = Date.UTC(p[0], (p[1] || 1) - 1, p[2] || 1);
+  const dow = (new Date(ms).getUTCDay() + 6) % 7; // 0 = Thứ 2
+  const mon = ms - dow * 86400000;
+  return { from: isoUtc_(mon), to: isoUtc_(mon + 6 * 86400000) };
+}
+function warmOne_(action, params) {
+  try { route_(action, params || {}); } catch (e) { /* bỏ qua, hâm tiếp action sau */ }
+}
+function warmCacheHp() {
+  const T = today_();
+  const wk = weekRangeOf_(T);
+  warmOne_('getdashboard');
+  warmOne_('getreports');
+  warmOne_('getgovreports');
+  warmOne_('getlookups');
+  warmOne_('listcenters');
+  warmOne_('listexamrounds');
+  warmOne_('getfleet');
+  warmOne_('listnotifications');
+  warmOne_('getdatsummary');
+  warmOne_('liststudents');
+  warmOne_('listexams');
+  warmOne_('listadmissions');
+  warmOne_('listconflicts');
+  warmOne_('listfuellogs');
+  warmOne_('listschedules', { date: T });
+  warmOne_('listschedulesrange', { from: wk.from, to: wk.to });
+  warmOne_('listpayments', { month: T.slice(0, 7) });
+}
+function caiTriggerWarm() {
+  ScriptApp.getProjectTriggers().filter(t => t.getHandlerFunction() === 'warmCacheHp')
+    .forEach(t => ScriptApp.deleteTrigger(t));
+  ScriptApp.newTrigger('warmCacheHp').timeBased().everyMinutes(10).create();
 }
 // ---------- Backup tự động 2h sáng ----------
 function autoBackup() {
