@@ -712,11 +712,22 @@ function apiNotifications() {
   }).map(s => ({ code: s.code, name: s.name, healthExpiry: s.healthExpiry }));
   const cabinNS = students.filter(s => s.cabinHours === 0 && s.openDate && s.openDate <= T)
     .map(s => ({ code: s.code, name: s.name, courseCode: s.courseCode, homeTeacherName: s.homeTeacherName }));
+  /* Nhắc việc theo yêu cầu chị Hồng (28/10): khóa sắp bế giảng ≤3 ngày + HV sắp xuống DAT ≤2 ngày,
+     kèm cờ thiếu DAT/cabin cho từng HV — ngày lấy theo khóa (NgayBeGiang / NgayBatDauDAT), HV thuộc khóa nào tính theo khóa đó. */
+  const daysTo_ = (ds) => Math.round((new Date(ds) - new Date(T)) / 86400000);
+  const closingSoon = students.filter(s => s.closeDate && daysTo_(s.closeDate) >= 0 && daysTo_(s.closeDate) <= 3)
+    .map(s => ({ id: s.id, code: s.code, name: s.name, courseCode: s.courseCode, closeDate: s.closeDate, daysLeft: daysTo_(s.closeDate), datOk: s.datKmDone >= s.datKmTotal, cabinOk: s.cabinHours >= 3, done: s.gradResult === 'Đậu' || s.hasLicense }));
+  const datStartSoon = students.filter(s => s.datStartDate && daysTo_(s.datStartDate) >= 0 && daysTo_(s.datStartDate) <= 2)
+    .map(s => ({ id: s.id, code: s.code, name: s.name, courseCode: s.courseCode, datStartDate: s.datStartDate, daysLeft: daysTo_(s.datStartDate), cabinOk: s.cabinHours >= 3, theoryOk: !!(s.criteria && s.criteria.theory) }));
+  if (closingSoon.length) alerts.push({ kind: 'Sắp bế giảng', level: 'error', message: closingSoon.length + ' HV thuộc khóa bế giảng trong 3 ngày tới — xem card nhắc đỏ ở trang Tổng quan' });
+  if (datStartSoon.length) alerts.push({ kind: 'Sắp xuống DAT', level: 'warning', message: datStartSoon.length + ' HV bắt đầu giai đoạn DAT trong 2 ngày tới — xem card nhắc đỏ ở trang Tổng quan' });
   const notifs = JSON.parse(cfg_('ThongBaoMau', '[]'));
   const wk = weekHoursByVehicle_();
   const threshold = num_(cfg_('NguongXeQuaGioTuan', 56)) || 56;
   const overuse = Object.keys(wk).filter(k => wk[k] > threshold).map(k => ({ plate: k, hoursWeek: wk[k] }));
-  return { alerts, notifications: notifs, vehicleDocAlerts: { count: docAlerts.length, rows: docAlerts },
+  return { alerts, notifications: notifs,
+    reminders: { closingSoon: { count: closingSoon.length, rows: closingSoon }, datStartSoon: { count: datStartSoon.length, rows: datStartSoon } },
+    vehicleDocAlerts: { count: docAlerts.length, rows: docAlerts },
     vehicleServiceAlerts: { count: svcAlerts.length, rows: svcAlerts },
     healthAlerts: { count: health.length, rows: health },
     cabinNotStarted: { count: cabinNS.length, rows: cabinNS }, vehicleOveruse: overuse };
