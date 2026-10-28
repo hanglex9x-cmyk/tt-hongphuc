@@ -289,7 +289,7 @@ async function apiPost(action, params) {
 // Các action ít đổi được cache trong bộ nhớ theo khóa action + tham số đã sắp xếp.
 // Ghi thành công qua write() sẽ xóa toàn bộ cache đọc để tránh dữ liệu cũ.
 // Cần bỏ qua cache: gọi call(action, params, { force: true }) hoặc refresh(true).
-const CACHEABLE_ACTIONS = new Set(['liststudents', 'listcenters', 'listexamrounds', 'getfleet']);
+const CACHEABLE_ACTIONS = new Set(['liststudents', 'listcenters', 'listexamrounds', 'getfleet', 'getdatsummary', 'listexams']);
 const READ_CACHE = new Map();
 const RANGE_CACHE = new Map(); // cache listschedulesrange theo khóa from|to (ScheduleViews)
 function readCacheKey(action, params) {
@@ -318,6 +318,32 @@ async function write(action, params) {
   if (!r || r.ok === false) throw new Error((r && r.error) || 'Không lưu được');
   clearReadCache(); // ghi thành công → bỏ toàn bộ cache đọc, tránh dữ liệu cũ
   return r;
+}
+// ---------- Prefetch nền (v3) ----------
+// Sau khi dashboard render xong lần đầu (và chỉ 1 lần/phiên), nạp sẵn vào
+// cache client các dữ liệu nặng của 2 mục hay vào kế tiếp: DAT (getdatsummary),
+// Kỳ thi (listexams) và lịch tuần hiện tại (đúng from/to mà ScheduleViews dùng
+// ở chế độ tuần). Chạy lúc trình duyệt rảnh (requestIdleCallback, dự phòng
+// setTimeout 1500ms), gọi lần lượt, lỗi thì bỏ qua lặng lẽ — không bao giờ
+// chặn hay làm chậm thao tác của người dùng.
+let PREFETCH_DONE = false;
+function prefetchWarm_() {
+  if (PREFETCH_DONE) return;
+  PREFETCH_DONE = true;
+  const run = async () => {
+    try { await call('getdatsummary', {}); } catch (e) { /* bỏ qua */ }
+    try { await call('listexams', {}); } catch (e) { /* bỏ qua */ }
+    try {
+      const from = mondayOf(TODAY), to = addDays(from, 6);
+      const rkey = from + '|' + to;
+      if (!RANGE_CACHE.has(rkey)) {
+        const rr = await call('listschedulesrange', { from, to });
+        RANGE_CACHE.set(rkey, rr);
+      }
+    } catch (e) { /* bỏ qua */ }
+  };
+  if (typeof requestIdleCallback === 'function') requestIdleCallback(() => { run(); }, { timeout: 3000 });
+  else setTimeout(run, 1500);
 }
 
 // ---------- Định dạng & ngày (an toàn múi giờ: tính bằng Date.UTC) ----------
@@ -1130,6 +1156,7 @@ RENDERERS.dashboard = async (main) => {
   })());
   _dashJobs.push(dashLoadDay());
   Promise.all(_dashJobs).catch(() => {});
+  prefetchWarm_(); // v3: nạp nền dữ liệu DAT/Kỳ thi/lịch tuần vào cache client
 };
 async function dashMarkerGo(mhv) {
   const lk = await getLookups();
