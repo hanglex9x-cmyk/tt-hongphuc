@@ -1,0 +1,1 @@
+{"dependencies":{},"exceptionLogging":"STACKDRIVER","runtimeVersion":"V8","timeZone":"Asia/Ho_Chi_Minh","webapp":{"access":"ANYONE","executeAs":"USER_DEPLOYING"}}
