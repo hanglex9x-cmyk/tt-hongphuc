@@ -170,6 +170,12 @@ table.tbl-plain td{border-bottom:1px solid rgba(220,232,223,.6);padding:10px 8px
 
 /* ---------- Lịch ---------- */
 .conflict-banner{display:flex;min-height:48px;width:100%;align-items:center;justify-content:center;gap:8px;border-radius:12px;border:2px solid #E53935;background:#FDECEA;padding:8px 16px;font-size:16px;font-weight:800;color:#C62828;font-family:inherit}
+.remind-card{border:2px solid #E53935;background:#FFF5F5;border-radius:14px;padding:12px 14px}
+.remind-card.ok{border-color:#BFE6CC;background:#F2FBF5}
+.bell-btn{position:relative;display:flex;height:36px;width:36px;flex:none;align-items:center;justify-content:center;border:none;border-radius:10px;background:rgba(255,255,255,.16);color:#fff;cursor:pointer}
+@media(min-width:768px){.bell-btn{height:44px;width:44px}}
+.bell-badge{position:absolute;top:-5px;right:-5px;min-width:20px;height:20px;padding:0 5px;border-radius:99px;background:#E53935;color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-sizing:border-box}
+.bell-badge[hidden]{display:none}
 .conflict-panel{border:2px solid #E53935;background:#FFF5F5;border-radius:12px;padding:12px}
 .conflict-item{border-radius:12px;background:#fff;padding:10px}
 .type-legend{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:12px}
@@ -695,6 +701,7 @@ function renderShell() {
         <h1>TRUNG TÂM ĐÀO TẠO LÁI XE <span class="brand-yellow">HỒNG PHÚC</span></h1>
         <p class="sub">404 QL1A, P. Thới An, Quận 12, TP.HCM · <span style="white-space:nowrap">SĐT: 0949 155 955</span></p>
       </div>
+      <button type="button" class="bell-btn" aria-label="Mở Cảnh báo & Zalo" onclick="go('alerts')"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 8-3 8h18s-3-1-3-8M10.3 21a2 2 0 0 0 3.4 0"/></svg><span id="bell-badge" class="bell-badge" hidden>0</span></button>
       <div class="admin-box">
         <p style="font-size:14px;font-weight:700">Quản trị viên</p>
       </div>
@@ -1230,6 +1237,56 @@ function barChartSvg(data, series, height) {
   });
   return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Biểu đồ cột" style="display:block">${g}</svg><div class="chart-legend">${series.map(s => `<span><span class="sw" style="background:${s.color}"></span>${esc(s.name)}</span>`).join('')}</div>`;
 }
+/* Card nhắc đỏ ở Tổng quan (chị Hồng chốt 28/10): khóa sắp bế giảng ≤3 ngày + HV sắp xuống DAT ≤2 ngày,
+   HV chưa đủ điều kiện thì gắn cờ đỏ "Chưa đủ DAT" / "Thiếu cabin". Dữ liệu: getdashboard.alerts.reminders (backend tính). */
+function bellCount_(d) {
+  if (!d) return 0;
+  const r = d.reminders || {};
+  const n = (o) => (o && o.count) || 0;
+  return n(r.closingSoon) + n(r.datStartSoon) + n(d.cabinNotStarted) + n(d.healthAlerts) + n(d.vehicleDocAlerts) + n(d.vehicleServiceAlerts)
+    + (d.alerts || []).filter(a => a.level === 'error' && a.kind !== 'Sắp bế giảng').length;
+}
+function updateBellBadge_(d) {
+  const b = document.getElementById('bell-badge');
+  if (!b) return;
+  const n = bellCount_(d);
+  b.hidden = n === 0;
+  b.textContent = n > 99 ? '99+' : String(n);
+}
+function remindCardHtml_(noti) {
+  const r = (noti && noti.reminders) || {};
+  const cs = (r.closingSoon && r.closingSoon.rows) || [];
+  const ds = (r.datStartSoon && r.datStartSoon.rows) || [];
+  const byCourse = (rows, key) => {
+    const m = {};
+    rows.forEach(x => { (m[x.courseCode] = m[x.courseCode] || []).push(x); });
+    return Object.keys(m).sort().map(c => ({ course: c, rows: m[c], date: m[c][0][key], daysLeft: m[c][0].daysLeft }));
+  };
+  const lack = (x, withDat) => {
+    const f = [];
+    if (withDat && !x.datOk) f.push('Chưa đủ DAT');
+    if (!x.cabinOk) f.push('Thiếu cabin');
+    return f;
+  };
+  const groupHtml = (g, withDat, verb) => {
+    const bad = g.rows.filter(x => !x.done && lack(x, withDat).length);
+    const badTxt = bad.length
+      ? `<div style="margin-top:4px">${bad.slice(0, 8).map(x => `<div style="font-size:13px;padding:2px 0">• <b>${esc(shortStudentName(x.name))}</b> — <span style="color:#C62828;font-weight:700">${lack(x, withDat).join(' · ')}</span></div>`).join('')}${bad.length > 8 ? `<div style="font-size:13px;color:#C62828">… và ${bad.length - 8} HV nữa chưa đủ điều kiện</div>` : ''}</div>`
+      : '<div style="font-size:13px;color:#007A38;margin-top:2px">Tất cả HV trong khóa đã đủ DAT & cabin ✓</div>';
+    return `<div style="padding:8px 0 2px;border-top:1px dashed #F0B4B4">
+      <p style="margin:0;font-size:14px"><b>${esc(g.course)}</b> · ${verb} <b>${fmtDate(g.date)}</b> (${g.daysLeft === 0 ? 'hôm nay' : 'còn ' + g.daysLeft + ' ngày'}) · ${g.rows.length} HV</p>
+      ${badTxt}
+    </div>`;
+  };
+  if (cs.length + ds.length === 0) return `<div class="remind-card ok"><p style="margin:0;font-size:14px"><b>🔔 Nhắc việc:</b> 3 ngày tới không có khóa bế giảng · 2 ngày tới không có HV xuống DAT ✓</p></div>`;
+  return `<div class="remind-card">
+    <p style="margin:0;font-size:16px;font-weight:800;color:#C62828">🔔 VIỆC SẮP TỚI — ĐỪNG QUÊN</p>
+    <p style="margin:8px 0 0;font-size:14px;font-weight:800;color:#C62828">🎓 SẮP BẾ GIẢNG (3 ngày tới) — ${cs.length} HV</p>
+    ${cs.length ? byCourse(cs, 'closeDate').map(g => groupHtml(g, true, 'Bế giảng')).join('') : '<p style="margin:2px 0 0;font-size:13px;color:var(--dim)">Không có khóa nào bế giảng trong 3 ngày tới.</p>'}
+    <p style="margin:10px 0 0;font-size:14px;font-weight:800;color:#C62828">🚗 SẮP XUỐNG DAT (2 ngày tới) — ${ds.length} HV</p>
+    ${ds.length ? byCourse(ds, 'datStartDate').map(g => groupHtml(g, false, 'Bắt đầu DAT')).join('') : '<p style="margin:2px 0 0;font-size:13px;color:var(--dim)">Không có HV nào bắt đầu DAT trong 2 ngày tới.</p>'}
+  </div>`;
+}
 RENDERERS.dashboard = async (main) => {
   // SWR: có bản lưu trên máy thì vẽ ngay bằng bản lưu, dữ liệu mới về sẽ vẽ lại;
   // danh sách trùng lịch nạp nền riêng, không chặn lần vẽ đầu tiên.
@@ -1255,6 +1312,7 @@ function paintDashboard_(main, d) {
   const sp = d.sessionsProgress;
   const spPct = sp && sp.total > 0 ? Math.round((sp.scheduled / sp.total) * 1000) / 10 : 0;
   const al = d.alerts || {};
+  updateBellBadge_(al);
   const alertRows = (al.alerts || []).map(a => {
     const lvl = a.level || 'info';
     const color = lvl === 'error' ? BRAND.red : lvl === 'warning' ? BRAND.amber : BRAND.navy;
@@ -1285,6 +1343,7 @@ function paintDashboard_(main, d) {
     return `<div><div style="display:flex;align-items:baseline;justify-content:space-between;font-size:14px;margin-bottom:4px;gap:8px;flex-wrap:wrap"><b>${esc(g.code)} — Hạng ${esc(g.licenseClass)}</b><span style="color:var(--dim)">${g.studentCount} HV · KG ${g.openDate ? fmtDate(g.openDate) : '—'} · Hạn ${g.closeDate ? fmtDate(g.closeDate) : '—'}</span></div>${segs}</div>`;
   }).join('');
   main.innerHTML = `<div class="stack">
+    <div id="dash-remind">${remindCardHtml_(al)}</div>
     <span id="dash-conf">${ConflictBannerHtml(`go('today')`)}</span>
     <div class="kpi-grid">${cards.map(c => `<div class="glass-panel kpi-card"><p class="lb">${esc(c.label)}</p><p class="vl" style="color:${c.color}">${esc(c.value)}</p><p class="sb">${esc(c.sub)}</p></div>`).join('')}</div>
     ${sp && sp.total > 0 ? Section('Tiến độ xếp lịch cả khóa', `Theo lịch đã xếp trong app: ${fmtDate(sp.from)} – ${fmtDate(sp.to)} · ${sp.days} ngày có lịch`, `
@@ -3075,6 +3134,7 @@ function healthState(daysLeft) { return daysLeft < 0 ? 'Đã hết hạn' : 'S�
 RENDERERS.alerts = async (main) => {
   const d = await call('listnotifications', {});
   window._NOTI = d;
+  updateBellBadge_(d);
   const cabinRows = (d.cabinNotStarted && d.cabinNotStarted.rows) || [];
   const cabinCount = d.cabinNotStarted ? d.cabinNotStarted.count : cabinRows.length;
   const healthRows = (d.healthAlerts && d.healthAlerts.rows) || [];
