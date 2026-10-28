@@ -667,8 +667,8 @@ function refresh(force) { if (force) clearReadCache(); return go(state.view); }
 <script>
 /* ================= LỊCH: loại buổi, thẻ buổi, sửa trực tiếp ================= */
 const TYPE_META = {
-  'Lý thuyết': { label: 'Lý thuyết', color: '#00B050', bg: '#DCFCE7' },
-  'DAT': { label: 'DAT 🚗', color: '#0097A7', bg: '#B2EBF2' },
+  'Lý thuyết': { label: 'Lý thuyết', s: 'LT', color: '#00B050', bg: '#DCFCE7' },
+  'DAT': { label: 'DAT 🚗', s: 'DAT', color: '#0097A7', bg: '#B2EBF2' },
   'Sa hình': { label: 'Sa hình', color: '#F57C00', bg: '#FFE0B2' },
   'Cabin': { label: 'Cabin', color: '#455A64', bg: '#ECEFF1' },
   'Bổ túc': { label: 'Bổ túc', color: '#00B050', bg: '#DCFCE7' },
@@ -680,6 +680,7 @@ const TYPE_META = {
 };
 function typeMeta(t) { return TYPE_META[t] || { label: t || '', color: '#334155', bg: '#E2E8F0' }; }
 function TypeChip(t) { const m = typeMeta(t); return `<span class="chip" style="background:${m.bg};color:${m.color}">${esc(m.label)}</span>`; }
+function TypeChipShort(t) { const m = typeMeta(t); return `<span class="chip" style="background:${m.bg};color:${m.color}">${esc(m.s || m.label)}</span>`; }
 function startHourLabel(slot) { const raw = (String(slot || '').split('-')[0] || '').trim(); return /^\d{1,2}$/.test(raw) ? `${Number(raw)}H` : `${raw}H`; }
 function courseSlotLabel(s) { return `${s.courseCode}`; }
 
@@ -717,7 +718,7 @@ function SessionRow(s) {
   const isGroup = !!s.groupLabel;
   const style = cf ? `border:2px solid ${cf.level === 'error' ? '#E53935' : '#FFC107'};background:${cf.level === 'error' ? '#FFF5F5' : '#FFFDF5'}` : '';
   return `<li class="sess-row ${s.editable ? 'clickable' : ''}" style="${style};list-style:none" ${s.editable ? `role="button" tabindex="0" title="Bấm để sửa buổi học" onclick="openSessionEdit(${s.id})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSessionEdit(${s.id})}"` : (isGroup ? `title="${esc(s.groupLabel)}"` : '')}>
-    <span style="font-weight:700;white-space:nowrap">${esc(s.slot)}</span>${TypeChip(s.type)}
+    <span style="font-weight:700;white-space:nowrap">${esc(s.slot)}</span>${TypeChipShort(s.type)}
     ${isGroup ? `<span class="nm">${esc(s.groupLabel)}</span>` : `<span class="nm" title="${esc(s.studentName || '')}">${esc(shortStudentName(s.studentName) || '—')}</span><span style="font-size:12px;font-weight:600;color:var(--dim)">${esc(courseSlotLabel(s))}</span>`}
     ${s.centerName ? `<span style="color:var(--dim)">· ${esc(shortCenterName(s.centerName))}</span>` : ''}
     ${s.plate ? PlateText(s.plate) : ''}${s.teacherShort ? TeacherPill(s.teacherShort, s.teacherColor) : ''}
@@ -852,7 +853,7 @@ async function editDelete() {
 /* ----- ScheduleViews: xem Tuần / Tháng (dùng ở Lịch hôm nay + DAT) ----- */
 const SVI = {};
 function svRegister(id, defaultMode) {
-  if (!SVI[id]) SVI[id] = { mode: defaultMode || 'week', weekStart: mondayOf(TODAY), monthCursor: monthStartOf(TODAY), selectedDate: TODAY, fTeacher: '', fPlate: '', fCenter: '', fType: '', fStudentId: '', studentSearch: '', data: null, centers: [] };
+  if (!SVI[id]) SVI[id] = { mode: defaultMode || 'week', half: 1, weekStart: mondayOf(TODAY), monthCursor: monthStartOf(TODAY), selectedDate: TODAY, fTeacher: '', fPlate: '', fCenter: '', fType: '', fStudentId: '', studentSearch: '', data: null, centers: [] };
   return SVI[id];
 }
 async function svLoad(id) {
@@ -889,8 +890,9 @@ function ScheduleViewsHtml(id) {
     <div class="stack-sm" style="margin-bottom:12px">${ConflictBannerHtml()}<div id="${id}-confpanel">${ConflictsPanelHtml()}</div></div>
     <div class="row-wrap" role="tablist" aria-label="Chế độ xem lịch" style="margin-bottom:12px">
       <span class="mode-tabs">
-        <button type="button" role="tab" class="${st.mode === 'week' ? 'on btn-green-grad' : ''}" onclick="svMode('${id}','week')">Theo tuần</button>
-        <button type="button" role="tab" class="${st.mode === 'month' ? 'on btn-green-grad' : ''}" onclick="svMode('${id}','month')">Theo tháng</button>
+        <button type="button" role="tab" data-mode="week" class="${st.mode === 'week' ? 'on btn-green-grad' : ''}" onclick="svMode('${id}','week')">Theo tuần</button>
+        <button type="button" role="tab" data-mode="half" class="${st.mode === 'half' ? 'on btn-green-grad' : ''}" onclick="svMode('${id}','half')">2 tuần</button>
+        <button type="button" role="tab" data-mode="month" class="${st.mode === 'month' ? 'on btn-green-grad' : ''}" onclick="svMode('${id}','month')">Theo tháng</button>
       </span>
       <span class="row-wrap" style="margin-left:auto" id="${id}-nav"></span>
     </div>
@@ -904,11 +906,15 @@ function svRenderNav(id) {
   if (!el) return;
   el.innerHTML = st.mode === 'week'
     ? `<button type="button" class="btn btn-sm" onclick="svNav('${id}',-7)">‹ Tuần trước</button><button type="button" class="btn btn-sm" onclick="svNav('${id}',0)">Tuần này</button><button type="button" class="btn btn-sm" onclick="svNav('${id}',7)">Tuần sau ›</button>`
+    : st.mode === 'half'
+    ? `<button type="button" class="btn btn-sm" onclick="svNavM('${id}',-1)">‹ Tháng trước</button><button type="button" class="btn btn-sm ${st.half === 1 ? 'btn-green-grad' : ''}" onclick="svHalf('${id}',1)">1–15</button><button type="button" class="btn btn-sm ${st.half === 2 ? 'btn-green-grad' : ''}" onclick="svHalf('${id}',2)">15–${lastDayOf(st.monthCursor)}</button><button type="button" class="btn btn-sm" onclick="svNavM('${id}',1)">Tháng sau ›</button>`
     : `<button type="button" class="btn btn-sm" onclick="svNavM('${id}',-1)">‹ Tháng trước</button><button type="button" class="btn btn-sm" onclick="svNavM('${id}',0)">Tháng này</button><button type="button" class="btn btn-sm" onclick="svNavM('${id}',1)">Tháng sau ›</button>`;
 }
-async function svMode(id, mode) { const st = SVI[id]; st.mode = mode; const root = document.getElementById(id); root.querySelectorAll('[role="tab"]').forEach(b => { const on = b.textContent.includes(mode === 'week' ? 'tuần' : 'tháng'); b.className = on ? 'on btn-green-grad' : ''; }); document.getElementById(id + '-main').innerHTML = Loading(); try { await svLoad(id); svRenderMain(id); svRenderNav(id); } catch (e) { document.getElementById(id + '-main').innerHTML = LoadError(e.message); } }
+async function svMode(id, mode) { const st = SVI[id]; st.mode = mode; const root = document.getElementById(id); root.querySelectorAll('[role="tab"]').forEach(b => { b.className = b.dataset.mode === mode ? 'on btn-green-grad' : ''; }); document.getElementById(id + '-main').innerHTML = Loading(); try { await svLoad(id); svRenderMain(id); svRenderNav(id); } catch (e) { document.getElementById(id + '-main').innerHTML = LoadError(e.message); } }
+function lastDayOf(mc) { return Number(addDays(addMonths(mc, 1), -1).slice(8, 10)); }
+function svHalf(id, h) { const st = SVI[id]; st.half = h; svRenderNav(id); svRenderMain(id); }
 async function svNav(id, d) { const st = SVI[id]; st.weekStart = d === 0 ? mondayOf(TODAY) : addDays(st.weekStart, d); document.getElementById(id + '-main').innerHTML = Loading(); try { await svLoad(id); svRenderMain(id); } catch (e) { document.getElementById(id + '-main').innerHTML = LoadError(e.message); } }
-async function svNavM(id, d) { const st = SVI[id]; st.monthCursor = d === 0 ? monthStartOf(TODAY) : addMonths(st.monthCursor, d); document.getElementById(id + '-main').innerHTML = Loading(); try { await svLoad(id); svRenderMain(id); } catch (e) { document.getElementById(id + '-main').innerHTML = LoadError(e.message); } }
+async function svNavM(id, d) { const st = SVI[id]; st.monthCursor = d === 0 ? monthStartOf(TODAY) : addMonths(st.monthCursor, d); document.getElementById(id + '-main').innerHTML = Loading(); try { await svLoad(id); svRenderMain(id); svRenderNav(id); } catch (e) { document.getElementById(id + '-main').innerHTML = LoadError(e.message); } }
 function svSelectDay(id, date) { SVI[id].selectedDate = date; svRenderMain(id); }
 function svFilter(id) {
   const st = SVI[id];
@@ -962,6 +968,7 @@ function svRenderMain(id) {
   const fStudent = ((st.lookups && st.lookups.students) || []).find(x => String(x.id) === st.fStudentId);
   let head = '';
   if (st.mode === 'week') head = `<b style="font-size:16px">Tuần ${fmtDate(st.weekStart)} – ${fmtDate(addDays(st.weekStart, 6))}</b>`;
+  else if (st.mode === 'half') { const [y, m] = st.monthCursor.split('-'); head = `<b style="font-size:16px">Tháng ${Number(m)}/${y} · ${st.half === 1 ? 'Ngày 1–15' : `Ngày 15–${lastDayOf(st.monthCursor)}`}</b>`; }
   else { const [y, m] = st.monthCursor.split('-'); head = `<b style="font-size:16px">Tháng ${Number(m)}/${y}</b>`; }
   head += `<span style="margin-left:8px;font-size:14px;color:var(--dim)">${filtered.length} thẻ buổi hiển thị${hasFilter ? ' (đang lọc)' : ''}${fStudent ? ` · Chỉ HV: ${esc(fStudent.name)} (${esc(fStudent.courseCode)})` : ''} · Tên HV rút gọn 2 từ cuối · Bấm vào thẻ buổi để sửa trực tiếp</span>`;
   let spHtml = '';
@@ -997,6 +1004,17 @@ function svRenderMain(id) {
       return `<div class="day-col ${d === TODAY ? 'today' : ''}"><p class="dhead-pill"><span>📅 ${DOW_LABELS[i]} · ${fmtDate(d)}${d === TODAY ? ' · Hôm nay' : ''}</span></p>${mks.map(mk => `<span class="marker-pill" style="background:${mk.kind === 'exam' ? '#1E3A8A' : '#B45309'}">${mk.kind === 'exam' ? 'Thi sát hạch' : 'Bế giảng'}: ${esc(mk.label)}</span>`).join('')}${list.map(SessionCard).join('') || '<p style="padding:8px 0;text-align:center;font-size:12px;color:var(--dim);margin:0">— Không có buổi —</p>'}</div>`;
     };
     body = `<div class="week-wrap"><div class="week-grid">${days.map(col).join('')}</div></div>`;
+  } else if (st.mode === 'half') {
+    const first = st.monthCursor; const last = lastDayOf(first);
+    const a = st.half === 1 ? 0 : 14; const b = st.half === 1 ? 14 : last - 1;
+    const days = Array.from({ length: b - a + 1 }, (_, k) => addDays(first, a + k));
+    const col = (d) => {
+      const i = (new Date(Date.UTC(Number(d.slice(0, 4)), Number(d.slice(5, 7)) - 1, Number(d.slice(8, 10)))).getUTCDay() + 6) % 7;
+      const list = byDate[d] || [];
+      const mks = markersByDate[d] || [];
+      return `<div class="day-col ${d === TODAY ? 'today' : ''}"><p class="dhead-pill"><span>📅 ${DOW_LABELS[i]} · ${fmtDate(d)}${d === TODAY ? ' · Hôm nay' : ''}</span></p>${mks.map(mk => `<span class="marker-pill" style="background:${mk.kind === 'exam' ? '#1E3A8A' : '#B45309'}">${mk.kind === 'exam' ? 'Thi sát hạch' : 'Bế giảng'}: ${esc(mk.label)}</span>`).join('')}${list.map(SessionCard).join('') || '<p style="padding:8px 0;text-align:center;font-size:12px;color:var(--dim);margin:0">— Không có buổi —</p>'}</div>`;
+    };
+    body = `<div class="week-wrap">${days.map(col).join('')}</div>`;
   } else {
     const gridStart = mondayOf(st.monthCursor);
     const days = Array.from({ length: 42 }, (_, i) => addDays(gridStart, i));
@@ -1214,14 +1232,16 @@ const TD = { mode: 'today', date: TODAY, fStudentId: '', studentSearch: '' };
 RENDERERS.today = async (main) => {
   await getConflicts();
   if (TD.mode !== 'today') {
-    main.innerHTML = Section('Lịch học', 'Cùng dữ liệu lịch thật — xem theo tuần (7 cột Thứ 2 → Chủ nhật) hoặc theo tháng (lưới 6 hàng × 7 cột), lọc theo giáo viên / xe / trung tâm / loại buổi.', `
+    main.innerHTML = Section('Lịch học', 'Cùng dữ liệu lịch thật — xem theo tuần, theo 2 tuần (ngày 1–15 / 15–cuối tháng) hoặc theo tháng, lọc theo giáo viên / xe / trung tâm / loại buổi.', `
       <div class="mode-tabs" style="margin-bottom:12px" role="tablist" aria-label="Chế độ xem lịch học">
         <button type="button" role="tab" onclick="tdMode('today')">Hôm nay</button>
         <button type="button" role="tab" class="${TD.mode === 'week' ? 'on btn-green-grad' : ''}" onclick="tdMode('week')">Theo tuần</button>
+        <button type="button" role="tab" class="${TD.mode === 'half' ? 'on btn-green-grad' : ''}" onclick="tdMode('half')">2 tuần</button>
         <button type="button" role="tab" class="${TD.mode === 'month' ? 'on btn-green-grad' : ''}" onclick="tdMode('month')">Theo tháng</button>
       </div>
       ${ScheduleViewsHtml('svToday')}`);
     svRegister('svToday', TD.mode);
+    SVI['svToday'].mode = TD.mode;
     await svInit('svToday');
     return;
   }
@@ -1655,7 +1675,7 @@ RENDERERS.dat = async (main) => {
   const [fleet] = await Promise.all([call('getfleet', {})]);
   const over = (fleet.vehicles || []).filter(v => v.overuse);
   main.innerHTML = `<div class="stack">
-    ${Section('Kế hoạch xếp xe DAT & Sa hình — xem theo tuần / tháng', 'Luật xếp lịch: 1 HV tối đa 1 buổi/ngày · 1 xe tối đa 2 ca/ngày · 1 GV tối đa 2 ca/ngày. Trùng xe / trùng học viên = viền ĐỎ (lỗi), trùng giáo viên = viền VÀNG (cảnh báo). HV chưa đủ 500km DAT gắn cờ vàng khi xếp sa hình. Mỗi HV có GV DAT chính + xe quen (GV chủ xe) — đổi cặp sẽ hiện cảnh báo.', `
+    ${Section('Kế hoạch xếp xe DAT & Sa hình — xem theo tuần / 2 tuần / tháng', 'Luật xếp lịch: 1 HV tối đa 1 buổi/ngày · 1 xe tối đa 2 ca/ngày · 1 GV tối đa 2 ca/ngày. Trùng xe / trùng học viên = viền ĐỎ (lỗi), trùng giáo viên = viền VÀNG (cảnh báo). HV chưa đủ 500km DAT gắn cờ vàng khi xếp sa hình. Mỗi HV có GV DAT chính + xe quen (GV chủ xe) — đổi cặp sẽ hiện cảnh báo.', `
       ${over.length ? `<div class="err-box" style="margin-bottom:12px;font-weight:600">Cảnh báo bảo dưỡng: ${over.map(v => `xe ${esc(v.plate)} chạy ${v.hoursWeek}h/tuần (&gt;56h)`).join(' · ')}</div>` : ''}
       <div class="row-wrap" style="margin-bottom:12px">${SLOTS.map(s => `<span class="tagchip" style="background:var(--surface-alt)"><b>${s}</b> · ${slotHint(s)}</span>`).join('')}</div>
       ${ScheduleViewsHtml('svDat')}`)}
