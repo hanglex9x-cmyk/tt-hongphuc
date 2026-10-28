@@ -498,14 +498,14 @@ function payForm(studentId, name) {
 <script>
 /* ================= LỊCH DAT & SA HÌNH ================= */
 const SC = { view: 'week', anchor: TODAY, teacherId: '', vehicleId: '', centerName: '', type: '', studentId: '' };
-function mondayOf(dstr) { const d = new Date(dstr + 'T00:00:00'); const dow = (d.getDay() + 6) % 7; d.setDate(d.getDate() - dow); return d.toISOString().slice(0, 10); }
-function addDays(dstr, n) { const d = new Date(dstr + 'T00:00:00'); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); }
+function mondayOf(dstr) { const [y, m, d] = dstr.split('-').map(Number); const dt = new Date(Date.UTC(y, m - 1, d)); const dow = (dt.getUTCDay() + 6) % 7; dt.setUTCDate(dt.getUTCDate() - dow); return dt.toISOString().slice(0, 10); }
+function addDays(dstr, n) { const [y, m, d] = dstr.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10); }
 VIEWS.schedule = async main => {
   if (!apiConfigured()) { main.innerHTML = noApiBanner(); return; }
   let from, to;
   if (SC.view === 'day') { from = to = SC.anchor; }
   else if (SC.view === 'week') { from = mondayOf(SC.anchor); to = addDays(from, 6); }
-  else { from = SC.anchor.slice(0, 7) + '-01'; const d = new Date(from + 'T00:00:00'); d.setMonth(d.getMonth() + 1); d.setDate(0); to = d.toISOString().slice(0, 10); }
+  else { from = SC.anchor.slice(0, 7) + '-01'; const [yy, mm] = from.split('-').map(Number); to = new Date(Date.UTC(yy, mm, 0)).toISOString().slice(0, 10); }
   const [r, cf] = await Promise.all([call('listschedulesrange', { from, to }), call('listconflicts', {})]);
   const confIds = new Set(); (cf.conflicts || []).forEach(c => (c.sessions || []).forEach(s => confIds.add(s.id)));
   window.__conflictIds = confIds;
@@ -523,7 +523,7 @@ VIEWS.schedule = async main => {
     const totals = {}; (r.dayTotals || []).forEach(t => totals[t.date] = t.sessions);
     const marks = {}; (r.markers || []).forEach(m => { (marks[m.date] = marks[m.date] || []).push(m); });
     let cells = '';
-    const startDow = (new Date(from + 'T00:00:00').getDay() + 6) % 7;
+    const startDow = (new Date(from + 'T00:00:00Z').getUTCDay() + 6) % 7;
     for (let i = 0; i < startDow; i++) cells += '<div class="mcell off"></div>';
     for (let d = from; d <= to; d = addDays(d, 1)) {
       const n = totals[d] || 0;
@@ -536,7 +536,7 @@ VIEWS.schedule = async main => {
     const days = SC.view === 'day' ? [SC.anchor] : Array.from({ length: 7 }, (_, i) => addDays(from, i));
     body = days.map(d => {
       const dayRows = rows.filter(s => s.date === d).sort((a, b) => (a.startMinutes || 0) - (b.startMinutes || 0));
-      return `<div class="daycol"><h4>${['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật'][(new Date(d + 'T00:00:00').getDay() + 6) % 7]} · ${dVN(d)} ${d === TODAY ? '(hôm nay)' : ''} — ${dayRows.length} buổi</h4>
+      return `<div class="daycol"><h4>${['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật'][(new Date(d + 'T00:00:00Z').getUTCDay() + 6) % 7]} · ${dVN(d)} ${d === TODAY ? '(hôm nay)' : ''} — ${dayRows.length} buổi</h4>
       ${dayRows.length ? dayRows.map(s => sessCard(s, confIds)).join('') : '<div style="color:var(--mut);font-size:13px">Không có buổi nào</div>'}</div>`;
     }).join('');
     body = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px">${body}</div>`;
@@ -561,11 +561,17 @@ VIEWS.schedule = async main => {
     SC.view = $('#scView').value; SC.anchor = $('#scAnchor').value || TODAY;
     SC.teacherId = $('#scTeacher').value; SC.vehicleId = $('#scVehicle').value; SC.type = $('#scType').value;
     const sv = $('#scStudent').value.trim();
-    const m = LOOK.students.find(s => (s.name + ' (' + s.code + ')') === sv || s.name === sv);
+    const norm = x => (x || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd');
+    const q = norm(sv.replace(/\s*\([^)]*\)\s*$/, ''));
+    const m = LOOK.students.find(s => (s.name + ' (' + s.code + ')') === sv || s.name === sv)
+      || LOOK.students.find(s => s.code.toLowerCase() === sv.toLowerCase())
+      || (q ? LOOK.students.find(s => norm(s.name).includes(q) || norm(s.code).includes(q)) : null);
     SC.studentId = m ? String(m.id) : '';
     go('schedule');
   };
   ['scView', 'scAnchor', 'scTeacher', 'scVehicle', 'scType', 'scStudent'].forEach(id => { const el = document.getElementById(id); if (el) el.onchange = apply; });
+  const stuIn = document.getElementById('scStudent');
+  if (stuIn) stuIn.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); apply(); } };
   $('#scClear').onclick = () => { Object.assign(SC, { teacherId: '', vehicleId: '', centerName: '', type: '', studentId: '' }); go('schedule'); };
   $('#scAdd').onclick = () => scheduleForm();
 };
@@ -633,7 +639,7 @@ VIEWS.payments = async main => {
     <div class="kpi"><div class="v" style="color:var(--red)">${fmtTr(r.totalDebtAll)}</div><div class="l">Còn nợ</div></div>
     <div class="kpi"><div class="v">${fmtTr(r.totalMonth)}</div><div class="l">Thu tháng ${PM.month.slice(5)}/${PM.month.slice(0, 4)}</div></div>
   </div>
-  <div class="toolbar"><div class="f sm"><label>Tháng</label><input type="month" id="pmMonth" value="${PM.month}"></div>
+  <div class="toolbar"><div class="f sm" style="flex:0 0 225px"><label>Tháng</label><input type="month" id="pmMonth" style="min-width:185px" value="${PM.month}"></div>
   <button class="btn" id="pmAdd">+ Thu tiền</button></div>
   <div class="grid2">
     <div class="card"><h3>Phiếu thu tháng ${PM.month.slice(5)}/${PM.month.slice(0, 4)} (${r.payments.length})</h3>
@@ -828,7 +834,7 @@ VIEWS.exams = async main => {
     <span style="float:right"><button class="btn sec small" onclick="printRoundList(${rd.id})">In danh sách (mẫu Sở)</button>
     <button class="btn sec small" onclick='roundForm(${JSON.stringify(rd).replace(/'/g, "&#39;")})'>Sửa</button>
     <button class="btn danger small" onclick="delRound(${rd.id})">Xóa đợt</button></span></h4>
-    ${rd.registrations.map(g => `<div style="padding:6px 0;border-bottom:1px solid var(--line);font-size:14px"><b>${esc(g.name)}</b> · ${esc(g.code)} · SBD ${esc(g.sbd)} · ${esc(g.courseCode)} · Hạng ${esc(g.licenseClass)} <button class="btn danger small" style="float:right" onclick="removeReg(${g.id})">Hủy ĐK</button></div>`).join('') || '<div style="color:var(--mut);font-size:13.5px">Chưa có HV đăng ký</div>'}
+    ${rd.registrations.map(g => `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line);font-size:14px"><span><b>${esc(g.name)}</b> · ${esc(g.code)} · SBD ${esc(g.sbd)} · ${esc(g.courseCode)} · Hạng ${esc(g.licenseClass)}</span><button class="btn danger small" style="flex:none" onclick="removeReg(${g.id})">Hủy ĐK</button></div>`).join('') || '<div style="color:var(--mut);font-size:13.5px">Chưa có HV đăng ký</div>'}
     <div style="margin-top:10px"><label>Thêm HV đủ điều kiện vào đợt</label>
     <select id="regSel${rd.id}">${rounds.registrable.map(s => `<option value="${s.id}">${esc(s.name)} (${esc(s.code)} · ${esc(s.courseCode)})</option>`).join('')}</select>
     <button class="btn small" style="margin-top:8px" onclick="addReg(${rd.id})">+ Đăng ký</button></div>
