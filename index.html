@@ -54,7 +54,6 @@ main{flex:1;min-width:0;padding:12px 12px 96px}
 .navbtn:hover{background:#F2F7F3}
 .navbtn.active{color:#fff}
 .btn-green-grad{background:linear-gradient(135deg,#00C853 0%,#00B050 45%,#007A38 100%);box-shadow:0 5px 16px rgba(0,150,70,.38),inset 0 1px 0 rgba(255,255,255,.35);color:#fff}
-.btn-amber-grad{background:linear-gradient(135deg,#FFD54F 0%,#FFC107 55%,#FFA000 100%);box-shadow:0 5px 16px rgba(255,160,0,.32),inset 0 1px 0 rgba(255,255,255,.5);color:#111827}
 .law-box{margin-top:12px;border-radius:12px;background:#E8F5E9;padding:12px;font-size:12px;line-height:1.6}
 .law-box p{margin:0}
 .drawer-wrap{position:fixed;inset:0;z-index:50}
@@ -107,9 +106,6 @@ textarea.input{min-height:80px}
 .bar{height:6px;border-radius:999px;background:var(--border);overflow:hidden;display:block}
 .bar>i{display:block;height:100%;border-radius:999px;background:var(--accent);font-style:normal}
 .bar-lg{height:12px}
-.tabs-seg{display:inline-flex;border-radius:12px;background:var(--surface-alt);padding:4px;gap:2px;max-width:100%;flex-wrap:wrap}
-.tabs-seg button{min-height:44px;border:none;border-radius:8px;padding:6px 12px;font-size:14px;font-weight:600;background:transparent;color:var(--text)}
-.tabs-seg button.on{background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.12)}
 .mode-tabs{display:flex;flex-wrap:wrap;gap:8px}
 .mode-tabs button{min-height:44px;border-radius:12px;padding:8px 16px;font-size:14px;font-weight:700;border:1px solid var(--border);background:#fff;color:var(--text)}
 .mode-tabs button.on{border:none;color:#fff}
@@ -237,31 +233,15 @@ table.tbl-plain td{border-bottom:1px solid rgba(220,232,223,.6);padding:10px 8px
 /* ---------- Kỳ thi ---------- */
 .big-stat{border:2px solid;border-radius:16px;padding:16px}
 .big-stat .vl{font-size:36px;font-weight:800;line-height:1;margin:0}
-select.partsel{min-height:44px;border-radius:8px;border:1px solid var(--border);padding:4px 8px;font-weight:600;width:100%}
-input.licdate{min-height:44px;border-radius:8px;border:1px solid var(--border);background:#fff;padding:4px 8px;max-width:100%}
 .reg-row{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px}
 
 /* ---------- Báo cáo ---------- */
 .chart-legend{display:flex;flex-wrap:wrap;gap:14px;font-size:12px;margin-top:6px}
 .chart-legend .sw{display:inline-block;height:10px;width:10px;border-radius:2px;vertical-align:-1px;margin-right:5px}
-.costlist{display:grid;grid-template-columns:1fr;gap:4px;font-size:14px;list-style:none;margin:12px 0 0;padding:0}
-@media(min-width:768px){.costlist{grid-template-columns:1fr 1fr}}
-.costlist li{display:flex;justify-content:space-between;border-radius:8px;background:var(--surface-alt);padding:4px 8px;gap:8px}
 
 /* ---------- Hướng dẫn ---------- */
-.guide-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
-.guide-chips button{min-height:44px;border-radius:999px;border:1px solid var(--border);background:#fff;padding:6px 12px;font-size:12px;font-weight:600;font-family:inherit}
-@media(min-width:768px){.guide-chips button{font-size:14px}}
-.guide-sec{scroll-margin-top:96px}
-.step-li{display:flex;gap:10px;font-size:14px;line-height:1.6}
-@media(min-width:768px){.step-li{font-size:16px}}
-.step-n{display:flex;height:24px;width:24px;flex:none;align-items:center;justify-content:center;border-radius:99px;font-size:12px;font-weight:800;color:#fff;background:#00B050}
-.qa-box{border-radius:12px;background:var(--surface-alt);padding:12px}
 ul.disc{list-style:disc;padding-left:20px;margin:0;display:flex;flex-direction:column;gap:6px;font-size:14px;line-height:1.6}
 @media(min-width:768px){ul.disc{font-size:16px}}
-ol.steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
-ol.steps2{list-style:none;margin:0;padding:0;display:grid;gap:8px}
-@media(min-width:768px){ol.steps2{grid-template-columns:1fr 1fr}}
 
 @media print{ .header-glass,aside.sidebar,.bottomnav,.drawer-wrap{display:none!important} main{padding:0} }
 </style>
@@ -305,14 +285,38 @@ async function apiPost(action, params) {
   const res = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action, params: params || {} }) });
   return res.json();
 }
-async function call(action, params) {
+// ---------- Cache đọc (tối ưu tốc độ) ----------
+// Các action ít đổi được cache trong bộ nhớ theo khóa action + tham số đã sắp xếp.
+// Ghi thành công qua write() sẽ xóa toàn bộ cache đọc để tránh dữ liệu cũ.
+// Cần bỏ qua cache: gọi call(action, params, { force: true }) hoặc refresh(true).
+const CACHEABLE_ACTIONS = new Set(['liststudents', 'listcenters', 'listexamrounds', 'getfleet']);
+const READ_CACHE = new Map();
+const RANGE_CACHE = new Map(); // cache listschedulesrange theo khóa from|to (ScheduleViews)
+function readCacheKey(action, params) {
+  const entries = Object.entries(params || {})
+    .filter(([, v]) => v !== undefined && v !== null && v !== '')
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  return action + '|' + JSON.stringify(entries);
+}
+function clearReadCache() {
+  READ_CACHE.clear();
+  RANGE_CACHE.clear();
+  LK = null;   // cache getlookups riêng (khai báo ở khối dưới, gán lúc chạy)
+  CONF = null; // cache listconflicts riêng
+}
+async function call(action, params, opts) {
+  const cacheable = CACHEABLE_ACTIONS.has(action) && !(opts && opts.force);
+  const key = cacheable ? readCacheKey(action, params) : null;
+  if (cacheable && READ_CACHE.has(key)) return READ_CACHE.get(key);
   const r = await apiGet(action, params);
   if (r && r.ok === false) throw new Error(r.error || 'Lỗi không xác định');
+  if (cacheable) READ_CACHE.set(key, r);
   return r;
 }
 async function write(action, params) {
   const r = await apiPost(action, params);
   if (!r || r.ok === false) throw new Error((r && r.error) || 'Không lưu được');
+  clearReadCache(); // ghi thành công → bỏ toàn bộ cache đọc, tránh dữ liệu cũ
   return r;
 }
 
@@ -337,9 +341,7 @@ function mondayOf(iso) { const dow = (new Date(utcMs(iso)).getUTCDay() + 6) % 7;
 function monthStartOf(iso) { return String(iso).slice(0, 7) + '-01'; }
 function addMonths(iso, n) { const [y, m] = String(iso).split('-').map(Number); return isoOf(Date.UTC(y, (m - 1) + n, 1)); }
 function daysBetween(a, b) { return Math.round((utcMs(b) - utcMs(a)) / 86400000); }
-function daysUntil(iso) { if (!iso) return 0; return Math.max(0, daysBetween(TODAY, iso)); }
 const DOW_LABELS = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật'];
-function shortNameOf(full) { const p = String(full || '').trim().split(/\s+/); return p[p.length - 1] || ''; }
 function shortStudentName(full) { const p = String(full || '').trim().split(/\s+/).filter(Boolean); return p.length <= 2 ? String(full || '').trim() : p.slice(-2).join(' '); }
 function gvName(name) { const n = String(name || '').trim(); if (!n) return n; return n.startsWith('Gv.') ? n : `Gv. ${n}`; }
 function normText(v) { return String(v || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd'); }
@@ -423,6 +425,7 @@ function TeacherPill(short, color) {
   return `<span class="teacher-pill" style="background:${esc(color || '#90A4AE')};color:${dark ? '#1a1a1a' : '#ffffff'}">Gv. ${esc(short)}</span>`;
 }
 function PlateBadge(plate) { return plate ? `<span class="plate-badge">${esc(plate)}</span>` : '<span style="color:var(--dim)">—</span>'; }
+function PlateText(plate) { return plate ? `<span style="font-weight:600;white-space:nowrap">${esc(plate)}</span>` : '<span style="color:var(--dim)">—</span>'; }
 function StatusChip(status) {
   const color = status === 'Đã có bằng' ? BRAND.green : status === 'Đã đậu sát hạch' ? '#00893D' : status === 'Đủ điều kiện thi' ? BRAND.navy : '#64748B';
   return `<span class="status-chip" style="background:${color}">${esc(status)}</span>`;
@@ -480,8 +483,6 @@ function doExport(entity) {
   const ex = window._exporters[entity]; if (!ex) return;
   downloadFile(ex.filename, toCsv(ex.rowsFn(), ex.headers), 'text/csv;charset=utf-8');
 }
-const IMPORT_MSG = {};
-function setImportMsg(entity, msg) { const el = document.querySelector(`[data-impmsg="${entity}"]`); if (el) el.textContent = msg; }
 async function doImport(entity, input) {
   const f = input.files && input.files[0];
   input.value = '';
@@ -548,6 +549,7 @@ function navBtn(v, compact) {
   const on = state.view === v.id;
   return `<button type="button" class="navbtn ${compact ? 'compact' : ''} ${on ? 'btn-green-grad active' : ''}" aria-label="${esc(v.label)}" ${on ? 'aria-current="page"' : ''} onclick="go('${v.id}')">${navIcon(v.icon)}<span>${esc(v.label)}</span></button>`;
 }
+let SHELL_BUILT = false;
 function renderShell() {
   const navAll = VIEWS.map(v => navBtn(v)).join('');
   document.getElementById('app').innerHTML = `
@@ -581,6 +583,17 @@ function renderShell() {
       <button type="button" class="navbtn compact" aria-label="Mở tất cả mục" onclick="openDrawer()"><span style="font-size:22px;line-height:1">☰</span><span>Tất cả mục</span></button>
     </div>
   </nav>`;
+  SHELL_BUILT = true;
+}
+function updateNavActive() {
+  document.querySelectorAll('.navbtn').forEach(b => {
+    const m = (b.getAttribute('onclick') || '').match(/^go\('([^']+)'\)$/);
+    if (!m) return;
+    const on = state.view === m[1];
+    b.classList.toggle('btn-green-grad', on);
+    b.classList.toggle('active', on);
+    if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+  });
 }
 function openDrawer() {
   document.getElementById('drawer-root').innerHTML = `
@@ -605,8 +618,7 @@ async function go(view, focusStudentId) {
   }
   closeDrawer();
   closeModal();
-  document.querySelectorAll('.navbtn[data-v]').forEach(() => {});
-  renderShell();
+  if (!SHELL_BUILT) renderShell(); else updateNavActive();
   const main = document.getElementById('view');
   main.innerHTML = Loading();
   window.scrollTo(0, 0);
@@ -616,7 +628,7 @@ async function go(view, focusStudentId) {
     main.innerHTML = LoadError(e.message || String(e));
   }
 }
-function refresh() { return go(state.view); }
+function refresh(force) { if (force) clearReadCache(); return go(state.view); }
 </script>
 <script>
 /* ================= LỊCH: loại buổi, thẻ buổi, sửa trực tiếp ================= */
@@ -649,7 +661,7 @@ function SessionCard(s) {
       ? `<p class="nm">${esc(s.groupLabel)}</p>${s.courseCode ? `<p class="meta">${esc(courseKgHan(s.courseCode))}</p>` : ''}`
       : `<p class="nm" title="${esc(s.studentName || '')}">${esc(shortStudentName(s.studentName) || '—')}</p><p class="meta">${esc(courseSlotLabel(s))}</p>`}
     ${s.centerName ? `<p style="margin:0;color:var(--dim)">${esc(shortCenterName(s.centerName))}</p>` : ''}
-    <p style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:4px;margin:2px 0 0">${s.plate ? PlateBadge(s.plate) : '<span></span>'}${s.teacherShort ? TeacherPill(s.teacherShort, s.teacherColor) : ''}</p>
+    <p style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:4px;margin:2px 0 0">${s.plate ? PlateText(s.plate) : '<span></span>'}${s.teacherShort ? TeacherPill(s.teacherShort, s.teacherColor) : ''}</p>
     ${s.type === 'DAT' && s.km > 0 ? `<p style="margin:0;color:var(--dim)">${s.actualKm != null ? `Thực tế ${s.actualKm} km (KH ${s.km})` : `${s.km} km`}</p>` : ''}
     ${s.attendance && s.attendance !== 'Đã học' ? `<p class="warnline" style="background:${s.attendance === 'HV vắng' ? '#FFF8E1' : '#FDECEA'};color:${s.attendance === 'HV vắng' ? '#B45309' : '#C62828'}">${esc(s.attendance)}</p>` : ''}
     ${s.note ? `<p style="margin:0;color:var(--dim);font-style:italic">${esc(s.note)}</p>` : ''}
@@ -664,7 +676,7 @@ function SessionRow(s) {
     <span style="font-weight:700;white-space:nowrap">${esc(s.slot)}</span>${TypeChip(s.type)}
     ${isGroup ? `<span class="nm">${esc(s.groupLabel)}</span>` : `<span class="nm" title="${esc(s.studentName || '')}">${esc(shortStudentName(s.studentName) || '—')}</span><span style="font-size:12px;font-weight:600;color:var(--dim)">${esc(courseSlotLabel(s))}</span>`}
     ${s.centerName ? `<span style="color:var(--dim)">· ${esc(shortCenterName(s.centerName))}</span>` : ''}
-    ${s.plate ? PlateBadge(s.plate) : ''}${s.teacherShort ? TeacherPill(s.teacherShort, s.teacherColor) : ''}
+    ${s.plate ? PlateText(s.plate) : ''}${s.teacherShort ? TeacherPill(s.teacherShort, s.teacherColor) : ''}
     ${s.type === 'DAT' && s.km > 0 ? `<span style="color:var(--dim)">${s.actualKm != null ? `Thực tế ${s.actualKm} km (KH ${s.km})` : `${s.km} km`}</span>` : ''}
     ${s.attendance && s.attendance !== 'Đã học' ? `<span style="border-radius:6px;padding:2px 6px;font-weight:700;background:${s.attendance === 'HV vắng' ? '#FFF8E1' : '#FDECEA'};color:${s.attendance === 'HV vắng' ? '#B45309' : '#C62828'}">${esc(s.attendance)}</span>` : ''}
     ${s.note ? `<span style="color:var(--dim);font-style:italic">${esc(s.note)}</span>` : ''}
@@ -804,7 +816,9 @@ async function svLoad(id) {
   if (!window._DASH_SP) { try { const dash = await call('getdashboard', {}); window._DASH_SP = dash.sessionsProgress; window._DASH = dash; } catch (e) {} }
   const from = st.mode === 'week' ? st.weekStart : mondayOf(st.monthCursor);
   const to = st.mode === 'week' ? addDays(st.weekStart, 6) : addDays(mondayOf(st.monthCursor), 41);
-  const [r, lk, ct] = await Promise.all([call('listschedulesrange', { from, to }), getLookups(), call('listcenters', {})]);
+  const rkey = from + '|' + to;
+  const rangePromise = RANGE_CACHE.has(rkey) ? Promise.resolve(RANGE_CACHE.get(rkey)) : call('listschedulesrange', { from, to }).then(rr => { RANGE_CACHE.set(rkey, rr); return rr; });
+  const [r, lk, ct] = await Promise.all([rangePromise, getLookups(), call('listcenters', {})]);
   regSessions(r.schedules);
   st.data = r; st.centers = ct.centers || [];
   st.lookups = lk;
@@ -1092,7 +1106,8 @@ RENDERERS.dashboard = async (main) => {
     </div>
   </div>`;
   // Lý thuyết tuần này: đếm từ lịch tuần hiện tại (Mon–Sun quanh TODAY)
-  (async () => {
+  const _dashJobs = [];
+  _dashJobs.push((async () => {
     const host = document.getElementById('dash-theory');
     if (!host) return;
     try {
@@ -1102,9 +1117,9 @@ RENDERERS.dashboard = async (main) => {
       const bc = Object.entries(byCourse).map(([c, n]) => `${c}: ${n} buổi`).join(' · ');
       host.innerHTML = `<p style="font-size:14px;margin:0"><b>Lý thuyết theo khóa tuần này:</b> ${th.length > 0 ? `${th.length} buổi lớp${bc ? ` (${bc})` : ''}` : '<span style="color:var(--dim)">0 buổi — các khóa hiện tại đã qua Giai đoạn 1, buổi lý thuyết của từng khóa nằm ở những tuần đầu khóa (xem ở view Tuần/Tháng)</span>'}</p>`;
     } catch (e) { host.innerHTML = `<p style="font-size:14px;margin:0"><b>Lý thuyết theo khóa tuần này:</b> <span style="color:var(--dim)">Không tải được dữ liệu lịch tuần.</span></p>`; }
-  })();
+  })());
   // Biểu đồ lời lỗ từ getreports
-  (async () => {
+  _dashJobs.push((async () => {
     const host = document.getElementById('dash-pl');
     if (!host) return;
     try {
@@ -1112,8 +1127,9 @@ RENDERERS.dashboard = async (main) => {
       if (!rep.plSeries || !rep.plSeries.length) { host.innerHTML = '<p style="padding:32px 0;text-align:center;font-size:14px;color:var(--dim);margin:0">Chưa có dữ liệu — chưa có lần thu học phí / chi phí nào được ghi nhận để vẽ biểu đồ lời lỗ.</p>'; return; }
       host.innerHTML = barChartSvg(rep.plSeries, [{ key: 'revenue', name: 'Doanh thu', color: BRAND.navy }, { key: 'cost', name: 'Chi phí', color: BRAND.amber }, { key: 'profit', name: 'Lợi nhuận', color: BRAND.green }], 250);
     } catch (e) { host.innerHTML = LoadError(e.message); }
-  })();
-  dashLoadDay();
+  })());
+  _dashJobs.push(dashLoadDay());
+  Promise.all(_dashJobs).catch(() => {});
 };
 async function dashMarkerGo(mhv) {
   const lk = await getLookups();
@@ -1123,8 +1139,10 @@ async function dashMarkerGo(mhv) {
 }
 async function dashHeat(date) {
   DASH.heatDate = date;
-  document.querySelectorAll('.heat-cell').forEach(c => c.classList.remove('sel'));
-  refresh();
+  document.querySelectorAll('.heat-cell').forEach(c => {
+    c.classList.toggle('sel', (c.getAttribute('onclick') || '').includes(`'${date}'`));
+  });
+  await dashLoadDay();
 }
 async function dashLoadDay() {
   const host = document.getElementById('dash-day');
@@ -1137,8 +1155,8 @@ async function dashLoadDay() {
       <li ${s.editable ? `onclick="openSessionEdit(${s.id})" title="Bấm để sửa buổi học" style="cursor:pointer;border-radius:8px;padding:2px 4px"` : ''} class="row-wrap">
         <span style="font-weight:600">${esc(s.slot)}</span>
         <span style="font-size:17px;font-weight:700" ${s.groupLabel ? '' : `title="${esc(s.studentName || '')}"`}>${esc(s.groupLabel || shortStudentName(s.studentName))}</span>
-        ${s.plate ? PlateBadge(s.plate) : ''}${s.teacherShort ? TeacherPill(s.teacherShort, s.teacherColor) : ''}
-        <span style="color:var(--dim)">${esc(s.type)}</span>
+        ${s.plate ? PlateText(s.plate) : ''}${s.teacherShort ? TeacherPill(s.teacherShort, s.teacherColor) : ''}
+        ${TypeChip(s.type)}
         ${s.editable ? '<span style="font-size:12px;font-weight:600;color:#007A38">✎</span>' : ''}
       </li>`).join('');
     host.innerHTML = `<p style="margin:0 0 8px;font-size:14px"><b>Chi tiết ngày ${fmtDate(DASH.heatDate)} — ${total === 0 ? (DASH.heatDate === TODAY ? 'Chưa có dữ liệu lịch hôm nay' : 'Chưa có dữ liệu') : `${total} buổi`}</b></p><ul style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px">${rows || '<li style="font-size:14px;color:var(--dim)">Chưa có buổi chi tiết cho ngày này.</li>'}</ul>`;
@@ -1194,7 +1212,7 @@ RENDERERS.today = async (main) => {
           ${displayed.map((s, i) => `<tr class="${i % 2 ? 'alt' : ''}" ${s.editable ? `onclick="openSessionEdit(${s.id})" title="Bấm để sửa buổi học" style="cursor:pointer"` : (s.groupLabel ? `title="${esc(s.groupLabel)}"` : '')}>
             <td style="font-weight:600;white-space:nowrap">${esc(s.slot)}</td>
             <td style="font-size:17px;font-weight:700" ${s.groupLabel ? '' : `title="${esc(s.studentName || '')}"`}>${esc(s.groupLabel || shortStudentName(s.studentName))}${s.editable ? ' <span style="font-size:12px;font-weight:600;color:#007A38">✎</span>' : ''}</td>
-            <td>${PlateBadge(s.plate)}</td>
+            <td>${PlateText(s.plate)}</td>
             <td>${s.teacherShort ? TeacherPill(s.teacherShort, s.teacherColor) : '<span style="color:var(--dim)">—</span>'}</td>
           </tr>`).join('')}
           ${all.length === 0 ? '<tr><td colspan="4" style="padding:24px;text-align:center;color:var(--dim)">Chưa có lịch chi tiết cho ngày này.</td></tr>' : ''}
@@ -1206,7 +1224,7 @@ RENDERERS.today = async (main) => {
         <span style="border-radius:8px;background:var(--surface-alt);padding:6px 8px;font-size:14px;font-weight:700;white-space:nowrap">${esc(s.slot)}</span>
         <span style="min-width:0;flex:1">
           <span style="display:block;font-size:17px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" ${s.groupLabel ? '' : `title="${esc(s.studentName || '')}"`}>${esc(s.groupLabel || shortStudentName(s.studentName))}</span>
-          <span class="row-wrap" style="margin-top:4px">${PlateBadge(s.plate)}${s.teacherShort ? TeacherPill(s.teacherShort, s.teacherColor) : ''}</span>
+          <span class="row-wrap" style="margin-top:4px">${PlateText(s.plate)}${s.teacherShort ? TeacherPill(s.teacherShort, s.teacherColor) : ''}</span>
         </span>
         ${s.editable ? '<span style="font-weight:600;color:#007A38">✎</span>' : ''}
       </div>`).join('')}
