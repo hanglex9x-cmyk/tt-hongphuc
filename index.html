@@ -204,6 +204,15 @@ table.tbl-plain td{border-bottom:1px solid rgba(220,232,223,.6);padding:10px 8px
 .mdots{display:flex;gap:3px;flex-wrap:wrap}
 .mdots i{display:block;width:8px;height:8px;border-radius:99px}
 .mmark{display:block;width:100%;height:5px;border-radius:99px;margin-top:auto}
+.half-cluster{margin-bottom:14px}
+.half-grid{display:grid;gap:4px}
+.half-dow{margin:0;padding:4px 0;text-align:center;font-size:12px;font-weight:700;color:var(--dim)}
+.half-cell{min-height:98px;gap:2px}
+.half-cell.out{cursor:default}
+.hline{display:block;font-size:11px;line-height:1.4;font-weight:500;overflow-wrap:break-word}
+.hline b{font-weight:800}
+.hline.more{color:var(--dim);font-weight:700}
+@media(min-width:768px){.half-cell{min-height:112px}.hline{font-size:12px}}
 @media(min-width:768px){.month-cell{min-height:78px;padding:8px}.month-cell .cnt{font-size:11px}}
 .tdot{display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:500}
 .tdot i{display:inline-block;height:8px;width:8px;border-radius:99px;font-style:normal}
@@ -395,6 +404,19 @@ function courseKgHan(code, open, close) {
 }
 function courseOptionLabel(code, open) { const o = courseOpenOf(code, open); return o ? `${code} — KG ${fmtDate(o)}` : code; }
 function shortCenterName(name) { return String(name || '').replace(/^Trung tâm liên kết\s*/i, '').trim(); }
+/* Mã viết tắt trung tâm cho lưới lịch 2 tuần — theo đúng mã lưới của trung tâm: HM / ACHAU / PHGIAO */
+function centerAbbr(name) {
+  const raw = shortCenterName(name);
+  if (!raw) return '';
+  const n = normText(raw);
+  if (n.includes('hoc mon')) return 'HM';
+  if (n.includes('thanh cong')) return 'TC';
+  if (n.includes('nam sai gon')) return 'NSG';
+  if (n.includes('a chau')) return 'ACHAU';
+  if (n.includes('phu giao')) return 'PHGIAO';
+  if (n.includes('hong phuc')) return 'HP';
+  return raw.replace(/\s*\([^)]*\)\s*/g, '').split(/\s+/).filter(Boolean).map(w => w[0]).join('').toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
 const SLOTS = ['06-08h', '08-10h', '10-12h', '13-15h', '15-17h', '17-19h'];
 function slotHint(slot) {
   if (slot === '06-08h' || slot === '08-10h' || slot === '15-17h') return 'Ưu tiên DAT đường trường';
@@ -669,14 +691,14 @@ function refresh(force) { if (force) clearReadCache(); return go(state.view); }
 const TYPE_META = {
   'Lý thuyết': { label: 'Lý thuyết', s: 'LT', color: '#00B050', bg: '#DCFCE7' },
   'DAT': { label: 'DAT 🚗', s: 'DAT', color: '#0097A7', bg: '#B2EBF2' },
-  'Sa hình': { label: 'Sa hình', color: '#F57C00', bg: '#FFE0B2' },
-  'Cabin': { label: 'Cabin', color: '#455A64', bg: '#ECEFF1' },
+  'Sa hình': { label: 'Sa hình', s: 'SH', color: '#F57C00', bg: '#FFE0B2' },
+  'Cabin': { label: 'Cabin', s: 'Cabin', color: '#455A64', bg: '#ECEFF1' },
   'Bổ túc': { label: 'Bổ túc', color: '#00B050', bg: '#DCFCE7' },
-  'Thi tốt nghiệp': { label: 'Thi tốt nghiệp', color: '#1E3A8A', bg: '#DBEAFE' },
+  'Thi tốt nghiệp': { label: 'Thi tốt nghiệp', s: 'TTN', color: '#1E3A8A', bg: '#DBEAFE' },
   'Nghỉ': { label: 'Nghỉ', color: '#E53935', bg: '#FDECEA' },
-  'Học thường': { label: 'Học thường', color: '#00B050', bg: '#DCFCE7' },
+  'Học thường': { label: 'Học thường', s: 'HT', color: '#00B050', bg: '#DCFCE7' },
   'Ôn thi': { label: 'Ôn thi', color: '#1E3A8A', bg: '#DBEAFE' },
-  'KTRA sa hình': { label: 'KTRA sa hình', color: '#F57C00', bg: '#FFE0B2' },
+  'KTRA sa hình': { label: 'KTRA sa hình', s: 'KTSH', color: '#F57C00', bg: '#FFE0B2' },
 };
 function typeMeta(t) { return TYPE_META[t] || { label: t || '', color: '#334155', bg: '#E2E8F0' }; }
 function TypeChip(t) { const m = typeMeta(t); return `<span class="chip" style="background:${m.bg};color:${m.color}">${esc(m.label)}</span>`; }
@@ -728,6 +750,14 @@ function SessionRow(s) {
     ${cf ? `<span style="font-weight:700;color:${cf.level === 'error' ? '#E53935' : '#B45309'}">${esc(cf.text)}</span>` : ''}
     ${s.editable ? '<span style="margin-left:auto;font-weight:600;color:#007A38">✎ Bấm để sửa</span>' : ''}
   </li>`;
+}
+/* Dòng buổi siêu gọn trong ô ngày của lưới 2 tuần: Giờ - Tên HV rút gọn - Loại rút gọn - TT viết tắt */
+function HalfLine(s) {
+  const m = typeMeta(s.type);
+  const nm = s.groupLabel ? (s.courseCode || 'Nhóm') : (shortStudentName(s.studentName) || '—');
+  const ab = centerAbbr(s.centerName);
+  const full = `${s.slot || ''} · ${s.groupLabel || s.studentName || ''} · ${m.label}${s.centerName ? ' · ' + shortCenterName(s.centerName) : ''}`;
+  return `<span class="hline" title="${esc(full)}"><b>${esc(startHourLabel(s.slot))}</b> ${esc(nm)} <span style="color:${m.color};font-weight:700">${esc(m.s || m.label)}</span>${ab ? ` ${esc(ab)}` : ''}</span>`;
 }
 function TypeLegend() {
   const items = [['Lý thuyết (theo khóa)', '#00B050'], ['DAT', '#0097A7'], ['Sa hình / KTRA sa hình', '#F57C00'], ['Cabin (theo nhóm)', '#455A64'], ['Nghỉ', '#E53935']];
@@ -912,7 +942,7 @@ function svRenderNav(id) {
 }
 async function svMode(id, mode) { const st = SVI[id]; st.mode = mode; const root = document.getElementById(id); root.querySelectorAll('[role="tab"]').forEach(b => { b.className = b.dataset.mode === mode ? 'on btn-green-grad' : ''; }); document.getElementById(id + '-main').innerHTML = Loading(); try { await svLoad(id); svRenderMain(id); svRenderNav(id); } catch (e) { document.getElementById(id + '-main').innerHTML = LoadError(e.message); } }
 function lastDayOf(mc) { return Number(addDays(addMonths(mc, 1), -1).slice(8, 10)); }
-function svHalf(id, h) { const st = SVI[id]; st.half = h; svRenderNav(id); svRenderMain(id); }
+function svHalf(id, h) { const st = SVI[id]; st.half = h; st.selectedDate = h === 1 ? st.monthCursor : addDays(st.monthCursor, 14); svRenderNav(id); svRenderMain(id); }
 async function svNav(id, d) { const st = SVI[id]; st.weekStart = d === 0 ? mondayOf(TODAY) : addDays(st.weekStart, d); document.getElementById(id + '-main').innerHTML = Loading(); try { await svLoad(id); svRenderMain(id); } catch (e) { document.getElementById(id + '-main').innerHTML = LoadError(e.message); } }
 async function svNavM(id, d) { const st = SVI[id]; st.monthCursor = d === 0 ? monthStartOf(TODAY) : addMonths(st.monthCursor, d); document.getElementById(id + '-main').innerHTML = Loading(); try { await svLoad(id); svRenderMain(id); svRenderNav(id); } catch (e) { document.getElementById(id + '-main').innerHTML = LoadError(e.message); } }
 function svSelectDay(id, date) { SVI[id].selectedDate = date; svRenderMain(id); }
@@ -970,7 +1000,7 @@ function svRenderMain(id) {
   if (st.mode === 'week') head = `<b style="font-size:16px">Tuần ${fmtDate(st.weekStart)} – ${fmtDate(addDays(st.weekStart, 6))}</b>`;
   else if (st.mode === 'half') { const [y, m] = st.monthCursor.split('-'); head = `<b style="font-size:16px">Tháng ${Number(m)}/${y} · ${st.half === 1 ? 'Ngày 1–15' : `Ngày 15–${lastDayOf(st.monthCursor)}`}</b>`; }
   else { const [y, m] = st.monthCursor.split('-'); head = `<b style="font-size:16px">Tháng ${Number(m)}/${y}</b>`; }
-  head += `<span style="margin-left:8px;font-size:14px;color:var(--dim)">${filtered.length} thẻ buổi hiển thị${hasFilter ? ' (đang lọc)' : ''}${fStudent ? ` · Chỉ HV: ${esc(fStudent.name)} (${esc(fStudent.courseCode)})` : ''} · Tên HV rút gọn 2 từ cuối · Bấm vào thẻ buổi để sửa trực tiếp</span>`;
+  head += `<span style="margin-left:8px;font-size:14px;color:var(--dim)">${filtered.length} thẻ buổi hiển thị${hasFilter ? ' (đang lọc)' : ''}${fStudent ? ` · Chỉ HV: ${esc(fStudent.name)} (${esc(fStudent.courseCode)})` : ''} · Tên HV rút gọn 2 từ cuối · ${st.mode === 'week' ? 'Bấm vào thẻ buổi để sửa trực tiếp' : 'Bấm vào ô ngày để xem chi tiết bên dưới'}</span>`;
   let spHtml = '';
   if (window._DASH_SP && window._DASH_SP.total > 0) {
     const sp = window._DASH_SP;
@@ -1005,16 +1035,33 @@ function svRenderMain(id) {
     };
     body = `<div class="week-wrap"><div class="week-grid">${days.map(col).join('')}</div></div>`;
   } else if (st.mode === 'half') {
+    /* Lưới 2 tuần kiểu lịch tháng nhưng gom cụm cột: T2–T4 / T5–T7 / CN cho ô rộng, hiện dòng buổi siêu gọn trong ô; bấm ô xem chi tiết ngày bên dưới */
     const first = st.monthCursor; const last = lastDayOf(first);
-    const a = st.half === 1 ? 0 : 14; const b = st.half === 1 ? 14 : last - 1;
-    const days = Array.from({ length: b - a + 1 }, (_, k) => addDays(first, a + k));
-    const col = (d) => {
-      const i = (new Date(Date.UTC(Number(d.slice(0, 4)), Number(d.slice(5, 7)) - 1, Number(d.slice(8, 10)))).getUTCDay() + 6) % 7;
-      const list = byDate[d] || [];
+    const d1 = st.half === 1 ? first : addDays(first, 14);
+    const d2 = st.half === 1 ? addDays(first, 14) : addDays(first, last - 1);
+    const selDate = (st.selectedDate >= d1 && st.selectedDate <= d2) ? st.selectedDate : d1;
+    const weeks = []; for (let w = mondayOf(d1); w <= d2; w = addDays(w, 7)) weeks.push(w);
+    const MAXL = 8;
+    const hcell = (d) => {
+      if (d < d1 || d > d2) return `<div class="month-cell out half-cell" aria-hidden="true"><span class="dnum">&nbsp;</span></div>`;
+      const list = [...(byDate[d] || [])].sort((x, y) => String(x.slot).localeCompare(String(y.slot)));
       const mks = markersByDate[d] || [];
-      return `<div class="day-col ${d === TODAY ? 'today' : ''}"><p class="dhead-pill"><span>📅 ${DOW_LABELS[i]} · ${fmtDate(d)}${d === TODAY ? ' · Hôm nay' : ''}</span></p>${mks.map(mk => `<span class="marker-pill" style="background:${mk.kind === 'exam' ? '#1E3A8A' : '#B45309'}">${mk.kind === 'exam' ? 'Thi sát hạch' : 'Bế giảng'}: ${esc(mk.label)}</span>`).join('')}${list.map(SessionCard).join('') || '<p style="padding:8px 0;text-align:center;font-size:12px;color:var(--dim);margin:0">— Không có buổi —</p>'}</div>`;
+      return `<button type="button" class="month-cell half-cell ${d === TODAY ? 'today' : ''} ${d === selDate ? 'sel' : ''}" aria-label="Xem chi tiết lịch ngày ${fmtDate(d)}" onclick="svSelectDay('${id}','${d}')">
+        <span class="dnum" ${d === TODAY ? 'style="color:#007A38"' : ''}>${Number(d.slice(8, 10))}${list.length ? `<span class="cnt" style="margin-left:5px">${list.length} buổi</span>` : ''}</span>
+        ${list.slice(0, MAXL).map(HalfLine).join('')}
+        ${list.length > MAXL ? `<span class="hline more">+${list.length - MAXL} buổi nữa — bấm ô xem thêm</span>` : ''}
+        ${mks.length ? `<span class="mmark" style="background:${mks[0].kind === 'exam' ? '#1E3A8A' : '#B45309'}"></span>` : ''}
+      </button>`;
     };
-    body = `<div class="week-wrap">${days.map(col).join('')}</div>`;
+    const cluster = (dows) => `<div class="half-cluster"><div class="half-grid" style="grid-template-columns:repeat(${dows.length},minmax(0,1fr))">${dows.map(di => `<p class="half-dow">${DOW_LABELS[di]}</p>`).join('')}${weeks.map(w => dows.map(di => hcell(addDays(w, di))).join('')).join('')}</div></div>`;
+    const selList = byDate[selDate] || [];
+    const selMks = markersByDate[selDate] || [];
+    body = `${cluster([0, 1, 2])}${cluster([3, 4, 5])}${cluster([6])}
+    <div style="margin-top:12px">
+      <p style="margin:0 0 8px;font-size:14px"><b>Chi tiết ngày ${fmtDate(selDate)}${selDate === TODAY ? ' (hôm nay)' : ''} — ${selList.length} buổi chi tiết${hasFilter ? ' sau lọc' : ''}</b></p>
+      ${selMks.map(mk => `<p style="margin:0 0 8px;border-radius:12px;padding:8px 12px;font-size:14px;font-weight:600;color:#fff;background:${mk.kind === 'exam' ? '#1E3A8A' : '#B45309'}">${mk.kind === 'exam' ? 'Kỳ thi sát hạch' : 'Bế giảng'}: ${esc(mk.label)}</p>`).join('')}
+      ${selList.length === 0 ? `<p style="font-size:14px;color:var(--dim);margin:0">Không có buổi chi tiết nào trong ngày này${hasFilter ? ' theo bộ lọc hiện tại' : ''}.</p>` : `<ul style="list-style:none;margin:0;padding:0">${selList.map(SessionRow).join('')}</ul>`}
+    </div>`;
   } else {
     const gridStart = mondayOf(st.monthCursor);
     const days = Array.from({ length: 42 }, (_, i) => addDays(gridStart, i));
