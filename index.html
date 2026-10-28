@@ -194,13 +194,17 @@ table.tbl-plain td{border-bottom:1px solid rgba(220,232,223,.6);padding:10px 8px
 .sess-row.clickable{cursor:pointer}
 .sess-row.clickable:hover{box-shadow:0 0 0 2px #00B050}
 .sess-row .nm{font-size:17px;font-weight:700}
-.month-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
-.month-cell{display:flex;min-height:86px;flex-direction:column;align-items:flex-start;gap:4px;border-radius:12px;padding:8px;text-align:left;background:var(--surface-alt);border:1px solid var(--border);width:100%;font-family:inherit;color:var(--text)}
+.month-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.month-cell{display:flex;min-height:64px;flex-direction:column;align-items:flex-start;gap:3px;border-radius:10px;padding:6px;text-align:left;background:var(--surface-alt);border:1px solid var(--border);width:100%;min-width:0;overflow:hidden;font-family:inherit;color:var(--text);cursor:pointer}
 .month-cell.out{background:#fff;opacity:.45}
 .month-cell.today{border:2px solid #00B050}
 .month-cell.sel{box-shadow:0 0 0 2px #1E3A8A}
-.month-cell .dnum{font-size:14px;font-weight:700}
-.month-cell .cnt{font-size:11px;font-weight:600;color:var(--dim)}
+.month-cell .dnum{font-size:15px;font-weight:800;line-height:1.1}
+.month-cell .cnt{font-size:10px;font-weight:600;color:var(--dim);white-space:nowrap;line-height:1.1}
+.mdots{display:flex;gap:3px;flex-wrap:wrap}
+.mdots i{display:block;width:8px;height:8px;border-radius:99px}
+.mmark{display:block;width:100%;height:5px;border-radius:99px;margin-top:auto}
+@media(min-width:768px){.month-cell{min-height:78px;padding:8px}.month-cell .cnt{font-size:11px}}
 .tdot{display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:500}
 .tdot i{display:inline-block;height:8px;width:8px;border-radius:99px;font-style:normal}
 
@@ -664,7 +668,7 @@ function refresh(force) { if (force) clearReadCache(); return go(state.view); }
 /* ================= LỊCH: loại buổi, thẻ buổi, sửa trực tiếp ================= */
 const TYPE_META = {
   'Lý thuyết': { label: 'Lý thuyết', color: '#00B050', bg: '#DCFCE7' },
-  'DAT': { label: 'DAT 🚗 · đặc biệt 🛡', color: '#0097A7', bg: '#B2EBF2' },
+  'DAT': { label: 'DAT 🚗', color: '#0097A7', bg: '#B2EBF2' },
   'Sa hình': { label: 'Sa hình', color: '#F57C00', bg: '#FFE0B2' },
   'Cabin': { label: 'Cabin', color: '#455A64', bg: '#ECEFF1' },
   'Bổ túc': { label: 'Bổ túc', color: '#00B050', bg: '#DCFCE7' },
@@ -725,7 +729,7 @@ function SessionRow(s) {
   </li>`;
 }
 function TypeLegend() {
-  const items = [['Lý thuyết (theo khóa)', '#00B050'], ['DAT đặc biệt', '#0097A7'], ['Sa hình / KTRA sa hình', '#F57C00'], ['Cabin (theo nhóm)', '#455A64'], ['Nghỉ', '#E53935']];
+  const items = [['Lý thuyết (theo khóa)', '#00B050'], ['DAT', '#0097A7'], ['Sa hình / KTRA sa hình', '#F57C00'], ['Cabin (theo nhóm)', '#455A64'], ['Nghỉ', '#E53935']];
   return `<div class="type-legend" aria-label="Chú thích màu loại buổi"><span style="font-size:12px;font-weight:600;letter-spacing:.03em;color:var(--dim)">CHÚ THÍCH MÀU LOẠI BUỔI:</span>${items.map(([l, c]) => `<span style="display:flex;align-items:center;gap:6px;font-weight:500"><span class="sw" style="background:${c}"></span>${l}</span>`).join('')}<span style="display:flex;align-items:center;gap:6px;font-weight:500"><span class="sw" style="border:2px solid #E53935;background:transparent"></span>Buổi trùng lịch (xe / học viên — lỗi)</span><span style="display:flex;align-items:center;gap:6px;font-weight:500"><span class="sw" style="border:2px solid #FFC107;background:transparent"></span>Trùng giáo viên (cảnh báo)</span></div>`;
 }
 function scrollToConflicts() { const el = document.getElementById('lich-trung-panel'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
@@ -1003,9 +1007,10 @@ function svRenderMain(id) {
       const mks = markersByDate[d] || [];
       const total = hasFilter ? list.length : (dayTotals[d] ?? list.length);
       return `<button type="button" class="month-cell ${inMonth ? '' : 'out'} ${d === TODAY ? 'today' : ''} ${d === st.selectedDate ? 'sel' : ''}" aria-label="Xem chi tiết lịch ngày ${fmtDate(d)}" onclick="svSelectDay('${id}','${d}')">
-        <span style="display:flex;width:100%;align-items:center;justify-content:space-between"><span class="dnum" ${d === TODAY ? 'style="color:#007A38"' : ''}>${Number(d.slice(8, 10))}</span>${total > 0 ? `<span class="cnt">${total} buổi</span>` : ''}</span>
-        ${types.length ? `<span class="row-wrap" style="gap:4px">${types.map(t => `<span class="tdot"><i style="background:${typeMeta(t).color}"></i>${esc(typeMeta(t).label)}</span>`).join('')}</span>` : ''}
-        ${mks.map(mk => `<span class="chip" style="background:${mk.kind === 'exam' ? '#1E3A8A' : '#B45309'};color:#fff">${mk.kind === 'exam' ? 'Thi sát hạch' : esc(mk.label)}</span>`).join('')}
+        <span class="dnum" ${d === TODAY ? 'style="color:#007A38"' : ''}>${Number(d.slice(8, 10))}</span>
+        ${total > 0 ? `<span class="cnt">${total} buổi</span>` : '<span class="cnt">&nbsp;</span>'}
+        ${types.length ? `<span class="mdots">${types.map(t => `<i style="background:${typeMeta(t).color}"></i>`).join('')}</span>` : ''}
+        ${mks.length ? `<span class="mmark" style="background:${mks[0].kind === 'exam' ? '#1E3A8A' : '#B45309'}"></span>` : ''}
       </button>`;
     }).join('');
     const selList = byDate[st.selectedDate] || [];
@@ -1774,7 +1779,7 @@ async function datCreateLoad() {
       </div>
       <button type="button" class="btn btn-green btn-block" style="min-height:48px;font-weight:700;margin-top:12px" onclick="datCreate()">Xếp lịch — kiểm tra trùng tự động</button>
       <div id="dc-result"></div>
-      <p class="note-dim" style="margin-top:12px">App đang có 3 lịch trùng để thực hành xử lý: K41 + K40 cùng xe 51F-123.45 lúc 08-10h ngày 09/11 (đỏ) · Huỳnh Hà Gia Khang 2 ca 13-15h ngày 10/11 (đỏ) · Gv. Tùng dạy 2 khóa 15-17h ngày 11/11 (vàng) — bấm banner "⚠️ 3 lịch trùng - Bấm để sửa" ở đầu trang để xem và xóa buổi thừa. Các mốc DAT đặc biệt vẫn giữ: Võ Nguyễn Bảo Hân còn thiếu 225km (buổi bù 04/11 + 07/11), Huỳnh Hà Gia Khang thiếu 500km (buổi bù 28–31/10), Võ Ngọc Phát Vinh đã chạy 157km (buổi bù 28/10–09/11), Huỳnh Võ Ngọc Huy 8H00 + 13H, Nguyễn Lê Minh Huy 8H00, Phạm Hồng Đăng 02/11 + 03/11, Trịnh Anh Quang 30/10.</p>`);
+      <p class="note-dim" style="margin-top:12px">App đang có 3 lịch trùng để thực hành xử lý: K41 + K40 cùng xe 51F-123.45 lúc 08-10h ngày 09/11 (đỏ) · Huỳnh Hà Gia Khang 2 ca 13-15h ngày 10/11 (đỏ) · Gv. Tùng dạy 2 khóa 15-17h ngày 11/11 (vàng) — bấm banner "⚠️ 3 lịch trùng - Bấm để sửa" ở đầu trang để xem và xóa buổi thừa. Các mốc DAT vẫn giữ: Võ Nguyễn Bảo Hân còn thiếu 225km (buổi bù 04/11 + 07/11), Huỳnh Hà Gia Khang thiếu 500km (buổi bù 28–31/10), Võ Ngọc Phát Vinh đã chạy 157km (buổi bù 28/10–09/11), Huỳnh Võ Ngọc Huy 8H00 + 13H, Nguyễn Lê Minh Huy 8H00, Phạm Hồng Đăng 02/11 + 03/11, Trịnh Anh Quang 30/10.</p>`);
     const sec = host.closest('section');
     if (sec) { const subEl = sec.querySelector('.sec-head .sub'); if (subEl) subEl.textContent = sub; }
   } catch (e) { host.innerHTML = LoadError(e.message); }
@@ -2875,7 +2880,7 @@ function sessionsProgressHtml(sp) {
     <div class="sp-bar"><div style="width:${pct}%"></div></div>
     <div class="sp-grid">
       <div><p style="margin:0;font-weight:700">📆 ${sp.days || 0} ngày</p><p class="note-dim">Từ ${fmtDate(sp.from)} đến ${fmtDate(sp.to)} (chỉ ngày trong hạn khóa)</p></div>
-      <div><p style="margin:0;font-weight:700">🧩 DAT đặc biệt: ${sp.datSpecial || 0} buổi</p><p class="note-dim">Sa hình: ${sp.sahinh || 0} · Học thường: ${sp.regular || 0} · Nghỉ: ${sp.off || 0}</p></div>
+      <div><p style="margin:0;font-weight:700">🧩 DAT: ${sp.datSpecial || 0} buổi</p><p class="note-dim">Sa hình: ${sp.sahinh || 0} · Học thường: ${sp.regular || 0} · Nghỉ: ${sp.off || 0}</p></div>
       <div><p style="margin:0;font-weight:700">⏱ ${(sp.avgPerDay || 0).toLocaleString('vi-VN')} buổi/ngày</p><p class="note-dim">Mật độ xếp trung bình theo ngày</p></div>
       <div><p style="margin:0;font-weight:700">🏁 Ước tính xếp xong: ~${dayTxt}</p><p class="note-dim">Theo tốc độ xếp hiện tại</p></div>
     </div>
@@ -2986,7 +2991,7 @@ RENDERERS.guide = (main) => {
     <section class="panel" id="hd-lich">${Section('4 · Lịch hôm nay & xếp lịch', '', `
       ${guideStep('1', 'Mục <b>Lịch hôm nay</b> liệt kê mọi buổi học trong ngày theo 4 cột: Giờ học · Học viên · Giáo viên phụ trách · Phương tiện — đúng mẫu bảng lịch của trung tâm.')}
       ${guideStep('2', 'Dùng ô chọn ngày để xem lịch của <b>bất kỳ ngày nào</b>; chuyển qua lại giữa 3 chế độ Hôm nay / Theo tuần / Theo tháng.')}
-      ${guideStep('3', 'Mỗi thẻ buổi học hiện tên học viên rút gọn (2 từ cuối), nhãn <b>Khóa – số HV – giờ</b> (ví dụ “K41 - 25HV - 8H”) và tem màu theo loại buổi: <b>DAT đặc biệt</b> (xanh ngọc), <b>Sa hình</b> (cam), <b>Lý thuyết</b> (xanh lá), <b>Cabin</b> (xám xanh), <b>Bổ túc</b>, <b>Thi tốt nghiệp</b> (xanh navy), <b>Nghỉ</b> (đỏ).')}
+      ${guideStep('3', 'Mỗi thẻ buổi học hiện tên học viên rút gọn (2 từ cuối), dòng chi tiết <b>Khóa – biển số · số km · trung tâm liên kết</b> (ví dụ “K41 - 51A-12345 · 80 km”) và tem màu theo loại buổi: <b>DAT</b> (xanh ngọc), <b>Sa hình</b> (cam), <b>Lý thuyết</b> (xanh lá), <b>Cabin</b> (xám xanh), <b>Bổ túc</b>, <b>Thi tốt nghiệp</b> (xanh navy), <b>Nghỉ</b> (đỏ).')}
       ${guideStep('4', '<b>Lọc lịch:</b> theo giáo viên, theo xe (biển số), theo trung tâm liên kết, theo loại buổi, hoặc gõ tên học viên — các bộ lọc dùng chung cho cả chế độ Tuần và Tháng.')}
       ${guideNote('Khi có lịch trùng (cùng xe, cùng giáo viên hoặc cùng học viên trong 1 khung giờ), hệ thống hiện banner đỏ ở đầu trang và viền đỏ quanh thẻ buổi bị trùng. Hãy sửa ngay bằng cách đổi khung giờ hoặc đổi xe/giáo viên.')}`)}</section>
     <section class="panel" id="hd-hoc-vien">${Section('5 · Quản lý học viên', '', `
