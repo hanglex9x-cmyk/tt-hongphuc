@@ -3185,7 +3185,7 @@ RENDERERS.reports = async (main) => {
           <ul style="list-style:none;margin:0;padding:0" class="stack-sm">${costBreakdown.map((x, i) => `<li style="font-size:14px"><span style="display:inline-block;height:12px;width:12px;border-radius:3px;background:${PIE_COLORS[i % PIE_COLORS.length]};margin-right:8px"></span>${esc(x.label)} <b>${x.amount}tr</b> · ${x.pct}%</li>`).join('')}</ul>
         </div>`)}
       ${Section('Học viên theo khóa', 'Tổng ' + r.totalStudents + ' học viên', `
-        ${hBarSvg((r.studentsByCourse || []).map(x => ({ label: x.courseCode, value: x.students, valueLabel: `${x.students} HV` })), '#00B050')}
+        ${hBarSvg((r.studentsByCourse || []).map(x => ({ label: x.courseCode, value: x.count, valueLabel: `${x.count} HV` })), '#00B050')}
         <p class="note-dim" style="margin-top:8px">Hạng: ${(r.receivable && r.receivable.byClass ? r.receivable.byClass : []).map(x => `${x.label} ${x.count} HV`).join(' · ')} — lấy tự động từ danh sách học viên.</p>
         <p class="note-dim" style="margin-top:2px">Nhãn khóa đầy đủ (KG · Hạn): ${(r.studentsByCourse || []).map(x => courseKgHan(x.courseCode, x.openDate, x.closeDate)).join(' · ')}</p>`)}
       ${Section('DAT & Sa hình theo khung giờ', 'Số buổi DAT (vàng) và Sa hình (xanh lá) trong từng khung giờ', barChartSvg((r.datBySlot || []).map(x => ({ label: x.slot, a: x.dat, b: x.sahinh })), [{ key: 'a', name: 'DAT', color: '#FFC107' }, { key: 'b', name: 'Sa hình', color: '#00B050' }], 230))}
