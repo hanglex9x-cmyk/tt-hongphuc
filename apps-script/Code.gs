@@ -1246,9 +1246,15 @@ function route_(action, params) {
     return res;
   }
   if (WRITE_ACTIONS[a]) {
-    const res = WRITE_ACTIONS[a](params || {});
-    if (res && res.ok === true) bumpCacheGen_();
-    return res;
+    // Khóa ghi toàn cục: 2 lượt ghi đồng thời có thể sinh trùng ID (nextId_ tính
+    // theo bản đọc trong bộ nhớ) hoặc ghi đè lẫn nhau — khóa lại, chờ tối đa 30s.
+    const lock = LockService.getScriptLock();
+    if (!lock.tryLock(30000)) return { ok: false, error: 'Hệ thống đang xử lý một thao tác lưu khác — vui lòng thử lại sau vài giây' };
+    try {
+      const res = WRITE_ACTIONS[a](params || {});
+      if (res && res.ok === true) bumpCacheGen_();
+      return res;
+    } finally { lock.releaseLock(); }
   }
   return { ok: false, error: 'Action không hợp lệ: ' + action };
 }
@@ -1263,8 +1269,10 @@ function doGet(e) {
       params[k] = v;
     });
     const res = route_(p.action || 'getdashboard', params);
-    const body = p.callback ? p.callback + '(' + JSON.stringify(res) + ')' : JSON.stringify(res);
-    return ContentService.createTextOutput(body).setMimeType(p.callback ? ContentService.MimeType.JAVASCRIPT : ContentService.MimeType.JSON);
+    // Chỉ nhận callback dạng tên hàm JS hợp lệ — chặn chèn mã qua tham số callback.
+    const cbOk = typeof p.callback === 'string' && /^[A-Za-z_$][A-Za-z0-9_$.]*$/.test(p.callback);
+    const body = cbOk ? p.callback + '(' + JSON.stringify(res) + ')' : JSON.stringify(res);
+    return ContentService.createTextOutput(body).setMimeType(cbOk ? ContentService.MimeType.JAVASCRIPT : ContentService.MimeType.JSON);
   } catch (err) {
     return json_({ ok: false, error: String(err && err.message || err) });
   }
@@ -1282,8 +1290,8 @@ function doPost(e) {
 // -> khóa cache sinh ra khớp 100% với request thật của người dùng. Mỗi
 // action bọc try/catch riêng: 1 action lỗi không chặn các action sau.
 // listschedules chỉ hâm ngày hôm nay theo today_() (ngày hệ thống backend),
-// listschedulesrange chỉ hâm TUẦN hiện tại (T2-CN) vì payload tháng ~174KB
-// vượt giới hạn cache, listpayments hâm tháng hiện tại.
+// listschedulesrange hâm TUẦN hiện tại (T2-CN) + dải THÁNG của chế độ Tháng;
+// listpayments hâm tháng hiện tại.
 function isoUtc_(ms) {
   const d = new Date(ms);
   const p2 = n => String(n).padStart(2, '0');
@@ -1311,13 +1319,20 @@ function warmCacheHp() {
   warmOne_('getfleet');
   warmOne_('listnotifications');
   warmOne_('getdatsummary');
-  warmOne_('liststudents');
+  warmOne_('liststudents', { onlyEligible: false, page: 1, pageSize: 10 }); // đúng bộ tham số frontend gửi lần đầu (hâm {} là lệch khóa, không ai hưởng)
   warmOne_('listexams');
   warmOne_('listadmissions');
   warmOne_('listconflicts');
   warmOne_('listfuellogs');
   warmOne_('listschedules', { date: T });
   warmOne_('listschedulesrange', { from: wk.from, to: wk.to });
+  // Hâm dải THÁNG đúng khóa frontend dùng ở chế độ Tháng (Thứ 2 của tuần chứa
+  // ngày 1 → +41 ngày). Payload tháng hiện ~87K ký tự — dưới trần cache 95K nên
+  // hâm được; tháng cao điểm vượt trần thì put tự bỏ qua, không lỗi.
+  const mMon = weekRangeOf_(T.slice(0, 7) + '-01');
+  const mp = mMon.from.split('-').map(Number);
+  const mTo = isoUtc_(Date.UTC(mp[0], mp[1] - 1, mp[2]) + 41 * 86400000);
+  warmOne_('listschedulesrange', { from: mMon.from, to: mTo });
   warmOne_('listpayments', { month: T.slice(0, 7) });
 }
 function caiTriggerWarm() {
