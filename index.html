@@ -312,6 +312,7 @@ const API_URL = (() => {
   try { return localStorage.getItem('hp_api_url') || DEFAULT_API_URL; } catch (e) { return DEFAULT_API_URL; }
 })();
 const TODAY = '2026-10-27';
+const MONTH_LABEL = 'tháng ' + Number(TODAY.slice(5, 7));
 
 // ---------- API ----------
 let cbSeq = 0;
@@ -500,6 +501,11 @@ function courseKgHan(code, open, close) {
   return parts.join(' · ');
 }
 function courseOptionLabel(code, open) { const o = courseOpenOf(code, open); return o ? `${code} — KG ${fmtDate(o)}` : code; }
+function courseCodes_() {
+  // Danh sach khoa THAT tu getlookups (Sheet KhoaHoc) — ban cung chi lam du phong khi chua tai duoc lookups.
+  const cs = (LK && LK.courses) || [];
+  return cs.length ? cs.map(c => c.code) : COURSE_OPTIONS;
+}
 function shortCenterName(name) { return String(name || '').replace(/^Trung tâm liên kết\s*/i, '').trim(); }
 /* Mã viết tắt trung tâm cho lưới lịch 2 tuần — theo đúng mã lưới của trung tâm: HM / ACHAU / PHGIAO */
 function centerAbbr(name) {
@@ -1204,7 +1210,7 @@ function svRenderMain(id) {
         <span class="tagchip" style="background:#FFE0B2;color:#B45309">${sp.sahinh} buổi sa hình &amp; ôn thi</span>
         ${sp.off > 0 ? `<span class="tagchip" style="background:#FDECEA;color:#C62828">${sp.off} buổi nghỉ (ghi chú trên lưới lịch)</span>` : ''}
       </div>
-      <p class="note-dim" style="margin:4px 0 0">Tổng ${sp.total} buổi = 165 HV × 16 buổi (2 lý thuyết + 10 DAT + 4 ôn thi/sa hình).</p>
+      <p class="note-dim" style="margin:4px 0 0">Tổng ${sp.total} buổi = ${Math.round(sp.total / 16)} HV × 16 buổi (2 lý thuyết + 10 DAT + 4 ôn thi/sa hình).</p>
     </div>`;
   }
   let cabinHtml = '';
@@ -1353,7 +1359,7 @@ function paintDashboard_(main, d) {
     { label: 'Lịch học hôm nay', value: k.todaySessions === 0 ? 'Chưa có dữ liệu' : `${k.todaySessions} buổi`, sub: k.todaySessions === 0 ? 'Chưa có dữ liệu lịch hôm nay — hôm nay không có buổi chi tiết nào của học viên trong danh sách' : `Lý thuyết ${k.ltToday} · Thực hành ${k.thToday} (buổi chi tiết)`, color: BRAND.navy },
     { label: 'Tỷ lệ đậu sát hạch', value: k.passRate == null ? 'Chưa có dữ liệu' : `${k.passRate}%`, sub: k.passRate == null ? 'Chưa có kết quả thi sát hạch nào được ghi nhận' : '3 phần: Lý thuyết → Sa hình → Đường trường', color: BRAND.green },
     { label: 'Xe đang sử dụng', value: `${k.vehiclesInUse}/${k.vehiclesTotal} xe`, sub: `${k.teachersActive} giáo viên đang dạy`, color: '#E65100' },
-    { label: 'Doanh thu tháng 10', value: k.revenueMonth == null ? 'Chưa có dữ liệu' : fmtMoneyShort(k.revenueMonth), sub: k.revenueMonth == null ? 'Chưa có lần thu học phí nào trong tháng 10' : (k.profitMonth != null ? `Lợi nhuận ${fmtMoneyShort(k.profitMonth)} (${k.profitPct}%)` : 'Chưa có dữ liệu chi phí để tính lợi nhuận'), color: BRAND.green },
+    { label: 'Doanh thu ' + MONTH_LABEL, value: k.revenueMonth == null ? 'Chưa có dữ liệu' : fmtMoneyShort(k.revenueMonth), sub: k.revenueMonth == null ? 'Chưa có lần thu học phí nào trong ' + MONTH_LABEL : (k.profitMonth != null ? `Lợi nhuận ${fmtMoneyShort(k.profitMonth)} (${k.profitPct}%)` : 'Chưa có dữ liệu chi phí để tính lợi nhuận'), color: BRAND.green },
   ];
   const sp = d.sessionsProgress;
   const spPct = sp && sp.total > 0 ? Math.round((sp.scheduled / sp.total) * 1000) / 10 : 0;
@@ -1402,8 +1408,8 @@ function paintDashboard_(main, d) {
         <span class="tagchip" style="background:#FFE0B2;color:#B45309">${sp.sahinh} buổi sa hình &amp; ôn thi</span>
         ${sp.off > 0 ? `<span class="tagchip" style="background:#FDECEA;color:#C62828">${sp.off} buổi nghỉ</span>` : ''}
       </div>
-      <p class="note-dim" style="margin:8px 0 0">Tổng ${sp.total} buổi = 165 HV × 16 buổi (2 lý thuyết + 10 DAT + 4 ôn thi/sa hình).</p>`) : ''}
-    ${Section('Lý thuyết & Cabin tuần này', 'Buổi lý thuyết học chung theo khóa tại Phòng LT · Buổi cabin theo nhóm 5 HV tại Phòng cabin — cả 2 là buổi cấp khóa/nhóm, không cộng vào tổng 2.640 buổi', `<div id="dash-theory">${Loading()}</div>
+      <p class="note-dim" style="margin:8px 0 0">Tổng ${sp.total} buổi = ${Math.round(sp.total / 16)} HV × 16 buổi (2 lý thuyết + 10 DAT + 4 ôn thi/sa hình).</p>`) : ''}
+    ${Section('Lý thuyết & Cabin tuần này', 'Buổi lý thuyết học chung theo khóa tại Phòng LT · Buổi cabin theo nhóm 5 HV tại Phòng cabin — cả 2 là buổi cấp khóa/nhóm, không cộng vào tổng ${sp.total} buổi', `<div id="dash-theory">${Loading()}</div>
       <p style="font-size:14px;margin:8px 0 0"><b>Cabin đủ 3h/3h:</b> ${d.cabinStats.fullCount}/${d.cabinStats.total} HV (${d.cabinStats.pct}%) đã đủ 3 giờ cabin — điều kiện bắt buộc khi xét đủ điều kiện thi sát hạch.</p>`)}
     ${Section('Cảnh báo DAT & vận hành', 'Cảnh báo sinh từ chính dữ liệu trong app (tiến độ DAT, hạn DAT, vận hành xe)', alertRows.length ? `<div class="stack-sm">${alertRows.join('')}</div>` : '<p style="font-size:14px;color:var(--dim);margin:0">Không có cảnh báo nào.</p>')}
     <div class="grid2">
@@ -1414,7 +1420,7 @@ function paintDashboard_(main, d) {
           <span><span class="sw" style="background:${BRAND.navy}"></span>GĐ3: Ôn + Thi (tuần 13–16)</span>
         </div>
         <div class="stack">${gantt || '<p style="font-size:14px;color:var(--dim);margin:0">Chưa có dữ liệu khóa học.</p>'}</div>`)}
-      ${Section('Lịch học tháng 10/2026', 'Đậm = nhiều buổi. Chạm vào ngày để xem chi tiết', `
+      ${Section('Lịch học tháng ' + TODAY.slice(5, 7) + '/' + TODAY.slice(0, 4), 'Đậm = nhiều buổi. Chạm vào ngày để xem chi tiết', `
         <div class="heat-head">${['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'].map(x => `<span>${x}</span>`).join('')}</div>
         <div class="heat-grid">${Array.from({ length: firstDow }).map(() => '<span></span>').join('')}${octDays.map(date => {
           const n = heatByDate[date] || 0;
@@ -1660,17 +1666,18 @@ async function stuRefreshList_() {
   } catch (e) { /* lỗi mạng: giữ nguyên danh sách đang hiện */ }
 }
 RENDERERS.students = async (main) => {
-  const [q, ct] = await Promise.all([
+  const [q, ct, lk] = await Promise.all([
     call('liststudents', { search: STU.search, courseCode: STU.course, centerName: STU.center, status: STU.status, onlyEligible: STU.onlyEligible, page: STU.page, pageSize: STU.pageSize }),
     call('listcenters', {}),
+    getLookups(),
   ]);
   const centers = ct.centers || [];
   window._STU_ROWS = q.students || [];
   regExport('students', 'hoc-vien-hong-phuc.csv', ['Mã HV', 'Họ tên', 'SĐT', 'CCCD', 'Khóa', 'Khai giảng', 'Hạn khóa', 'Hạng', 'Trung tâm', 'Mốc DAT (km)', 'Học phí chuẩn', 'Giảm tiền', 'Lý do giảm', 'Phải thu', 'Đã thu', 'Còn nợ', 'Ngày ĐK', 'Biển số xe KG'], () => (window._STU_ROWS || []).map(s => ({ 'Mã HV': s.maHv, 'Họ tên': s.name, 'SĐT': s.phone, CCCD: s.cccd, 'Khóa': s.courseCode, 'Khai giảng': fmtDate(s.openDate), 'Hạn khóa': fmtDate(s.closeDate), 'Hạng': s.licenseClass, 'Trung tâm': s.centerName ? shortCenterName(s.centerName) : '', 'Mốc DAT (km)': s.datMarkerKm !== 0 ? s.datMarkerKm : '', 'Học phí chuẩn': s.tuitionTotal, 'Giảm tiền': s.tuitionDiscount, 'Lý do giảm': s.discountReason, 'Phải thu': s.tuitionPayable, 'Đã thu': s.tuitionPaid, 'Còn nợ': s.tuitionDebt, 'Ngày ĐK': s.regDate, 'Biển số xe KG': s.plateKg })));
-  main.innerHTML = Section('Quản lý học viên', '165 HV thuộc 6 khóa (K38 · K39 · K40 · K41 · C1-K120 · BK220) — kèm trung tâm HV thuộc về, GV DAT chính, xe quen, biển số xe khai giảng và mốc DAT', `
+  main.innerHTML = Section('Quản lý học viên', `${q.total} HV thuộc ${(lk.courses || []).length} khóa (${(lk.courses || []).map(c => c.code).join(' · ')}) — kèm trung tâm HV thuộc về, GV DAT chính, xe quen, biển số xe khai giảng và mốc DAT`, `
     <div class="row-wrap" style="margin-bottom:12px">
       <input aria-label="Tìm học viên" placeholder="Tìm theo tên, mã HV, CCCD, SĐT…" value="${esc(STU.search)}" oninput="stuSearch(this.value)" onkeydown="if(event.key==='Enter')event.preventDefault()" class="input" style="flex:1 1 220px;width:auto;max-width:340px">
-      <select aria-label="Lọc theo khóa" class="select" style="width:auto;flex:1 1 150px" onchange="stuFilter('course',this.value)"><option value="">Tất cả khóa</option>${COURSE_OPTIONS.map(c => `<option value="${c}" ${c === STU.course ? 'selected' : ''}>${esc(courseOptionLabel(c))}</option>`).join('')}</select>
+      <select aria-label="Lọc theo khóa" class="select" style="width:auto;flex:1 1 150px" onchange="stuFilter('course',this.value)"><option value="">Tất cả khóa</option>${courseCodes_().map(c => `<option value="${c}" ${c === STU.course ? 'selected' : ''}>${esc(courseOptionLabel(c))}</option>`).join('')}</select>
       <select aria-label="Lọc theo trung tâm" class="select" style="width:auto;flex:1 1 150px" onchange="stuFilter('center',this.value)"><option value="">Tất cả trung tâm</option>${centers.map(c => `<option value="${esc(c.name)}" ${c.name === STU.center ? 'selected' : ''}>${esc(shortCenterName(c.name))}</option>`).join('')}<option value="__none__" ${STU.center === '__none__' ? 'selected' : ''}>— Chưa rõ trung tâm</option></select>
       <select aria-label="Lọc theo trạng thái" class="select" style="width:auto;flex:1 1 150px" onchange="stuFilter('status',this.value)"><option value="">Tất cả trạng thái</option>${['Đang học', 'Đủ điều kiện thi', 'Đã đậu sát hạch', 'Đã có bằng', 'Bảo lưu', 'Đã nghỉ học'].map(x => `<option value="${x}" ${x === STU.status ? 'selected' : ''}>${x}</option>`).join('')}</select>
       <label class="row-wrap" style="font-size:14px;min-height:48px"><input type="checkbox" ${STU.onlyEligible ? 'checked' : ''} onchange="stuFilter('onlyEligible',this.checked)" style="height:20px;width:20px"> Chỉ HV đủ điều kiện thi (5 tiêu chí)</label>
@@ -1856,7 +1863,7 @@ async function openStudentForm(id) {
       ${fld('Ngày khám sức khỏe', 'sf-health', f.healthExamDate, 'date')}
       <label class="field"><span>Khóa học</span>
         <input id="sf-course" aria-label="Khóa học" list="course-options" class="input" value="${esc(f.courseCode)}" oninput="sfCourseHint()">
-        <datalist id="course-options">${COURSE_OPTIONS.map(c => `<option value="${c}">${esc(courseOptionLabel(c))} (khóa chính)</option>`).join('')}</datalist>
+        <datalist id="course-options">${(lk.courses && lk.courses.length ? lk.courses.map(c => c.code) : COURSE_OPTIONS).map(c => `<option value="${c}">${esc(courseOptionLabel(c))} (khóa chính)</option>`).join('')}</datalist>
         <span class="hint" id="sf-course-hint">${esc(courseKgHan(f.courseCode, f.openDate, f.closeDate))}</span>
       </label>
       <label class="field"><span>Học phí của HV này (VNĐ) — chốt theo tháng đăng ký</span>
@@ -2659,7 +2666,7 @@ RENDERERS.fleet = async (main) => {
       </article>`).join('')}</div>
       <button type="button" class="btn btn-green" style="margin-top:12px" onclick="teacherForm(null)">+ Thêm giáo viên</button>
     `, importExportHtml('teachers', 'bang-luong-giao-vien.csv', 'impmsg-teachers'))}
-    ${Section(`Xe tập lái — ${(d.vehicles || []).length} xe`, `Mỗi xe có đúng 1 GV chủ xe và gắn theo khóa ở GĐ2 (3 xe/khóa, C1-K120 &amp; BK220 dùng 2 xe) — GĐ3 dùng 1 xe/khóa, xe còn lại dự phòng/bảo dưỡng · Nhật ký xăng tháng 10: ${fmtMoney(d.fuelTotal || 0)} · Giờ/tuần tính từ lịch dạy thật của tuần hiện tại · Xe chạy &gt;56h/tuần báo đỏ cần bảo dưỡng`, `
+    ${Section(`Xe tập lái — ${(d.vehicles || []).length} xe`, `Mỗi xe có đúng 1 GV chủ xe và gắn theo khóa ở GĐ2 — GĐ3 dùng 1 xe/khóa, xe còn lại dự phòng/bảo dưỡng · Nhật ký xăng tháng này: ${fmtMoney(d.fuelTotal || 0)} · Giờ/tuần tính từ lịch dạy thật của tuần hiện tại · Xe chạy &gt;56h/tuần báo đỏ cần bảo dưỡng`, `
       <div class="d-only tbl-wrap"><table class="tbl"><thead><tr><th>Biển số</th><th>Hạng</th><th>Trạng thái</th><th>GV chủ xe</th><th>Khóa phụ trách (GĐ2)</th><th>Hạn đăng kiểm</th><th>Bảo hiểm TNDS</th><th>Phù hiệu</th><th>Km đồng hồ</th><th>Còn tới bảo dưỡng</th><th>Giờ/tuần</th><th style="text-align:right">Xăng tháng</th><th></th></tr></thead><tbody>
         ${(d.vehicles || []).map((v, i) => `<tr class="${v.overuse ? '' : (i % 2 ? 'alt' : '')}" ${v.overuse ? 'style="background:#FDECEA"' : ''}>
           <td>${PlateBadge(v.plate)}</td>
@@ -2900,7 +2907,7 @@ async function fuelDelete(id) {
 </script>
 <script>
 /* ================= KỲ THI SÁT HẠCH (Exams) ================= */
-const EX = { tab: 'eligible', course: 'K38' };
+const EX = { tab: 'eligible', course: '' };
 const RESULT_OPTS = ['Chưa thi', 'Đậu', 'Rớt', 'Vắng'];
 const DOSSIER_OPTS = ['Chưa nộp', 'Đã nộp Sở', 'Đã có biên nhận'];
 function resultColor(r) {
@@ -2939,10 +2946,9 @@ function regTag(s) {
   return q.length ? `<span class="chip" style="background:#E3F2FD;color:#1E3A8A;margin-left:8px">Đã đăng ký: ${q.map(r => `${esc(r.name)} · ${fmtDate(r.examDate)}`).join('; ')}</span>` : '';
 }
 RENDERERS.exams = async (main) => {
-  const [d, roundsData, lk] = await Promise.all([call('listexams', {}), call('listexamrounds', {}), getLookups()]);
+  const [d, roundsData, lk, datSum] = await Promise.all([call('listexams', {}), call('listexamrounds', {}), getLookups(), call('getdatsummary', {}).catch(() => ({ rows: [] }))]);
   window._EX = d; window._EX_ROUNDS = roundsData.rounds || [];
-  let datRows = [];
-  try { datRows = (await call('getdatsummary', {})).rows || []; } catch (e) {}
+  const datRows = datSum.rows || [];
   const datById = {}; datRows.forEach(r => { datById[r.studentId] = r; });
   window._EX_DAT = datById;
   const results = d.results || [];
@@ -2964,7 +2970,7 @@ RENDERERS.exams = async (main) => {
       </div>`)}
     <div class="big5">
       <div class="big-stat" style="background:#E8F5E9"><p class="lb">Đủ điều kiện thi</p><p class="vl" style="font-size:28px;color:#007A38">${d.eligibleTotal} HV</p><p class="note-dim" style="font-size:13.5px">Đạt đủ 5/5 tiêu chí: LT · Cabin · DAT · Sa hình · Học phí (toàn trung tâm)</p></div>
-      <div class="big-stat" style="background:#E8F5E9"><p class="lb">Đã thi &amp; đậu</p><p class="vl" style="font-size:28px;color:#007A38">${passedComputed} HV</p><p class="note-dim" style="font-size:13.5px">Tính từ kết quả 3 phần đã ghi: K38 21 HV đợt 10/10 · K39 13 HV đợt 24/10</p></div>
+      <div class="big-stat" style="background:#E8F5E9"><p class="lb">Đã thi &amp; đậu</p><p class="vl" style="font-size:28px;color:#007A38">${passedComputed} HV</p><p class="note-dim" style="font-size:13.5px">Tính từ kết quả 3 phần đã ghi trong hệ thống (${results.length} kết quả đã ghi nhận)</p></div>
       <div class="big-stat" style="background:#FFF8E1"><p class="lb">Đã đậu — chưa có bằng</p><p class="vl" style="font-size:28px;color:#B45309">${d.passedNoLicense} HV</p><p class="note-dim" style="font-size:13.5px">Đang chờ cấp/bằng được phát về trung tâm để báo HV nhận</p></div>
       <div class="big-stat" style="background:#E3F2FD"><p class="lb">Đã có bằng</p><p class="vl" style="font-size:28px;color:#1E3A8A">${d.licensedCount} HV</p><p class="note-dim" style="font-size:13.5px">${d.passedNoLicense} + ${d.licensedCount} = ${d.passedTotal} tổng số HV đã đậu</p></div>
       <div class="big-stat" style="background:#E8F5E9"><p class="lb">Tỷ lệ đậu</p><p class="vl" style="font-size:28px;color:#007A38">${d.passRate}%</p><p class="note-dim" style="font-size:13.5px">Kết quả thi đã ghi nhận: ${results.length} HV (${examined} đã thi)</p></div>
@@ -3108,15 +3114,20 @@ async function roundRemoveReg(id) {
 function GraduationHtml() {
   return Section('Thi tốt nghiệp theo khóa', 'Ghi kết quả tốt nghiệp cho từng khóa: ngày thi tốt nghiệp, kết quả, số chứng chỉ và ngày cấp chứng chỉ', `
     <div class="row-wrap" style="margin-bottom:12px">
-      <select aria-label="Chọn khóa xem thi tốt nghiệp" class="select" style="max-width:360px" onchange="EX.course=this.value;gradLoad()">${COURSE_OPTIONS_LIST.map(c => `<option value="${esc(c.code)}" ${EX.course === c.code ? 'selected' : ''}>${esc(courseOptionLabel(c.code, c.openDate, c.closeDate))}</option>`).join('')}</select>
+      <select aria-label="Chọn khóa xem thi tốt nghiệp" class="select" style="max-width:360px" onchange="EX.course=this.value;gradLoad()">${courseOptionsList_().map(c => `<option value="${esc(c.code)}" ${EX.course === c.code ? 'selected' : ''}>${esc(courseOptionLabel(c.code, c.openDate, c.closeDate))}</option>`).join('')}</select>
       <span id="grad-count" style="font-size:14px"></span>
     </div>
     <div id="grad-list">${Loading()}</div>`);
 }
-const COURSE_OPTIONS_LIST = Object.keys(COURSE_DATES).map(code => ({ code, openDate: COURSE_DATES[code][0], closeDate: COURSE_DATES[code][1] }));
+function courseOptionsList_() {
+  const cs = (LK && LK.courses) || [];
+  if (cs.length) return cs.map(c => ({ code: c.code, openDate: '', closeDate: '' }));
+  return Object.keys(COURSE_DATES).map(code => ({ code, openDate: COURSE_DATES[code].open, closeDate: COURSE_DATES[code].close }));
+}
 async function gradLoad() {
   const host = document.getElementById('grad-list');
   if (!host) return;
+  if (!EX.course) { const l = courseOptionsList_(); if (l.length) EX.course = l[0].code; }
   try {
     const d = await call('liststudents', { courseCode: EX.course, page: 1, pageSize: 200 });
     const rows = d.students || [];
@@ -3223,7 +3234,7 @@ RENDERERS.reports = async (main) => {
         ${barChartSvg((r.revenueByCourse || []).map(x => ({ label: x.label, a: x.perCourse, b: x.total })), [{ key: 'a', name: 'Học phí/HV (tr)', color: '#FFC107' }, { key: 'b', name: 'Tổng (tr)', color: '#00B050' }], 230)}
         <p class="note-dim" style="margin-top:8px">${(r.revenueByCourse || []).map(x => `${x.label}: ${x.students} HV × ${x.perCourse}tr = ${x.total}tr`).join(' · ')}</p>`)}
       ${Section('Lời lỗ theo tháng', 'Doanh thu (xanh navy) · Chi phí (vàng) · Lợi nhuận (xanh lá, âm = lỗ)', barChartSvg((r.plSeries || []).map(x => ({ label: x.month.replace('/2026', ''), a: x.revenue, b: x.cost, c: x.profit })), [{ key: 'a', name: 'Doanh thu', color: '#1E3A8A' }, { key: 'b', name: 'Chi phí', color: '#FFC107' }, { key: 'c', name: 'Lợi nhuận', color: '#00B050' }], 230))}
-      ${Section('Chi tiết chi phí tháng 10', `Tổng chi ${(costBreakdown.reduce((a, x) => a + x.amount, 0)).toLocaleString('vi-VN')}tr — lương GV + xăng + hoa hồng chiếm phần lớn`, `
+      ${Section('Chi tiết chi phí ' + MONTH_LABEL, `Tổng chi ${(costBreakdown.reduce((a, x) => a + x.amount, 0)).toLocaleString('vi-VN')}tr — lương GV + xăng + hoa hồng chiếm phần lớn`, `
         <div class="row-wrap" style="justify-content:center;gap:20px">${donutSvg(costBreakdown.map((x, i) => ({ value: x.amount, color: PIE_COLORS[i % PIE_COLORS.length] })))}
           <ul style="list-style:none;margin:0;padding:0" class="stack-sm">${costBreakdown.map((x, i) => `<li style="font-size:14px"><span style="display:inline-block;height:12px;width:12px;border-radius:3px;background:${PIE_COLORS[i % PIE_COLORS.length]};margin-right:8px"></span>${esc(x.label)} <b>${x.amount}tr</b> · ${x.pct}%</li>`).join('')}</ul>
         </div>`)}
