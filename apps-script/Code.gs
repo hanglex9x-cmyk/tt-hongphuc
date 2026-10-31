@@ -58,7 +58,14 @@ function str_(v) { return v === null || v === undefined ? '' : String(v); }
 function dstr_(v) {
   if (!v) return '';
   if (Object.prototype.toString.call(v) === '[object Date]') return Utilities.formatDate(v, 'Asia/Ho_Chi_Minh', 'yyyy-MM-dd');
-  return String(v).slice(0, 10);
+  if (typeof v === 'number' && v > 20000 && v < 80000) {
+    // So serial ngay Excel/Sheet (serial 25569 = 01/01/1970) — o ngay bi luu dang so.
+    return Utilities.formatDate(new Date(Math.round((v - 25569) * 86400000)), 'Asia/Ho_Chi_Minh', 'yyyy-MM-dd');
+  }
+  const s = String(v).trim();
+  const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (m) return m[3] + '-' + String(m[2]).padStart(2, '0') + '-' + String(m[1]).padStart(2, '0');
+  return s.slice(0, 10);
 }
 function json_(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
@@ -384,9 +391,12 @@ function apiGetDatSummary() {
     notStartedCount: rows.filter(r => r.status === 'Chưa chạy').length };
   return { rows, summary: sum };
 }
+function normSearch_(s) {
+  return String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd');
+}
 function apiListStudents(p) {
   let rows = allStudents_();
-  if (p.search) { const q = String(p.search).toLowerCase(); rows = rows.filter(s => s.name.toLowerCase().includes(q) || s.code.toLowerCase().includes(q) || s.maHv.includes(q)); }
+  if (p.search) { const q = normSearch_(p.search); rows = rows.filter(s => normSearch_(s.name).includes(q) || normSearch_(s.code).includes(q) || normSearch_(s.maHv).includes(q)); }
   if (p.courseCode) rows = rows.filter(s => s.courseCode === p.courseCode);
   if (p.status) rows = rows.filter(s => s.status === p.status);
   if (p.centerName) rows = rows.filter(s => s.centerName === p.centerName);
@@ -602,7 +612,7 @@ function apiListExams() {
     passedNoLicense: passed.filter(p => !p.hasLicense).length,
     passRate: examined.length ? Math.round(passed.length / examined.length * 100) : 0,
     passByCourse: Object.keys(byCourse).map(k => ({ courseCode: k, examined: byCourse[k].examined, passed: byCourse[k].passed, rate: Math.round(byCourse[k].passed / byCourse[k].examined * 1000) / 10 })),
-    nextExamDate: '2026-11-05'
+    nextExamDate: tab_('DotSathach').objs.map(o => dstr_(o['NgayThi'])).filter(d => d && d >= today_()).sort()[0] || ''
   };
 }
 function apiGetReports() {
@@ -631,7 +641,17 @@ function apiGetReports() {
     if (s.type === 'DAT') bySlot[key].dat++;
     if (s.type === 'Sa hình') bySlot[key].sahinh++;
   });
-  const dl = apiListSchedulesRange({ from: '2026-06-01', to: '2026-12-31' });
+  // (Ban cu co dong apiListSchedulesRange 7 thang ma ket qua khong dung o dau — da bo.)
+  // sessionsProgress tinh tai cho (cong thuc y het apiGetDashboard) — tranh goi
+  // lai apiGetDashboard() (keo theo notifications + conflicts) va apiListExams() 2 lan.
+  const indivR = rows.filter(s => s.studentId);
+  const leR = indivR.filter(s => s.date <= T);
+  const cntR = (arr, t) => arr.filter(s => s.type === t).length;
+  const ltWeightedR = rows.filter(s => s.type === 'Lý thuyết').reduce((a, s) => a + (s.courseSize || 0), 0);
+  const scheduledR = cntR(leR, 'DAT') + cntR(leR, 'Sa hình') + cntR(leR, 'Thi tốt nghiệp') + ltWeightedR;
+  const totalR = students.length * 16;
+  const daysR = new Set(indivR.map(s => s.date)).size;
+  const examsR = apiListExams();
   return {
     totalStudents: students.length,
     studentsByCourse: courses_().map(c => ({ courseCode: c.code, licenseClass: c.licenseClass, count: students.filter(s => s.courseCode === c.code).length })),
@@ -649,9 +669,14 @@ function apiGetReports() {
     plSeries: pl, costBreakdown: cost,
     datByVehicle: Object.keys(byVehicle).map(k => byVehicle[k]).sort((a, b) => b.km - a.km),
     datBySlot: Object.keys(bySlot).sort().map(k => bySlot[k]),
-    sessionsProgress: apiGetDashboard().sessionsProgress,
-    eligibleCount: apiListExams().eligibleTotal,
-    passRate: apiListExams().passRate
+    sessionsProgress: {
+      total: totalR, scheduled: scheduledR, remaining: totalR - scheduledR, gridCells: totalR,
+      datSpecial: cntR(leR, 'DAT'), sahinh: cntR(leR, 'Sa hình') + cntR(leR, 'Thi tốt nghiệp'), regular: ltWeightedR,
+      off: 0, days: daysR, avgPerDay: daysR ? Math.round(scheduledR / daysR * 10) / 10 : 0,
+      from: '2026-06-07', to: '2026-12-31'
+    },
+    eligibleCount: examsR.eligibleTotal,
+    passRate: examsR.passRate
   };
 }
 function apiGetGovReports() {
@@ -764,9 +789,11 @@ function apiSaveStudent(p) {
     id = nextId_('HocVien');
     const cm = courseMap_();
     const c = cm[p.courseCode] || {};
-    const maxN = tab_('HocVien').objs.reduce((a, o) => Math.max(a, Number(String(o['MaHVSach']).replace(/\D+/g, '')) || 0), 0);
+    const hvObjs = tab_('HocVien').objs;
+    const maxSach = hvObjs.reduce((a, o) => Math.max(a, Number(String(o['MaHVSach']).replace(/\D+/g, '')) || 0), 0);
+    const maxCode = hvObjs.reduce((a, o) => Math.max(a, Number(String(o['MaHV']).replace(/\D+/g, '')) || 0), 0);
     appendObj_('HocVien', {
-      ID: id, MaHV: 'HP' + String(maxN + 1).padStart(3, '0'), MaHVSach: String(maxN + 1).padStart(3, '0'),
+      ID: id, MaHV: 'HV' + String(maxCode + 1).padStart(3, '0'), MaHVSach: String(maxSach + 1),
       HoTen: p.name || '', NgaySinh: p.dob || '', CCCD: p.cccd || '', SDT: p.phone || '', DiaChi: p.address || '',
       MaKhoa: p.courseCode || '', Hang: p.licenseClass || c.licenseClass || '', TrungTamLienKet: p.centerName || '',
       GVChinh: '', XeQuen: '', BienSoKG: '', NgayDangKy: today_(), NgayKhamSK: p.healthExamDate || '',
@@ -1144,17 +1171,19 @@ function apiEnrollAdmission(p) {
   if (adm.docsStatus !== 'Đủ giấy tờ') return { ok: false, error: 'Hồ sơ chưa đủ giấy tờ' };
   const c = courseMap_()[p.courseCode];
   if (!c) return { ok: false, error: 'Không tìm thấy khóa học' };
-  const maxN = tab_('HocVien').objs.reduce((a, o) => Math.max(a, Number(String(o['MaHVSach']).replace(/\D+/g, '')) || 0), 0);
+  const hvObjsE = tab_('HocVien').objs;
+  const maxSachE = hvObjsE.reduce((a, o) => Math.max(a, Number(String(o['MaHVSach']).replace(/\D+/g, '')) || 0), 0);
+  const maxCodeE = hvObjsE.reduce((a, o) => Math.max(a, Number(String(o['MaHV']).replace(/\D+/g, '')) || 0), 0);
   const nid = nextId_('HocVien');
-  const code = 'HP' + String(maxN + 1).padStart(3, '0');
+  const code = 'HV' + String(maxCodeE + 1).padStart(3, '0');
   appendObj_('HocVien', {
-    ID: nid, MaHV: code, MaHVSach: String(maxN + 1).padStart(3, '0'), HoTen: adm.name, NgaySinh: '',
+    ID: nid, MaHV: code, MaHVSach: String(maxSachE + 1), HoTen: adm.name, NgaySinh: '',
     CCCD: '', SDT: adm.phone, DiaChi: '', MaKhoa: c.code, Hang: c.licenseClass,
     TrungTamLienKet: adm.source && adm.source !== 'Quầy tuyển sinh' ? adm.source : '',
     GVChinh: '', XeQuen: '', BienSoKG: '', NgayDangKy: today_(), NgayKhamSK: adm.healthExamDate || '',
     HanKhamSK: adm.healthExpiry || '', GioCabin: 0, BuoiCabin: 0, DiemLyThuyet: '', DatLyThuyet: 'Chưa đạt',
     DaHocSaHinh: 'Chưa học', KmDATDaChay: 0, KmDATMucTieu: TARGET_KM[c.licenseClass] || 810, MocKmDAT: 0,
-    GiamTien: 0, LyDoGiam: '', TrangThai: 'Đang học', NgayThiTotNghiep: '', KetQuaTotNghiep: '',
+    GiamTien: 0, MuaLL: '', HocPhi: priceFor_(c.licenseClass), LyDoGiam: '', TrangThai: 'Đang học', NgayThiTotNghiep: '', KetQuaTotNghiep: '',
     SoChungChi: '', NgayCapChungChi: '', NgayCoBang: '', CoBang: 'Chưa', DiemBangLai: ''
   });
   deleteRow_('TuyenSinh', num_(p.admissionId));
