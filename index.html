@@ -371,6 +371,50 @@ function clearReadCache() {
   CONF = null; // cache listconflicts riêng
   lsClearSWR(); // cả bản lưu localStorage (khai báo ở khối SWR phía dưới)
 }
+// ---- Xóa cache CHỌN LỌC theo loại dữ liệu vừa ghi ----
+// Trước đây mỗi lần ghi, write() xóa TOÀN BỘ cache đọc → mọi màn hình phải tải lại
+// từ đầu (mỗi call tốn ~1–4 giây nền tảng Google) nên "lưu xong là đơ cả app".
+// Nay mỗi action ghi chỉ xóa đúng nhóm dữ liệu nó làm thay đổi; action nào chưa có
+// trong bảng WRITE_INVALIDATES thì vẫn xóa toàn bộ cho an toàn.
+function bustReads_(actions) {
+  if (!actions || !actions.length) return;
+  const kill = (map) => { for (const k of [...map.keys()]) { if (actions.some(a => k.startsWith(a + '|'))) map.delete(k); } };
+  kill(READ_CACHE); kill(INFLIGHT);
+  try {
+    const ks = [];
+    for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith('hp_swr_') && actions.some(a => k.includes('_' + a + '|'))) ks.push(k); }
+    ks.forEach(k => localStorage.removeItem(k));
+  } catch (e) {}
+}
+const WB_SCHED = { r: ['listschedules', 'getdatsummary', 'getdashboard'], range: 1, ds: 1 };
+const WB_STUD = { r: ['liststudents', 'getdashboard', 'listpayments', 'getreports', 'getgovreports', 'getdatsummary', 'listschedules'], range: 1, lk: 1, ds: 1 };
+const WB_EXAM = { r: ['listexams', 'listexamrounds', 'getdashboard', 'getreports', 'getgovreports', 'liststudents'] };
+const WRITE_INVALIDATES = {
+  createschedule: WB_SCHED, updateschedule: WB_SCHED, deleteschedule: WB_SCHED,
+  savestudent: WB_STUD, setstudentstatus: WB_STUD, transferstudentcourse: WB_STUD, enrolladmission: WB_STUD,
+  addpayment: { r: ['listpayments', 'liststudents', 'getdashboard', 'getreports', 'getgovreports'] },
+  saveteacher: { r: ['listschedules', 'getdatsummary'], range: 1, lk: 1 },
+  savevehicle: { r: ['getfleet', 'listschedules'], range: 1, lk: 1 },
+  savecenter: { r: ['listcenters', 'liststudents', 'listschedules'], range: 1, lk: 1 },
+  deletecenter: { r: ['listcenters', 'liststudents', 'listschedules'], range: 1, lk: 1 },
+  saveadmission: { r: ['listadmissions'] }, deleteadmission: { r: ['listadmissions'] }, setadmissiondoc: { r: ['listadmissions'] },
+  savebotuc: { r: ['getfleet'] }, deletebotuc: { r: ['getfleet'] },
+  addfuellog: { r: ['listfuellogs', 'getfleet'] }, deletefuellog: { r: ['listfuellogs', 'getfleet'] },
+  saveexamround: WB_EXAM, deleteexamround: WB_EXAM, updateexamresult: WB_EXAM, updategraduation: WB_EXAM,
+  addroundregistration: { r: ['listexams', 'liststudents', 'getdashboard'] },
+  removeroundregistration: { r: ['listexams', 'liststudents', 'getdashboard'] },
+  updatelicensestatus: { r: ['liststudents', 'getdashboard', 'getreports', 'listexams'] },
+  sendnotification: { r: ['listnotifications'] },
+  saveprices: { r: [] },
+};
+function invalidateForWrite_(action) {
+  const spec = WRITE_INVALIDATES[action];
+  if (!spec) { clearReadCache(); return; }
+  bustReads_(spec.r);
+  if (spec.range) { RANGE_CACHE.clear(); CONF = null; }
+  if (spec.lk) LK = null;
+  if (spec.ds) { try { DS.data = null; } catch (e) {} window._DASH_SP = null; window._DASH = null; }
+}
 async function call(action, params, opts) {
   const cacheable = CACHEABLE_ACTIONS.has(action) && !(opts && opts.force);
   const key = cacheable ? readCacheKey(action, params) : null;
@@ -391,7 +435,7 @@ async function call(action, params, opts) {
 async function write(action, params) {
   const r = await apiPost(action, params);
   if (!r || r.ok === false) throw new Error((r && r.error) || 'Không lưu được');
-  clearReadCache(); // ghi thành công → bỏ toàn bộ cache đọc, tránh dữ liệu cũ
+  invalidateForWrite_(action); // chỉ xóa đúng nhóm cache mà dữ liệu vừa ghi làm thay đổi
   return r;
 }
 // ---------- SWR (stale-while-revalidate) qua localStorage ----------
@@ -449,6 +493,8 @@ function prefetchWarm_() {
   PREFETCH_DONE = true;
   const run = async () => {
     try { await call('getdatsummary', {}); } catch (e) { /* bỏ qua */ }
+    try { await call('getfleet', {}); } catch (e) { /* bỏ qua */ }
+    try { await getConflicts(); } catch (e) { /* bỏ qua */ }
     try { await call('listexams', {}); } catch (e) { /* bỏ qua */ }
     try { await callRange_(mondayOf(TODAY), addDays(mondayOf(TODAY), 6)); } catch (e) { /* bỏ qua */ }
     try { await call('listnotifications', {}); } catch (e) { /* bỏ qua */ }
@@ -1499,7 +1545,8 @@ async function dashLoadDay() {
 /* ================= LỊCH HÔM NAY (TodaySchedule) ================= */
 const TD = { mode: 'today', date: TODAY, fStudentId: '', studentSearch: '' };
 RENDERERS.today = async (main) => {
-  await getConflicts();
+  // Không chờ listconflicts mới vẽ (màn hình trắng vài giây): vẽ trước, viền trùng bổ sung khi tải xong
+  getConflicts().then(() => { if (state.view === 'today' && TD.mode !== 'today') { try { svRenderMain('svToday'); } catch (e) {} } }).catch(() => {});
   if (TD.mode !== 'today') {
     main.innerHTML = Section('Lịch học', 'Cùng dữ liệu lịch thật — xem theo tuần, theo 2 tuần (ngày 1–15 / 15–cuối tháng) hoặc theo tháng, lọc theo giáo viên / xe / trung tâm / loại buổi.', `
       <div class="mode-tabs" style="margin-bottom:12px" role="tablist" aria-label="Chế độ xem lịch học">
@@ -1998,12 +2045,11 @@ async function sfSave() {
 <script>
 /* ================= LỊCH DAT & SA HÌNH (DatPlan + DatSummary) ================= */
 RENDERERS.dat = async (main) => {
-  await getConflicts();
-  const [fleet] = await Promise.all([call('getfleet', {})]);
-  const over = (fleet.vehicles || []).filter(v => v.overuse);
+  // Vẽ khung NGAY, không chờ listconflicts + getfleet như trước (màn hình trắng 2–6 giây).
+  // Hai dữ liệu đó nạp nền ở cuối hàm: xong thì bổ sung viền trùng + cảnh báo bảo dưỡng.
   main.innerHTML = `<div class="stack">
     ${Section('Kế hoạch xếp xe DAT & Sa hình — xem theo tuần / 2 tuần / tháng', 'Luật xếp lịch: 1 HV tối đa 1 buổi/ngày · 1 xe tối đa 2 ca/ngày · 1 GV tối đa 2 ca/ngày. Trùng xe / trùng học viên = viền ĐỎ (lỗi), trùng giáo viên = viền VÀNG (cảnh báo). HV chưa đủ 500km DAT gắn cờ vàng khi xếp sa hình. Mỗi HV có GV DAT chính + xe quen (GV chủ xe) — đổi cặp sẽ hiện cảnh báo.', `
-      ${over.length ? `<div class="err-box" style="margin-bottom:12px;font-weight:600">Cảnh báo bảo dưỡng: ${over.map(v => `xe ${esc(v.plate)} chạy ${v.hoursWeek}h/tuần (&gt;56h)`).join(' · ')}</div>` : ''}
+      <div id="fleet-alert"></div>
       <div class="row-wrap" style="margin-bottom:12px"><span class="note-dim">Giờ học linh hoạt: tự chọn giờ bắt đầu – kết thúc cho từng buổi, không theo khung cố định.</span></div>
       ${ScheduleViewsHtml('svDat')}`)}
     ${Section('Tổng hợp DAT', 'Chuẩn trung tâm: mục tiêu DAT theo hạng — B1: 710 km · B2: 810 km · C1: 825 km · C: 825 km. Giờ DAT đã chạy = tổng giờ các buổi DAT đã qua của HV; Giờ còn cần = km còn lại ÷ tốc độ DAT bình quân thực tế của chính HV đó (chưa chạy buổi nào dùng tốc độ chuẩn 40 km/h), làm tròn 0,5h. Trạng thái so %km với % thời gian Giai đoạn 2 (DAT + Sa hình, theo kế hoạch từng khóa) đã trôi qua, trừ hao 10%.', '<div id="datsum">' + Loading() + '</div>', `<button type="button" class="btn btn-amber" onclick="datExport()">Export Excel</button>`)}
@@ -2013,6 +2059,12 @@ RENDERERS.dat = async (main) => {
   await svInit('svDat');
   datSummaryLoad();
   datCreateLoad();
+  getConflicts().then(() => { if (state.view === 'dat') { try { svRenderMain('svDat'); } catch (e) {} } }).catch(() => {});
+  call('getfleet', {}).then(fleet => {
+    const over = (fleet.vehicles || []).filter(v => v.overuse);
+    const host = document.getElementById('fleet-alert');
+    if (host && over.length && state.view === 'dat') host.innerHTML = `<div class="err-box" style="margin-bottom:12px;font-weight:600">Cảnh báo bảo dưỡng: ${over.map(v => `xe ${esc(v.plate)} chạy ${v.hoursWeek}h/tuần (&gt;56h)`).join(' · ')}</div>`;
+  }).catch(() => {});
 };
 const DS = { search: '', course: '', teacher: '', status: '', page: 1, pageSize: 15, data: null };
 function DatStatusChip(status) {
@@ -2236,7 +2288,23 @@ async function datCreate(pfx) {
         <p style="margin-top:4px">Chưa xếp lịch — đổi xe / GV / khung giờ rồi bấm Xếp lịch lại.</p></div>`;
       return;
     }
-    await write('createschedule', payload);
+    // Giữ lại bản lịch trong cache để chèn buổi mới ngay sau khi ghi (khỏi tải lại toàn bộ)
+    const rangeBackup = [];
+    RANGE_CACHE.forEach((v, k) => { const p = k.split('|'); if (p.length === 2 && payload.date >= p[0] && payload.date <= p[1] && v && Array.isArray(v.schedules)) rangeBackup.push([k, v]); });
+    const wr = await write('createschedule', payload);
+    // Chèn buổi mới vào lại các khoảng lịch đã giữ: đóng form là lịch vẽ lại TỨC THÌ từ cache
+    try {
+      if (wr && wr.id && rangeBackup.length) {
+        const stu2 = (lk.students || []).find(s => s.id === payload.studentId);
+        const tch2 = (lk.teachers || []).find(t => t.id === payload.teacherId);
+        const newSess = { id: wr.id, date: payload.date, slot: payload.slot, startMinutes: nS, type: payload.type, courseCode: stu2 ? stu2.courseCode : '', studentId: payload.studentId, studentName: stu2 ? stu2.name : '', teacherId: payload.teacherId, teacherName: tch2 ? tch2.name : '', teacherShort: tch2 ? tch2.name : '', teacherColor: '#90CAF9', vehicleId: payload.vehicleId, plate: payload.plate || '', centerName: stu2 ? (stu2.centerName || '') : '', km: payload.km, actualKm: null, attendance: 'Đã học', groupLabel: '', note: '', editable: true };
+        rangeBackup.forEach(([k, v]) => {
+          const dts = (v.dayTotals || []).map(d => d.date === payload.date ? { ...d, sessions: (d.sessions || 0) + 1 } : d);
+          if (!dts.some(d => d.date === payload.date)) dts.push({ date: payload.date, sessions: 1 });
+          RANGE_CACHE.set(k, { ...v, schedules: [...(v.schedules || []), newSess], dayTotals: dts });
+        });
+      }
+    } catch (e) { /* chèn cache lỗi thì bỏ qua — lịch sẽ tự tải lại */ }
     const warnings = [];
     const stu = (lk.students || []).find(s => s.id === payload.studentId);
     const tch = (lk.teachers || []).find(t => t.id === payload.teacherId);
