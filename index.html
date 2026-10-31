@@ -35,7 +35,7 @@ b,strong{font-weight:700}
 @media(max-width:767px){.header-inner{gap:8px;padding:8px 10px;align-items:center}.header-inner .hamb{height:36px;width:36px;flex:none}.header-inner>svg{width:36px;height:36px;flex:none;filter:drop-shadow(0 1px 2px rgba(0,60,30,.35))}}
 .header-inner h1{margin:0;font-size:min(12.5px,3.2vw);font-weight:800;letter-spacing:0;line-height:1.3;white-space:nowrap}
 @media(min-width:768px){.header-inner h1{font-size:18px}}
-.header-inner .sub{margin:1px 0 0;font-size:min(8.5px,2.2vw);color:rgba(255,255,255,.85);line-height:1.4;white-space:nowrap}
+.header-inner .sub{margin:1px 0 0;font-size:min(9.5px,2.6vw);color:rgba(255,255,255,.85);line-height:1.35;white-space:normal}
 .header-inner .sub span{text-decoration:none}
 @media(min-width:768px){.header-inner .sub{font-size:12px}}
 @media(min-width:768px){.header-inner .sub{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}
@@ -777,7 +777,7 @@ function renderShell() {
       ${Logo(42)}
       <div style="min-width:0;flex:1">
         <h1>TRUNG TÂM ĐÀO TẠO LÁI XE <span class="brand-yellow">HỒNG PHÚC</span></h1>
-        <p class="sub">404 QL1A, P. Thới An, Quận 12, TP.HCM · <span style="white-space:nowrap">SĐT: 0949 155 955</span></p>
+        <p class="sub">404 Đỗ Mười (QL1A cũ), KP42, P. Tam Bình, Thủ Đức, TP.HCM · SĐT: 0968 155 554 · 0928 155 554</p>
       </div>
       <button type="button" class="bell-btn" aria-label="Mở Cảnh báo & Zalo" onclick="go('alerts')"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 8-3 8h18s-3-1-3-8M10.3 21a2 2 0 0 0 3.4 0"/></svg><span id="bell-badge" class="bell-badge" hidden>0</span></button>
       <div class="admin-box">
@@ -1614,7 +1614,7 @@ RENDERERS.today = async (main) => {
     </div>
     <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:12px;font-size:14px;color:var(--dim)">
       <p style="margin:0">${all.length === 0 ? '<b style="color:var(--text)">Chưa có dữ liệu lịch hôm nay</b>' : `<b style="color:var(--text)">Tổng số buổi hôm nay: ${all.length}</b>`} · Bảng trên là các buổi chi tiết chính · Cập nhật lúc ${timeStr} · Trạng thái: Đã cập nhật</p>
-      <p style="margin:4px 0 0">Lưu ý: Học viên đến trước giờ học 10 phút. Địa chỉ: 404 QL1A, P. Thới An, Quận 12, TP.HCM — SĐT: 0949 155 955</p>
+      <p style="margin:4px 0 0">Lưu ý: Học viên đến trước giờ học 10 phút. Địa chỉ: 404 Đỗ Mười (QL1A cũ), KP42, P. Tam Bình, Thủ Đức, TP.HCM — SĐT: 0968 155 554 · 0928 155 554</p>
     </div>`, `
     <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px">
       <label class="row-wrap" style="font-size:14px">Ngày <input aria-label="Chọn ngày xem lịch" type="date" class="input input-sm" style="width:auto" value="${TD.date}" onchange="tdDate(this.value)"></label>
@@ -2328,7 +2328,7 @@ function admStatusChip(row) {
   return `<span class="status-chip" style="background:${BRAND.amber};color:#111827">${esc(row.docsStatus)}</span>`;
 }
 function remindMessage(row) {
-  return `Kính gửi anh/chị ${row.name}, Trung tâm Đào tạo Lái Xe HỒNG PHÚC nhắc bổ sung hồ sơ tuyển sinh (GPLX ${row.licenseClass}): còn thiếu ${(row.missingLabels || []).join(', ')}. Hạn bổ sung: ${fmtDate(row.deadline)}. Anh/chị vui lòng bổ sung sớm để kịp nhập học. Liên hệ văn phòng: 0949 155 955 — 404 QL1A, P. Thới An, Quận 12, TP.HCM.`;
+  return `Kính gửi anh/chị ${row.name}, Trung tâm Đào tạo Lái Xe HỒNG PHÚC nhắc bổ sung hồ sơ tuyển sinh (GPLX ${row.licenseClass}): còn thiếu ${(row.missingLabels || []).join(', ')}. Hạn bổ sung: ${fmtDate(row.deadline)}. Anh/chị vui lòng bổ sung sớm để kịp nhập học. Liên hệ văn phòng: 0968 155 554 · 0928 155 554 — 404 Đỗ Mười (QL1A cũ), KP42, P. Tam Bình, Thủ Đức, TP.HCM.`;
 }
 function admDocPill_(row, f) { return `<button type="button" class="docpill" style="${docPillStyle(row.docs[f.key])}" aria-label="${f.label} của ${esc(row.name)}: ${esc(row.docs[f.key])}. Bấm để đổi trạng thái" title="${f.label}: ${esc(row.docs[f.key])} — bấm để đổi" onclick="admDocCycle(${row.id},'${f.key}')">${esc(row.docs[f.key])}</button>`; }
 function admActions_(row) { return `<div class="row-wrap">
@@ -2522,7 +2522,7 @@ function receiptHtmlFor(students) {
   <div class="receipt">
     <div class="brand"><div class="logo">HỒNG PHÚC</div><div>
       <h1>TRUNG TÂM ĐÀO TẠO LÁI XE HỒNG PHÚC</h1>
-      <p>404 QL1A, P. Thới An, Quận 12, TP.HCM · SĐT: 0949 155 955</p>
+      <p>404 Đỗ Mười (QL1A cũ), KP42, P. Tam Bình, Thủ Đức, TP.HCM · SĐT: 0968 155 554 · 0928 155 554</p>
     </div></div>
     <h2>BIÊN LAI THU HỌC PHÍ</h2>
     <table>
@@ -2534,7 +2534,7 @@ function receiptHtmlFor(students) {
   <div class="receipt">
     <div class="brand"><div class="logo">HỒNG PHÚC</div><div>
       <h1>TRUNG TÂM ĐÀO TẠO LÁI XE HỒNG PHÚC</h1>
-      <p>404 QL1A, P. Thới An, Quận 12, TP.HCM · SĐT: 0949 155 955</p>
+      <p>404 Đỗ Mười (QL1A cũ), KP42, P. Tam Bình, Thủ Đức, TP.HCM · SĐT: 0968 155 554 · 0928 155 554</p>
     </div></div>
     <h2>BIÊN LAI THU HỌC PHÍ</h2>
     <table>
@@ -2688,7 +2688,7 @@ function tuiPreview() {
   if (!host || !TUI.selected.length) return;
   host.innerHTML = `<div style="margin-top:16px;display:flex;flex-direction:column;align-items:center;gap:16px;background:#ECEFF1;padding:12px;border-radius:12px">
     ${TUI.selected.map(s => `<div style="width:100%;max-width:560px;border-radius:8px;border:2px solid ${BRAND.navy};background:#fff;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,.15)">
-      <div class="row-wrap"><span>${Logo(44)}</span><div><p style="margin:0;font-size:14px;font-weight:800;color:${BRAND.navy}">TRUNG TÂM ĐÀO TẠO LÁI XE HỒNG PHÚC</p><p style="margin:0;font-size:12px;color:var(--dim)">404 QL1A, P. Thới An, Quận 12, TP.HCM · SĐT: 0949 155 955</p></div></div>
+      <div class="row-wrap"><span>${Logo(44)}</span><div><p style="margin:0;font-size:14px;font-weight:800;color:${BRAND.navy}">TRUNG TÂM ĐÀO TẠO LÁI XE HỒNG PHÚC</p><p style="margin:0;font-size:12px;color:var(--dim)">404 Đỗ Mười (QL1A cũ), KP42, P. Tam Bình, Thủ Đức, TP.HCM · SĐT: 0968 155 554 · 0928 155 554</p></div></div>
       <p style="margin:12px 0;text-align:center;font-size:18px;font-weight:800">BIÊN LAI THU HỌC PHÍ</p>
       <div class="stack-sm" style="font-size:14px">
         <p style="margin:0">Họ tên học viên: <b>${esc(s.name)}</b> (${esc(s.code)} · MHV ${esc(s.maHv || '—')})</p>
@@ -2730,7 +2730,7 @@ function printPaymentReceipt(pid) {
     .sign{display:flex;justify-content:space-between;margin-top:18px;font-size:12px;text-align:center}
   </style></head><body><div class="r">
     <h1>TRUNG TÂM ĐÀO TẠO LÁI XE HỒNG PHÚC</h1>
-    <p style="margin:2px 0 0;font-size:11px">404 QL1A, P. Thới An, Quận 12, TP.HCM · SĐT: 0949 155 955</p>
+    <p style="margin:2px 0 0;font-size:11px">404 Đỗ Mười (QL1A cũ), KP42, P. Tam Bình, Thủ Đức, TP.HCM · SĐT: 0968 155 554 · 0928 155 554</p>
     <h2>${title}</h2>
     <table>
       <tr><td>Họ tên học viên</td><td><b>${esc(p.studentName)}</b></td></tr>
@@ -2760,7 +2760,7 @@ async function printGovList() {
     </style></head><body>
       <p class="c">SỞ GIAO THÔNG VẬN TẢI TP. HỒ CHÍ MINH</p>
       <h1>DANH SÁCH HỌC VIÊN DỰ THI SÁT HẠCH LÁI XE</h1>
-      <p class="c">Trung tâm Đào tạo Lái xe HỒNG PHÚC — 404 QL1A, P. Thới An, Quận 12, TP.HCM · SĐT: 0949 155 955</p>
+      <p class="c">Trung tâm Đào tạo Lái xe HỒNG PHÚC — 404 Đỗ Mười (QL1A cũ), KP42, P. Tam Bình, Thủ Đức, TP.HCM · SĐT: 0968 155 554 · 0928 155 554</p>
       <table><thead><tr><th>STT</th><th>Họ tên</th><th>Mã HV</th><th>Khóa</th><th>Hạng</th><th>CCCD</th><th>SBD</th><th>Ghi chú</th></tr></thead>
       <tbody>${rows.map((r, i) => `<tr><td>${i + 1}</td><td>${esc(r.name)}</td><td>${esc(r.code)}</td><td>${esc(r.courseCode)}</td><td>${esc(r.licenseClass)}</td><td>${esc(r.cccd || '')}</td><td>${esc(r.sbd || '')}</td><td>${esc(r.note)}</td></tr>`).join('')}</tbody></table>
       <p style="font-size:12px;margin-top:10px">Tổng: ${rows.length} học viên · Ngày in: ${fmtDate(TODAY)}</p>
@@ -3075,7 +3075,7 @@ function LicenseActions(st, hasLicense, licenseDate) {
 }
 function exLicenseZalo(st, licenseDate) {
   if (!licenseDate) throw new Error(`Chưa có ngày có bằng của ${st.name}. Nhập "Ngày có bằng" trước rồi mới báo Zalo được.`);
-  const msg = `TT Đào tạo lái xe HỒNG PHÚC thông báo: Bằng lái xe hạng ${st.licenseClass} của anh/chị ${st.name} đã có tại trung tâm (từ ngày ${fmtDate(licenseDate)}). Mời anh/chị mang theo CCCD đến nhận tại 404 QL1A, P. Thới An, Q12, TP.HCM trong giờ hành chính. Liên hệ: 0949 155 955.`;
+  const msg = `TT Đào tạo lái xe HỒNG PHÚC thông báo: Bằng lái xe hạng ${st.licenseClass} của anh/chị ${st.name} đã có tại trung tâm (từ ngày ${fmtDate(licenseDate)}). Mời anh/chị mang theo CCCD đến nhận tại 404 Đỗ Mười (QL1A cũ), KP42, P. Tam Bình, Thủ Đức, TP.HCM trong giờ hành chính. Liên hệ: 0968 155 554 · 0928 155 554.`;
   return { kind: 'Có bằng', message: msg, target: `${st.name} (${st.code} · ${st.courseCode})` };
 }
 function regTag(s) {
@@ -3103,7 +3103,7 @@ RENDERERS.exams = async (main) => {
     ${Section('Kỳ thi sát hạch — luật mới TT 108/2026', 'Thi 3 phần theo thứ tự: Lý thuyết → Sa hình → Đường trường. Rớt/Vắng phần nào thì dừng ở đó, phần sau ghi nhận "Chưa thi". Đủ điều kiện thi = đạt cả 5 tiêu chí: Lý thuyết · Cabin 3h/3h · DAT đủ km · Sa hình đủ bài · Học phí đủ.', '',
       `<div class="row-wrap" style="font-size:14px">
         ${d.nextExamDate ? `<span class="chip" style="background:#FFF8E1;color:#B45309">Kỳ thi ${fmtDate(d.nextExamDate)} · còn ${daysLeft} ngày · ${d.eligibleTotal} HV đủ điều kiện</span>` : ''}
-        ${sendZaloBtn('Lịch thi', `TT Đào tạo lái xe HỒNG PHÚC trân trọng thông báo tới quý học viên đủ điều kiện thi: kỳ thi sát hạch lái xe sẽ diễn ra ngày ${d.nextExamDate ? fmtDate(d.nextExamDate) : ''}. Quý học viên vui lòng tập trung tại trung tâm lúc 6h30, mang theo CCCD bản gốc. Mọi chi tiết liên hệ: 0949 155 955.`, 'Tất cả học viên đủ điều kiện thi', 'Báo lịch thi cho HV đủ điều kiện')}
+        ${sendZaloBtn('Lịch thi', `TT Đào tạo lái xe HỒNG PHÚC trân trọng thông báo tới quý học viên đủ điều kiện thi: kỳ thi sát hạch lái xe sẽ diễn ra ngày ${d.nextExamDate ? fmtDate(d.nextExamDate) : ''}. Quý học viên vui lòng tập trung tại trung tâm lúc 6h30, mang theo CCCD bản gốc. Mọi chi tiết liên hệ: 0968 155 554 · 0928 155 554.`, 'Tất cả học viên đủ điều kiện thi', 'Báo lịch thi cho HV đủ điều kiện')}
       </div>`)}
     <div class="big5">
       <div class="big-stat" style="background:#E8F5E9"><p class="lb">Đủ điều kiện thi</p><p class="vl" style="font-size:28px;color:#007A38">${d.eligibleTotal} HV</p></div>
@@ -3476,8 +3476,8 @@ RENDERERS.alerts = async (main) => {
       <div class="row-wrap">
         ${sendZaloBtn('Lịch học', 'TT Đào tạo lái xe HỒNG PHÚC kính gửi quý học viên lịch học ngày mai (28/10/2026): vui lòng xem chi tiết buổi học, giờ học và giáo viên phụ trách trong app học viên. Học viên có mặt trước giờ học 10 phút, mang theo thẻ học viên. Mọi thay đổi vui lòng báo trước 1 buổi học.', 'Tất cả học viên có lịch ngày mai', 'Báo lịch học ngày mai')}
         ${sendZaloBtn('Lịch thi', 'TT Đào tạo lái xe HỒNG PHÚC thông báo: học viên đủ điều kiện thi vui lòng kiểm tra danh sách kỳ thi sát hạch sắp tới (05/11 và 15/11/2026). Học viên chưa đủ điều kiện khẩn trương hoàn thành DAT và học phí trước hạn khóa.', 'Học viên liên quan tới kỳ thi', 'Báo lịch thi sát hạch')}
-        ${sendZaloBtn('Kết quả thi — Đậu', 'TT Đào tạo lái xe HỒNG PHÚC chúc mừng quý học viên đã ĐẬU kỳ thi sát hạch lái xe! Trung tâm sẽ thông báo ngay khi bằng lái được cấp về trung tâm. Liên hệ: 0949 155 955.', 'Học viên đã đậu sát hạch', 'Báo kết quả Đậu')}
-        ${sendZaloBtn('Có bằng', 'TT Đào tạo lái xe HỒNG PHÚC thông báo: bằng lái xe của quý học viên đã có tại trung tâm. Mời quý học viên mang theo CCCD đến nhận tại 404 QL1A, P. Thới An, Q12, TP.HCM trong giờ hành chính.', 'Học viên đã có bằng', 'Báo có bằng — mời nhận')}
+        ${sendZaloBtn('Kết quả thi — Đậu', 'TT Đào tạo lái xe HỒNG PHÚC chúc mừng quý học viên đã ĐẬU kỳ thi sát hạch lái xe! Trung tâm sẽ thông báo ngay khi bằng lái được cấp về trung tâm. Liên hệ: 0968 155 554 · 0928 155 554.', 'Học viên đã đậu sát hạch', 'Báo kết quả Đậu')}
+        ${sendZaloBtn('Có bằng', 'TT Đào tạo lái xe HỒNG PHÚC thông báo: bằng lái xe của quý học viên đã có tại trung tâm. Mời quý học viên mang theo CCCD đến nhận tại 404 Đỗ Mười (QL1A cũ), KP42, P. Tam Bình, Thủ Đức, TP.HCM trong giờ hành chính.', 'Học viên đã có bằng', 'Báo có bằng — mời nhận')}
         ${sendZaloBtn('DAT', 'TT Đào tạo lái xe HỒNG PHÚC nhắc nhở: một số học viên sắp tới hạn khóa mà số km DAT chưa đủ (âm mốc). Vui lòng liên hệ giáo viên phụ trách để xếp thêm buổi DAT ngay trong tuần này, tránh quá hạn phải gia hạn khóa học.', 'Học viên chậm tiến độ DAT', 'Cảnh báo DAT sắp hết hạn')}
         ${sendZaloBtn('Cabin', `TT Đào tạo lái xe HỒNG PHÚC nhắc nhở: hiện còn ${cabinCount} học viên CHƯA học cabin buổi nào. Học cabin đủ 3 giờ là điều kiện bắt buộc trước khi thi tốt nghiệp — vui lòng liên hệ giáo viên phụ trách để xếp ca cabin trong tuần này.`, 'Học viên chưa học cabin', 'Nhắc HV chưa học cabin')}
         ${sendZaloBtn('Khám SK', `TT Đào tạo lái xe HỒNG PHÚC nhắc nhở: giấy khám sức khỏe của ${healthCount} học viên đã/sắp hết hạn (hạn 12 tháng). Hồ sơ thi không hợp lệ nếu giấy khám quá hạn — vui lòng đi khám lại và nộp bổ sung cho trung tâm trước đợt thi.`, 'Học viên sắp hết hạn giấy khám SK', 'Nhắc giấy khám SK hết hạn')}
@@ -3514,7 +3514,7 @@ RENDERERS.guide = (main) => {
     ['hd-hoi-dap', '13 · Hỏi đáp nhanh'],
   ];
   main.innerHTML = `<div class="stack" style="max-width:880px">
-    ${Section('Hướng dẫn sử dụng Portal quản lý đào tạo lái xe', 'Tài liệu hướng dẫn cho quản trị viên và nhân viên của Trung tâm Đào tạo Lái xe HỒNG PHÚC (404 QL1A, P. Thới An, Quận 12, TP.HCM · SĐT 0949 155 955). Bấm vào từng chương để nhảy tới nội dung — mọi thao tác đều làm được trên cả máy tính và điện thoại.', `
+    ${Section('Hướng dẫn sử dụng Portal quản lý đào tạo lái xe', 'Tài liệu hướng dẫn cho quản trị viên và nhân viên của Trung tâm Đào tạo Lái xe HỒNG PHÚC (404 Đỗ Mười (QL1A cũ), KP42, P. Tam Bình, Thủ Đức, TP.HCM · SĐT 0968 155 554 · 0928 155 554). Bấm vào từng chương để nhảy tới nội dung — mọi thao tác đều làm được trên cả máy tính và điện thoại.', `
       <div class="row-wrap">${chapters.map(([id, label]) => `<a href="#${id}" class="chip" style="background:#E8F5E9;color:#007A38;font-weight:600;text-decoration:none" onclick="event.preventDefault();var el=document.getElementById('${id}');if(el)el.scrollIntoView({behavior:'smooth',block:'start'})">${label}</a>`).join('')}</div>`)}
     <section class="panel" id="hd-bat-dau">${Section('1 · Bắt đầu sử dụng', '', `
       ${guideStep('1', '<b>Mở Portal</b> bằng trình duyệt (Chrome/Edge) trên máy tính hoặc điện thoại. Màn hình đầu tiên là mục <b>Tổng quan</b>.')}
@@ -3596,7 +3596,7 @@ RENDERERS.guide = (main) => {
       <p class="gtext"><b>Hỏi:</b> Học viên đã đóng đủ tiền nhưng chưa hiện “đủ điều kiện thi”?<br><b>Đáp:</b> Điều kiện thi gồm 5 tiêu chí — kiểm tra trong hồ sơ học viên xem còn tiêu chí nào chưa đạt (thường là thiếu giờ cabin hoặc thiếu vài km DAT cuối).</p>
       <p class="gtext"><b>Hỏi:</b> Muốn sửa buổi học đã xếp (đổi giờ, đổi xe)?<br><b>Đáp:</b> Mở Lịch Tuần/Tháng, bấm vào thẻ buổi học đó để sửa trực tiếp; hệ thống quét trùng lại ngay sau khi lưu. Xóa buổi cũng làm tại đây.</p>
       <p class="gtext"><b>Hỏi:</b> Số liệu doanh thu không khớp sổ tay?<br><b>Đáp:</b> Doanh thu tính từ các lần thu đã ghi trong mục Học phí. Kiểm tra lại tháng đang chọn và các phiếu “Hoàn phí” (số âm) trong tháng.</p>
-      <p class="gtext"><b>Hỏi:</b> Cần hỗ trợ thêm?<br><b>Đáp:</b> Liên hệ quản trị Portal của trung tâm hoặc gọi 0949 155 955 (giờ hành chính) để được hướng dẫn trực tiếp.</p>`)}
+      <p class="gtext"><b>Hỏi:</b> Cần hỗ trợ thêm?<br><b>Đáp:</b> Liên hệ quản trị Portal của trung tâm hoặc gọi 0968 155 554 · 0928 155 554 (giờ hành chính) để được hướng dẫn trực tiếp.</p>`)}
       </section>
   </div>`;
 };
