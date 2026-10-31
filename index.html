@@ -1342,7 +1342,7 @@ function svRenderMain(id) {
     const days = Array.from({ length: last }, (_, k) => addDays(first, k));
     body = SwipeStrip(days, byDate, markersByDate, fStudent ? fStudent.id : null);
   }
-  host.innerHTML = `<p style="margin:0 0 4px">${head}</p>${spHtml}${cabinHtml}<div id="${id}-filters" class="row-wrap" style="margin:12px 0"></div>${TypeLegend()}<div style="margin-top:12px">${body}</div><div style="display:flex;justify-content:flex-end;margin-top:12px">${importExportHtml('schedules', 'lich.csv', 'impmsg-schedules')}</div>`;
+  host.innerHTML = `<p style="margin:0 0 4px">${head}</p><div id="${id}-filters" class="row-wrap" style="margin:12px 0"></div>${TypeLegend()}<div style="margin-top:12px">${body}</div><div style="display:flex;justify-content:flex-end;margin-top:12px">${importExportHtml('schedules', 'lich.csv', 'impmsg-schedules')}</div>${spHtml}${cabinHtml}`;
   svRenderFilters(id);
   fitCardNames_(host);
   if (st._scrollDay) {
