@@ -621,7 +621,9 @@ function Logo(size) {
   return `<svg width="${size}" height="${size}" viewBox="0 0 48 48" role="img" aria-label="Logo Hồng Phúc"><circle cx="24" cy="29" r="15" fill="none" stroke="#FFC107" stroke-width="3.5"/><circle cx="24" cy="29" r="4.5" fill="#FFC107"/><path d="M10.5 25 L19.5 28 M37.5 25 L28.5 28 M24 33.5 L24 43" stroke="#FFC107" stroke-width="3.5" stroke-linecap="round"/><path d="M24 4 L42 11 L24 18 L6 11 Z" fill="#00B050"/><path d="M33 14.5 V21 c0 2.5-4 4.5-9 4.5 s-9-2-9-4.5 V14.5" fill="none" stroke="#00B050" stroke-width="2.5"/><path d="M42 11 v8" stroke="#00B050" stroke-width="2.5" stroke-linecap="round"/></svg>`;
 }
 function Section(title, sub, inner, right) {
-  return `<section class="glass-panel panel"><div class="sec-head"><div><h2>${title}</h2>${sub ? `<p class="sub">${sub}</p>` : ''}</div>${right || ''}</div>${inner}</section>`;
+  // Chú thích/hướng dẫn chỉ hiện trong mục Hướng dẫn sử dụng — các mục làm việc giữ gọn, không hiện dòng sub.
+  const showSub = sub && typeof state !== 'undefined' && state.view === 'guide';
+  return `<section class="glass-panel panel"><div class="sec-head"><div><h2>${title}</h2>${showSub ? `<p class="sub">${sub}</p>` : ''}</div>${right || ''}</div>${inner}</section>`;
 }
 function Loading() { return '<p class="loading">Đang tải dữ liệu…</p>'; }
 function LoadError(msg) { return `<p class="loaderr">Không tải được dữ liệu: ${esc(msg)}</p>`; }
@@ -966,6 +968,7 @@ function DayMiniCell(id, d, list, mks, selDate, out) {
   </button>`;
 }
 function TypeLegend() {
+  return ''; // Đã bỏ chú thích màu theo yêu cầu giao diện gọn (màu vẫn giữ trên thẻ buổi)
   const items = [['Lý thuyết (theo khóa)', '#00B050'], ['DAT', '#0097A7'], ['Sa hình / KTRA sa hình', '#F57C00'], ['Cabin (theo nhóm)', '#455A64'], ['Nghỉ', '#E53935']];
   return `<div class="type-legend" aria-label="Chú thích màu loại buổi"><span style="font-size:12px;font-weight:600;letter-spacing:.03em;color:var(--dim)">CHÚ THÍCH MÀU LOẠI BUỔI:</span>${items.map(([l, c]) => `<span style="display:flex;align-items:center;gap:6px;font-weight:500"><span class="sw" style="background:${c}"></span>${l}</span>`).join('')}<span style="display:flex;align-items:center;gap:6px;font-weight:500"><span class="sw" style="border:2px solid #E53935;background:transparent"></span>Buổi trùng lịch (xe / học viên — lỗi)</span><span style="display:flex;align-items:center;gap:6px;font-weight:500"><span class="sw" style="border:2px solid #FFC107;background:transparent"></span>Trùng giáo viên (cảnh báo)</span></div>`;
 }
@@ -987,7 +990,7 @@ function ConflictsPanelHtml() {
       </li>`).join('');
     return `<li class="conflict-item" style="list-style:none;border:2px solid ${lvl === 'error' ? '#E53935' : '#FFC107'}"><p style="margin:0 0 6px;font-size:14px;font-weight:700;color:${lvl === 'error' ? '#C62828' : '#B45309'}">${esc(label)}</p><ul style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px">${rows}</ul></li>`;
   }).join('');
-  return `<div class="conflict-panel" id="lich-trung-panel"><p style="margin:0 0 8px;font-size:14px;font-weight:800;color:#C62828">⚠️ Danh sách lịch trùng cần sửa (${CONF.list.length}) — xóa buổi thừa hoặc sửa ở module DAT &amp; Sa hình</p><ul style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px">${items}</ul></div>`;
+  return `<div class="conflict-panel" id="lich-trung-panel"><p style="margin:0 0 8px;font-size:14px;font-weight:800;color:#C62828">⚠️ Danh sách lịch trùng cần sửa (${CONF.list.length})</p><ul style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px">${items}</ul></div>`;
 }
 async function conflictDelete(id) {
   try { await write('deleteschedule', { id }); toast('Đã xóa buổi học'); CONF = null; refresh(); }
@@ -1033,7 +1036,6 @@ async function openSessionEdit(id) {
     <label class="field"><span>Điểm danh (thực hiện buổi học)</span><select id="ef-att" class="select">${['Đã học', 'HV vắng', 'GV hủy'].map(x => `<option ${x === (s.attendance || 'Đã học') ? 'selected' : ''}>${x}</option>`).join('')}</select></label>
     <label class="field"><span>KM DAT kế hoạch của buổi</span><input id="ef-km" type="number" min="0" class="input" value="${s.km || 0}"></label>
     <label class="field"><span>Km thực tế (để trống = theo kế hoạch)</span><input id="ef-akm" type="number" min="0" class="input" value="${s.actualKm != null ? s.actualKm : ''}" placeholder="${s.km || 0}"></label>
-    <p class="note-dim span2" style="margin:0">Tiến độ DAT của HV chỉ cộng KM THỰC TẾ của các buổi "Đã học" (buổi HV vắng / GV hủy không cộng km).</p>
     <label class="field span2"><span>Ghi chú</span><input id="ef-note" type="text" class="input" value="${esc(s.note || '')}" placeholder="VD: Phòng LT, Phòng cabin, học bù…"></label>
   </div>
   <div id="edit-result"></div>
@@ -1190,7 +1192,7 @@ function svRenderFilters(id) {
       <select id="${id}-fS" aria-label="Lọc lịch theo học viên" class="select" style="flex:1 1 150px;width:auto" onchange="svFilter('${id}')"><option value="">Tất cả học viên</option>${svStudentOptions(st).map(x => `<option value="${x.id}" ${String(x.id) === st.fStudentId ? 'selected' : ''}>${esc(x.name)} · ${esc(x.code)} · ${esc(x.courseCode)}</option>`).join('')}</select>
     </span>
     ${(st.fTeacher || st.fPlate || st.fCenter || st.fType || st.fStudentId) ? `<button type="button" class="btn" onclick="svClear('${id}')">Xóa lọc</button>` : ''}
-    <span class="note-dim d-only" style="margin-left:auto">Giờ học tự chọn linh hoạt — bắt đầu / kết thúc tùy ý</span>`;
+`;
 }
 const DOW_SHORT = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
 const DOW_ACCENT = ['#1E88E5', '#F57C00', '#0097A7', '#00B050', '#E53935', '#FB8C00', '#C2185B'];
@@ -1243,7 +1245,7 @@ function svRenderMain(id) {
   if (st.mode === 'week') head = `<b style="font-size:16px">Tuần ${fmtDate(st.weekStart)} – ${fmtDate(addDays(st.weekStart, 6))}</b>`;
   else if (st.mode === 'half') { const [y, m] = st.monthCursor.split('-'); head = `<b style="font-size:16px">Tháng ${Number(m)}/${y} · ${st.half === 1 ? 'Ngày 1–15' : `Ngày 15–${lastDayOf(st.monthCursor)}`}</b>`; }
   else { const [y, m] = st.monthCursor.split('-'); head = `<b style="font-size:16px">Tháng ${Number(m)}/${y}</b>`; }
-  head += `<span style="margin-left:8px;font-size:14px;color:var(--dim)">${filtered.length} thẻ buổi hiển thị${hasFilter ? ' (đang lọc)' : ''}${fStudent ? ` · Chỉ HV: ${esc(fStudent.name)} (${esc(fStudent.courseCode)})` : ''} · Tên HV rút gọn 2 từ cuối · Vuốt/kéo ngang để xem ngày kế tiếp · Bấm vào thẻ buổi để sửa trực tiếp · Bấm nút + Thêm buổi dưới mỗi cột ngày để xếp lịch mới đúng ngày đó</span>`;
+  head += `<span style="margin-left:8px;font-size:14px;color:var(--dim)">${filtered.length} thẻ buổi hiển thị${hasFilter ? ' (đang lọc)' : ''}${fStudent ? ` · Chỉ HV: ${esc(fStudent.name)} (${esc(fStudent.courseCode)})` : ''}</span>`;
   let spHtml = '';
   if (window._DASH_SP && window._DASH_SP.total > 0) {
     const sp = window._DASH_SP;
@@ -1258,7 +1260,6 @@ function svRenderMain(id) {
         <span class="tagchip" style="background:#FFE0B2;color:#B45309">${sp.sahinh} buổi sa hình &amp; ôn thi</span>
         ${sp.off > 0 ? `<span class="tagchip" style="background:#FDECEA;color:#C62828">${sp.off} buổi nghỉ (ghi chú trên lưới lịch)</span>` : ''}
       </div>
-      <p class="note-dim" style="margin:4px 0 0">Tổng ${sp.total} buổi = ${Math.round(sp.total / 16)} HV × 16 buổi (2 lý thuyết + 10 DAT + 4 ôn thi/sa hình).</p>
     </div>`;
   }
   let cabinHtml = '';
@@ -1456,7 +1457,7 @@ function paintDashboard_(main, d) {
         <span class="tagchip" style="background:#FFE0B2;color:#B45309">${sp.sahinh} buổi sa hình &amp; ôn thi</span>
         ${sp.off > 0 ? `<span class="tagchip" style="background:#FDECEA;color:#C62828">${sp.off} buổi nghỉ</span>` : ''}
       </div>
-      <p class="note-dim" style="margin:8px 0 0">Tổng ${sp.total} buổi = ${Math.round(sp.total / 16)} HV × 16 buổi (2 lý thuyết + 10 DAT + 4 ôn thi/sa hình).</p>`) : ''}
+`) : ''}
     ${Section('Lý thuyết & Cabin tuần này', 'Buổi lý thuyết học chung theo khóa tại Phòng LT · Buổi cabin theo nhóm 5 HV tại Phòng cabin — cả 2 là buổi cấp khóa/nhóm, không cộng vào tổng ${sp.total} buổi', `<div id="dash-theory">${Loading()}</div>
       <p style="font-size:14px;margin:8px 0 0"><b>Cabin đủ 3h/3h:</b> ${d.cabinStats.fullCount}/${d.cabinStats.total} HV (${d.cabinStats.pct}%) đã đủ 3 giờ cabin — điều kiện bắt buộc khi xét đủ điều kiện thi sát hạch.</p>`)}
     ${Section('Cảnh báo DAT & vận hành', 'Cảnh báo sinh từ chính dữ liệu trong app (tiến độ DAT, hạn DAT, vận hành xe)', alertRows.length ? `<div class="stack-sm">${alertRows.join('')}</div>` : '<p style="font-size:14px;color:var(--dim);margin:0">Không có cảnh báo nào.</p>')}
@@ -1475,7 +1476,6 @@ function paintDashboard_(main, d) {
           const inten = n > 0 ? 0.25 + 0.75 * (n / maxHeat) : 0;
           return `<button type="button" class="heat-cell ${date === DASH.heatDate ? 'sel' : ''}" aria-label="Ngày ${fmtDate(date)}: ${n} buổi chi tiết" onclick="dashHeat('${date}')" ${n > 0 ? `style="background:rgba(0,176,80,${inten.toFixed(2)});color:${inten >= 0.55 ? '#fff' : '#065F46'}"` : ''}>${Number(date.slice(8))}<small>${n > 0 ? `${n} buổi` : '—'}</small></button>`;
         }).join('')}</div>
-        <p class="note-dim" style="margin-top:4px">Số buổi ở mỗi ô là buổi chi tiết có tên/ngày cụ thể trong app; tổng toàn khóa xem ở mục Tiến độ xếp lịch (${sp ? `${sp.scheduled}/${sp.total}` : ''} buổi).</p>
         <div style="margin-top:12px;border-radius:12px;background:var(--surface-alt);padding:12px" id="dash-day">${Loading()}</div>`)}
     </div>
     <div class="grid2">
@@ -1611,16 +1611,6 @@ RENDERERS.today = async (main) => {
         ${s.editable ? '<span style="font-weight:600;color:#007A38">✎</span>' : ''}
       </div>`).join('')}
       ${displayed.length === 0 ? `<p style="padding:16px 0;text-align:center;font-size:14px;color:var(--dim);margin:0">${TD.fStudentId ? 'Học viên đã chọn không có buổi nào trong ngày này.' : 'Chưa có lịch chi tiết cho ngày này.'}</p>` : ''}
-    </div>
-    <div style="margin-top:16px">
-      <p style="margin:0 0 8px;font-size:12px;font-weight:600;letter-spacing:.03em;color:var(--dim)">CHÚ THÍCH MÀU GIÁO VIÊN</p>
-      <div class="row-wrap">
-        ${legend.map(([short, color]) => `<span class="row-wrap" style="gap:6px;font-size:14px"><span style="display:inline-block;height:14px;width:14px;border-radius:99px;border:1px solid rgba(0,0,0,.1);background:${esc(color)}"></span>${esc(gvName(short))}</span>`).join('')}
-        ${(lk.teachers || []).length > legend.length ? '<span class="note-dim">(GV chưa có buổi hôm nay không hiện trong chú thích)</span>' : ''}
-      </div>
-      <div class="row-wrap" style="margin-top:8px">
-        ${Object.entries(TEACHER_COLORS).map(([name, color]) => `<span class="chip" style="background:${color};color:#1a1a1a;padding:2px 8px">${esc(gvName(name))}</span>`).join('')}
-      </div>
     </div>
     <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:12px;font-size:14px;color:var(--dim)">
       <p style="margin:0">${all.length === 0 ? '<b style="color:var(--text)">Chưa có dữ liệu lịch hôm nay</b>' : `<b style="color:var(--text)">Tổng số buổi hôm nay: ${all.length}</b>`} · Bảng trên là các buổi chi tiết chính · Cập nhật lúc ${timeStr} · Trạng thái: Đã cập nhật</p>
@@ -1859,7 +1849,6 @@ function renderStudentDetail_(s, q) {
           <button type="button" class="btn" onclick="opsTransfer(${s.id})">Chuyển khóa</button>
         </div>
         <p id="ops-msg" style="margin:8px 0 0;font-size:14px;font-weight:500"></p>
-        <p class="note-dim" style="margin-top:4px">Mọi thay đổi đều ghi vào lịch sử hồ sơ bên trên (timeline). Trạng thái thi/đậu/bằng vẫn tự đồng bộ theo kết quả sát hạch và trường Có bằng.</p>
       </div>
       ${examHtml}
       <div style="border-radius:12px;background:var(--surface-alt);padding:12px">
@@ -1909,7 +1898,6 @@ async function openStudentForm(id) {
   openModal(id ? 'Sửa học viên' : 'Thêm học viên mới', `<div class="stack">
     <div style="border-radius:12px;background:#E8F5E9;padding:12px">
       <p style="margin:0;font-size:14px"><b>Đối chiếu CCCD trong hệ thống</b></p>
-      <p class="note-dim" style="margin:2px 0 8px">Nhập số CCCD để kiểm tra trùng với học viên đã có trong hệ thống trước khi lưu hồ sơ mới (bản Sheet tra cứu theo số CCCD, không quét ảnh).</p>
       <div class="row-wrap">
         <input id="sf-cccd-check" aria-label="Số CCCD cần đối chiếu" class="input" style="flex:1 1 200px;width:auto" placeholder="Nhập số CCCD…" value="${esc(f.cccd)}">
         <button type="button" class="btn btn-green" onclick="sfCheckCccd()">Kiểm tra trùng</button>
@@ -1951,7 +1939,7 @@ async function openStudentForm(id) {
     </div>
     <label style="display:flex;gap:10px;align-items:flex-start;background:#FFF8E1;border:1px solid #FFE082;border-radius:12px;padding:12px;cursor:pointer">
       <input type="checkbox" id="sf-muall" style="width:20px;height:20px;margin-top:2px;flex:none" ${f.muaLL ? 'checked' : ''}>
-      <span style="font-size:14px"><b>Mua LL</b><br><span style="color:var(--dim)">GV mua LL của trung tâm, tự dạy và tự thu học phí. Học viên này KHÔNG tính vào doanh số.</span></span>
+      <span style="font-size:14px"><b>Mua LL</b></span>
     </label>
     <p id="sf-error"></p>
     <div class="row-wrap">
@@ -2050,7 +2038,6 @@ RENDERERS.dat = async (main) => {
   main.innerHTML = `<div class="stack">
     ${Section('Kế hoạch xếp xe DAT & Sa hình — xem theo tuần / 2 tuần / tháng', 'Luật xếp lịch: 1 HV tối đa 1 buổi/ngày · 1 xe tối đa 2 ca/ngày · 1 GV tối đa 2 ca/ngày. Trùng xe / trùng học viên = viền ĐỎ (lỗi), trùng giáo viên = viền VÀNG (cảnh báo). HV chưa đủ 500km DAT gắn cờ vàng khi xếp sa hình. Mỗi HV có GV DAT chính + xe quen (GV chủ xe) — đổi cặp sẽ hiện cảnh báo.', `
       <div id="fleet-alert"></div>
-      <div class="row-wrap" style="margin-bottom:12px"><span class="note-dim">Giờ học linh hoạt: tự chọn giờ bắt đầu – kết thúc cho từng buổi, không theo khung cố định.</span></div>
       ${ScheduleViewsHtml('svDat')}`)}
     ${Section('Tổng hợp DAT', 'Chuẩn trung tâm: mục tiêu DAT theo hạng — B1: 710 km · B2: 810 km · C1: 825 km · C: 825 km. Giờ DAT đã chạy = tổng giờ các buổi DAT đã qua của HV; Giờ còn cần = km còn lại ÷ tốc độ DAT bình quân thực tế của chính HV đó (chưa chạy buổi nào dùng tốc độ chuẩn 40 km/h), làm tròn 0,5h. Trạng thái so %km với % thời gian Giai đoạn 2 (DAT + Sa hình, theo kế hoạch từng khóa) đã trôi qua, trừ hao 10%.', '<div id="datsum">' + Loading() + '</div>', `<button type="button" class="btn btn-amber" onclick="datExport()">Export Excel</button>`)}
     ${Section('Xếp lịch mới', '', '<div id="datcreate">' + Loading() + '</div>')}
@@ -2181,7 +2168,6 @@ async function datCreateLoad() {
     const focus = state.focusStudentId ? (lk.students || []).find(s => s.id === state.focusStudentId) : null;
     const sub = focus ? `Đang xếp xe DAT cho ${focus.code} — ${focus.name} (DAT ${focus.datKmDone}/${focus.datKmTotal} km, xe KG ${focus.plateKg || '—'})` : 'Chọn HV, khung giờ, GV và xe — hệ thống tự kiểm tra trùng và gợi ý xe trống gần nhất';
     document.querySelector('#datcreate') && (host.innerHTML = `
-      <p class="note-dim" style="margin:0 0 12px;font-size:14px;color:var(--dim)">${esc(sub)}</p>
       <div class="form-grid" style="grid-template-columns:1fr 1fr;gap:12px">
         <label class="field"><span>Ngày</span><input id="dc-date" type="date" class="input" value="${DC.date}"></label>
         <label class="field"><span>Giờ bắt đầu</span><select id="dc-start" class="select">${TIME_OPTIONS.map(x => `<option ${x === parseSlot(DC.slot).start ? 'selected' : ''}>${x}</option>`).join('')}</select></label>
@@ -2194,7 +2180,7 @@ async function datCreateLoad() {
       </div>
       <button type="button" class="btn btn-green btn-block" style="min-height:48px;font-weight:700;margin-top:12px" onclick="datCreate()">Xếp lịch — kiểm tra trùng tự động</button>
       <div id="dc-result"></div>
-      <p class="note-dim" style="margin-top:12px">Mẹo: ngay trên lịch ở mục Lịch, bấm nút "+ Thêm buổi" dưới mỗi cột ngày để xếp lịch nhanh đúng ngày đó — nếu đang lọc theo 1 học viên thì form tự chọn sẵn học viên đó.</p>`);
+`);
     const sec = host.closest('section');
     if (sec) { const subEl = sec.querySelector('.sec-head .sub'); if (subEl) subEl.textContent = sub; }
   } catch (e) { host.innerHTML = LoadError(e.message); }
@@ -2387,7 +2373,7 @@ function admResultsHtml_() {
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px">${DOC_FIELDS.map(f => `<div class="row-wrap" style="justify-content:space-between;border-radius:8px;background:var(--surface-alt);padding:4px 8px"><span style="font-size:12px;font-weight:600">${f.label}</span>${admDocPill_(row, f)}</div>`).join('')}</div>
         ${admActions_(row)}
       </article>`).join('')}</div>`}
-      <p class="note-dim" style="margin-top:12px">Tin nhắc Zalo được soạn sẵn đúng các giấy tờ còn thiếu + hạn bổ sung của từng HV — bấm “Nhắc Zalo” là sao chép nội dung tin và ghi vào nhật ký thông báo để gửi qua Zalo OA.</p>`;
+`;
 }
 function admRenderResults_() {
   // Lọc tại client trên ADM.data đã tải — chỉ thay khối danh sách, giữ nguyên ô
@@ -2628,7 +2614,6 @@ RENDERERS.tuition = async (main) => {
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;font-size:14px" id="fee-cards">
         ${feeCards.map(c => `<div style="border-radius:12px;background:${c.bg};padding:12px"><p style="margin:0;font-size:12px;color:var(--dim)">${c.label}</p><p style="margin:2px 0 0;font-weight:800;${c.color ? `color:${c.color}` : ''}">${c.value}</p></div>`).join('')}
       </div>
-      <p class="note-dim" style="margin-top:8px">Doanh thu mọi màn hình đều tính từ các lần thu (payments) theo bảng phí này: Phải thu của từng HV = Học phí chuẩn theo hạng − Giảm tiền · Đã thu = Σ payments · Còn nợ = Phải thu − Đã thu.</p>
       <style>@media(min-width:768px){.fee-grid{grid-template-columns:repeat(4,1fr)!important}#fee-cards{grid-template-columns:repeat(5,1fr)!important}}</style>`)}
     ${Section('Thu học phí theo tháng', 'Thu nhiều lần, mỗi lần có ghi chú riêng; cột KM đã chạy tương ứng cột trừ km (-225KM…) trong file cũ', `
       <div class="stat-grid" style="margin-bottom:12px">
@@ -2713,7 +2698,6 @@ function tuiPreview() {
       </div>
       <div style="margin-top:16px;display:flex;justify-content:space-between;text-align:center;font-size:12px;color:var(--dim)"><p>Người nộp tiền<br><br><br>(Ký, ghi rõ họ tên)</p><p>Người thu tiền<br><br><br>(Ký, ghi rõ họ tên)</p></div>
     </div>`).join('')}
-    <p class="note-dim">Khổ A5 (148 × 210mm) — mỗi biên lai 1 trang khi in từ file đã xuất.</p>
   </div>`;
 }
 function tuiDownload() { if (TUI.selected.length) downloadFile('bien-lai-a5-hong-phuc.html', receiptHtmlFor(TUI.selected), 'text/html;charset=utf-8'); }
@@ -2861,7 +2845,6 @@ RENDERERS.fleet = async (main) => {
           }).join('')}
           ${(d.centers || []).length === 0 ? '<p style="padding:16px 0;text-align:center;font-size:14px;color:var(--dim);margin:0">Chưa có trung tâm liên kết nào — bấm “+ Thêm trung tâm” để thêm.</p>' : ''}
         </div>
-        <p class="note-dim" style="margin-top:12px;line-height:1.6">Mã trung tâm trên lưới lịch của trung tâm: <b>PGiao / PHGIAO</b> = Phú Giáo · <b>ACHAU</b> = Á Châu · <b>HM</b> = Hóc Môn · <b>MĐ</b> = Miền Đông (mã trên lưới lịch). Danh sách trung tâm có thể thêm, bớt, chỉnh sửa — số lượng tự thay đổi theo danh sách hiện có.</p>
       `, `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px"><button type="button" class="btn btn-green" style="min-height:44px" onclick="centerForm(null)">+ Thêm trung tâm</button>${importExportHtml('centers', 'bao-cao-hoa-hong-tt-lien-ket.csv', 'impmsg-centers')}</div>`)}
       ${Section('Bổ túc tay lái & thuê xe tập lái', `Tính theo giờ theo bảng giá Hồng Phúc · Tổng doanh thu bổ túc/thuê xe: ${fmtMoney(d.botucTotal || 0)}`, `
         <ul style="list-style:none;margin:0 0 12px;padding:0">
@@ -3123,11 +3106,11 @@ RENDERERS.exams = async (main) => {
         ${sendZaloBtn('Lịch thi', `TT Đào tạo lái xe HỒNG PHÚC trân trọng thông báo tới quý học viên đủ điều kiện thi: kỳ thi sát hạch lái xe sẽ diễn ra ngày ${d.nextExamDate ? fmtDate(d.nextExamDate) : ''}. Quý học viên vui lòng tập trung tại trung tâm lúc 6h30, mang theo CCCD bản gốc. Mọi chi tiết liên hệ: 0949 155 955.`, 'Tất cả học viên đủ điều kiện thi', 'Báo lịch thi cho HV đủ điều kiện')}
       </div>`)}
     <div class="big5">
-      <div class="big-stat" style="background:#E8F5E9"><p class="lb">Đủ điều kiện thi</p><p class="vl" style="font-size:28px;color:#007A38">${d.eligibleTotal} HV</p><p class="note-dim" style="font-size:13.5px">Đạt đủ 5/5 tiêu chí: LT · Cabin · DAT · Sa hình · Học phí (toàn trung tâm)</p></div>
-      <div class="big-stat" style="background:#E8F5E9"><p class="lb">Đã thi &amp; đậu</p><p class="vl" style="font-size:28px;color:#007A38">${passedComputed} HV</p><p class="note-dim" style="font-size:13.5px">Tính từ kết quả 3 phần đã ghi trong hệ thống (${results.length} kết quả đã ghi nhận)</p></div>
-      <div class="big-stat" style="background:#FFF8E1"><p class="lb">Đã đậu — chưa có bằng</p><p class="vl" style="font-size:28px;color:#B45309">${d.passedNoLicense} HV</p><p class="note-dim" style="font-size:13.5px">Đang chờ cấp/bằng được phát về trung tâm để báo HV nhận</p></div>
-      <div class="big-stat" style="background:#E3F2FD"><p class="lb">Đã có bằng</p><p class="vl" style="font-size:28px;color:#1E3A8A">${d.licensedCount} HV</p><p class="note-dim" style="font-size:13.5px">${d.passedNoLicense} + ${d.licensedCount} = ${d.passedTotal} tổng số HV đã đậu</p></div>
-      <div class="big-stat" style="background:#E8F5E9"><p class="lb">Tỷ lệ đậu</p><p class="vl" style="font-size:28px;color:#007A38">${d.passRate}%</p><p class="note-dim" style="font-size:13.5px">Kết quả thi đã ghi nhận: ${results.length} HV (${examined} đã thi)</p></div>
+      <div class="big-stat" style="background:#E8F5E9"><p class="lb">Đủ điều kiện thi</p><p class="vl" style="font-size:28px;color:#007A38">${d.eligibleTotal} HV</p></div>
+      <div class="big-stat" style="background:#E8F5E9"><p class="lb">Đã thi &amp; đậu</p><p class="vl" style="font-size:28px;color:#007A38">${passedComputed} HV</p></div>
+      <div class="big-stat" style="background:#FFF8E1"><p class="lb">Đã đậu — chưa có bằng</p><p class="vl" style="font-size:28px;color:#B45309">${d.passedNoLicense} HV</p></div>
+      <div class="big-stat" style="background:#E3F2FD"><p class="lb">Đã có bằng</p><p class="vl" style="font-size:28px;color:#1E3A8A">${d.licensedCount} HV</p></div>
+      <div class="big-stat" style="background:#E8F5E9"><p class="lb">Tỷ lệ đậu</p><p class="vl" style="font-size:28px;color:#007A38">${d.passRate}%</p></div>
     </div>
     ${Section('Danh sách học viên theo 5 điều kiện & kết quả thi', 'Chuyển qua lại 2 danh sách: HV đủ điều kiện thi và toàn bộ kết quả thi đã ghi nhận', `
       <div class="row-wrap" style="margin-bottom:12px">
@@ -3480,7 +3463,7 @@ RENDERERS.alerts = async (main) => {
         </div>`; }).join('')}
         ${(d.alerts || []).length === 0 ? '<p style="padding:16px 0;text-align:center;font-size:14px;color:var(--dim);margin:0">Không có cảnh báo nào — mọi thứ đang ổn.</p>' : ''}
       </div>
-      <p class="note-dim" style="margin-top:12px">Cảnh báo được gửi qua <b>Zalo OA</b> của trung tâm tới học viên; lịch học và nhắc DAT còn gửi qua email + thông báo trong app học viên.</p>`)}
+`)}
     ${Section(`Chưa học cabin — ${cabinCount} HV`, 'HV chưa có buổi Cabin nào trong lịch — nhắc học đủ 3h cabin trước khi thi tốt nghiệp', `
       ${cabinRows.map(a => `<div class="alert-row" style="background:#FFF8E1;color:#8D6E00"><span style="flex:1"><b>${esc(a.name)}</b> · ${esc(a.code)} · ${esc(a.courseCode)} · GV phụ trách: ${esc(a.homeTeacherName || '—')}</span></div>`).join('') || '<p style="font-size:14px;color:var(--dim);margin:0">Không có HV nào chưa học cabin.</p>'}`)}
     ${Section(`Giấy khám sức khỏe sắp hết hạn / đã hết hạn — ${healthCount} HV`, 'Giấy khám SK có hạn 12 tháng — quá hạn là hồ sơ thi không hợp lệ, phải khám lại trước đợt thi', `
