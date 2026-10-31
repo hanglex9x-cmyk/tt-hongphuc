@@ -1305,45 +1305,115 @@ const WRITE_ACTIONS = {
   sendnotification: apiSendNotification, enrolladmission: apiEnrollAdmission,
   checkcccd: apiCheckCccd
 };
-// ---------- CacheService cho MỌI action đọc (v3: khóa theo thế hệ) ----------
-// Khóa cache: hp2:<gen>:<action>:<tham số đã sắp xếp theo tên khóa>, trong đó
-// <gen> là "thế hệ" dữ liệu lưu ngay trong CacheService (khóa hp2:gen, mặc
-// định '1'). Mọi action ghi trả về ok === true đều TĂNG gen lên 1 ngay trong
-// route_() -> toàn bộ khóa của thế hệ cũ không còn ai đọc nữa (chúng tự hết
-// hạn theo TTL), nên dữ liệu sau khi ghi không bao giờ bị cũ. Điều kiện kích
-// hoạt giữ nguyên như v2: chỉ khi ghi thành công (checkcccd không trả
-// ok:true nên không tăng gen thừa). Đây là ĐIỂM TĂNG GEN DUY NHẤT: mọi
-// action ghi đều đi qua route_() (doGet/doPost đều gọi route_).
+// ---------- CacheService cho MỌI action đọc (v13: thế hệ THEO NHÓM + chia khối) ----------
+// Khóa cache: hp3:<gen của nhóm>:<action>:<tham số đã sắp xếp theo tên khóa>.
+// Gen theo nhóm xem READ_GROUP/WRITE_GROUPS bên dưới. Điều kiện tăng gen giữ
+// nguyên: chỉ khi ghi thành công (checkcccd không trả ok:true nên không tăng
+// thừa). Đây là ĐIỂM TĂNG GEN DUY NHẤT: mọi action ghi đều đi qua route_().
 // TTL 1800s; trigger hâm nóng mỗi 10 phút (warmCacheHp) nạp lại cache trước
 // khi hết hạn nên người dùng thật gần như không bao giờ gặp cache nguội.
-// Chỉ cache khi JSON < 95.000 ký tự (giới hạn CacheService 100KB/khóa):
-// payload lớn (vd listschedulesrange theo tháng ~174KB) tự bỏ qua, không
-// lỗi. Không cache kết quả lỗi (res.ok === false, vd apiGetStudent không
-// tìm thấy HV). Mọi thao tác CacheService đều bọc try/catch: lỗi cache
-// không bao giờ làm hỏng response.
+// Payload < 95.000 ký tự cache nguyên khối; lớn hơn thì CHIA KHỐI 60K
+// (cachePut_/cacheGet_) nên lịch tháng đầy buổi vẫn cache được. Không cache
+// kết quả lỗi (res.ok === false). Mọi thao tác CacheService đều bọc
+// try/catch: lỗi cache không bao giờ làm hỏng response.
 const READ_CACHE_TTL = 1800; // giây
-const READ_CACHE_MAXLEN = 95000; // ký tự JSON tối đa được phép cache
-const GEN_KEY = 'hp2:gen';
+const READ_CACHE_MAXLEN = 95000; // ký tự JSON tối đa được phép cache nguyên khối
 const GEN_TTL = 21600; // 6 giờ = tối đa CacheService, luôn >> TTL dữ liệu
 // (1800s): nếu gen tự hết hạn và quay về '1' thì mọi khóa dữ liệu của thế hệ
 // '1' cũ cũng đã hết hạn từ lâu -> không có chuyện dữ liệu cũ "sống lại".
-function cacheGen_() {
+// ---------- v13: thế hệ cache THEO NHÓM dữ liệu ----------
+// Trước đây MỌI lượt ghi thành công đều tăng 1 gen chung -> toàn bộ cache đọc
+// bị bỏ phí, lần mở mục nào sau khi lưu cũng phải tính lại từ đầu (lạnh 2–6s).
+// Nay mỗi action đọc thuộc 1 nhóm; khóa cache chứa gen CỦA NHÓM ĐÓ. Action ghi
+// chỉ tăng gen các nhóm nó thật sự làm thay đổi (WRITE_GROUPS) — ghi không có
+// trong bảng thì tăng TẤT CẢ cho an toàn. Nhóm khác giữ nguyên cache nóng.
+const READ_GROUP = {
+  getdashboard: 'dash', getreports: 'reports', getgovreports: 'reports',
+  liststudents: 'students', getstudent: 'students',
+  listschedules: 'sched', listschedulesrange: 'sched', listconflicts: 'sched',
+  getdatsummary: 'dat', getfleet: 'fleet', listfuellogs: 'fleet',
+  listexams: 'exams', listexamrounds: 'exams', listadmissions: 'admissions',
+  listpayments: 'tuition', getprices: 'tuition', listcenters: 'centers',
+  listnotifications: 'alerts', getcenterinfo: 'config', getlookups: 'lookups'
+};
+const ALL_GROUPS = ['dash', 'reports', 'students', 'sched', 'dat', 'fleet', 'exams', 'admissions', 'tuition', 'centers', 'alerts', 'config', 'lookups'];
+const WRITE_GROUPS = {
+  savestudent: ['students', 'lookups', 'dash', 'exams', 'dat', 'reports'],
+  setstudentstatus: ['students', 'lookups', 'dash', 'exams', 'dat', 'reports'],
+  transferstudentcourse: ['students', 'lookups', 'dash', 'exams', 'dat'],
+  addpayment: ['tuition', 'students', 'dash', 'reports', 'exams'],
+  createschedule: ['sched', 'dash', 'dat', 'alerts'],
+  updateschedule: ['sched', 'dash', 'dat', 'alerts'],
+  deleteschedule: ['sched', 'dash', 'dat', 'alerts'],
+  saveexamround: ['exams'], deleteexamround: ['exams'],
+  addroundregistration: ['exams'], removeroundregistration: ['exams'],
+  updateexamresult: ['exams', 'dash', 'reports'],
+  updategraduation: ['exams', 'students', 'lookups', 'dash'],
+  updatelicensestatus: ['exams', 'students', 'lookups'],
+  saveadmission: ['admissions', 'alerts'], deleteadmission: ['admissions', 'alerts'],
+  setadmissiondoc: ['admissions'],
+  enrolladmission: ['admissions', 'students', 'lookups', 'dash', 'exams', 'dat', 'alerts'],
+  sendnotification: ['alerts'],
+  saveteacher: ['fleet', 'lookups', 'sched'], savevehicle: ['fleet', 'sched'],
+  savecenter: ['centers', 'students', 'lookups'], deletecenter: ['centers', 'students', 'lookups'],
+  savebotuc: ['fleet', 'reports'], deletebotuc: ['fleet', 'reports'],
+  addfuellog: ['fleet', 'reports'], deletefuellog: ['fleet', 'reports'],
+  saveprices: ['tuition', 'students', 'dash', 'reports'],
+  savecenterinfo: ['config']
+};
+function groupGenKey_(g) { return 'hp3:gen:' + g; }
+function cacheGen_(g) {
   try {
-    const n = parseInt(CacheService.getScriptCache().get(GEN_KEY), 10);
+    const n = parseInt(CacheService.getScriptCache().get(groupGenKey_(g || 'misc')), 10);
     return isNaN(n) || n < 1 ? '1' : String(n);
   } catch (e) { return '1'; }
 }
-function bumpCacheGen_() {
+function bumpGroups_(groups) {
   try {
-    CacheService.getScriptCache().put(GEN_KEY, String(parseInt(cacheGen_(), 10) + 1), GEN_TTL);
+    const c = CacheService.getScriptCache();
+    (groups && groups.length ? groups : ALL_GROUPS).forEach(g => {
+      c.put(groupGenKey_(g), String(parseInt(cacheGen_(g), 10) + 1), GEN_TTL);
+    });
   } catch (e) { /* cache lỗi không được chặn luồng chính */ }
 }
+function bumpCacheGen_() { bumpGroups_(ALL_GROUPS); } // giữ tương thích nếu còn nơi gọi cũ
 function readCacheKey_(a, params) {
   const parts = Object.keys(params || {}).sort().map(k => {
     const v = params[k];
     return k + '=' + (v !== null && typeof v === 'object' ? JSON.stringify(v) : String(v));
   });
-  return 'hp2:' + cacheGen_() + ':' + a + ':' + parts.join('&');
+  return 'hp3:' + cacheGen_(READ_GROUP[a] || 'misc') + ':' + a + ':' + parts.join('&');
+}
+// ---------- v13: cache CHIA KHỐI cho payload lớn ----------
+// Payload >= 95K ký tự trước đây KHÔNG được cache lần nào (vd lịch tháng khi
+// đầy buổi ~174K) -> luôn tính lại. Nay cắt khối 60K ký tự (an toàn giới hạn
+// 100KB/khóa kể cả khi tiếng Việt tốn nhiều byte), tối đa 8 khối (~480K).
+const READ_CACHE_CHUNK = 60000;
+function cacheGet_(key) {
+  try {
+    const c = CacheService.getScriptCache();
+    const direct = c.get(key);
+    if (direct) return direct;
+    const n = parseInt(c.get(key + '#n'), 10);
+    if (isNaN(n) || n < 2 || n > 8) return null;
+    let out = '';
+    for (let i = 0; i < n; i++) {
+      const part = c.get(key + '#' + i);
+      if (part === null || part === undefined) return null;
+      out += part;
+    }
+    return out;
+  } catch (e) { return null; }
+}
+function cachePut_(key, str) {
+  try {
+    const c = CacheService.getScriptCache();
+    if (str.length < READ_CACHE_MAXLEN) { c.put(key, str, READ_CACHE_TTL); return; }
+    const n = Math.ceil(str.length / READ_CACHE_CHUNK);
+    if (n > 8) return;
+    for (let i = 0; i < n; i++) c.put(key + '#' + i, str.slice(i * READ_CACHE_CHUNK, (i + 1) * READ_CACHE_CHUNK), READ_CACHE_TTL);
+    c.put(key + '#n', String(n), READ_CACHE_TTL);
+  } catch (e) { /* quá giới hạn thì thôi */ }
 }
 function route_(action, params) {
   const a = String(action || '').toLowerCase();
@@ -1352,16 +1422,14 @@ function route_(action, params) {
     const key = readCacheKey_(a, p);
     const keyOk = key.length <= 240; // giới hạn khóa CacheService: 250 ký tự
     if (keyOk) {
-      try {
-        const hit = CacheService.getScriptCache().get(key);
-        if (hit) return JSON.parse(hit);
-      } catch (e) { /* bỏ qua, tính mới */ }
+      const hit = cacheGet_(key);
+      if (hit) { try { return JSON.parse(hit); } catch (e) { /* JSON hỏng thì tính mới */ } }
     }
     const res = READ_ACTIONS[a](p);
     if (keyOk && !(res && res.ok === false)) {
       try {
         const str = JSON.stringify(res);
-        if (str && str.length < READ_CACHE_MAXLEN) CacheService.getScriptCache().put(key, str, READ_CACHE_TTL);
+        if (str) cachePut_(key, str);
       } catch (e) { /* quá giới hạn thì thôi */ }
     }
     return res;
@@ -1373,7 +1441,7 @@ function route_(action, params) {
     if (!lock.tryLock(30000)) return { ok: false, error: 'Hệ thống đang xử lý một thao tác lưu khác — vui lòng thử lại sau vài giây' };
     try {
       const res = WRITE_ACTIONS[a](params || {});
-      if (res && res.ok === true) bumpCacheGen_();
+      if (res && res.ok === true) bumpGroups_(WRITE_GROUPS[a]); // v13: chỉ tăng gen các nhóm liên quan (không có trong bảng -> tăng tất cả)
       return res;
     } finally { lock.releaseLock(); }
   }
@@ -1441,6 +1509,8 @@ function warmCacheHp() {
   warmOne_('listnotifications');
   warmOne_('getdatsummary');
   warmOne_('liststudents', { onlyEligible: false, page: 1, pageSize: 10 }); // đúng bộ tham số frontend gửi lần đầu (hâm {} là lệch khóa, không ai hưởng)
+  warmOne_('liststudents', { page: 1, pageSize: 20 }); // combo của mục Học phí (v13 thêm: trước đây combo này nguội 4s)
+  warmOne_('getprices');
   warmOne_('listexams');
   warmOne_('listadmissions');
   warmOne_('listconflicts');
@@ -1448,8 +1518,8 @@ function warmCacheHp() {
   warmOne_('listschedules', { date: T });
   warmOne_('listschedulesrange', { from: wk.from, to: wk.to });
   // Hâm dải THÁNG đúng khóa frontend dùng ở chế độ Tháng (Thứ 2 của tuần chứa
-  // ngày 1 → +41 ngày). Payload tháng hiện ~87K ký tự — dưới trần cache 95K nên
-  // hâm được; tháng cao điểm vượt trần thì put tự bỏ qua, không lỗi.
+  // ngày 1 → +41 ngày). Từ v13 payload lớn được cache chia khối nên tháng cao
+  // điểm (payload > 95K) vẫn hâm được bình thường.
   const mMon = weekRangeOf_(T.slice(0, 7) + '-01');
   const mp = mMon.from.split('-').map(Number);
   const mTo = isoUtc_(Date.UTC(mp[0], mp[1] - 1, mp[2]) + 41 * 86400000);
