@@ -37,7 +37,8 @@ b,strong{font-weight:700}
 @media(min-width:768px){.header-inner h1{font-size:18px}}
 .header-inner .sub{margin:1px 0 0;font-size:min(9.5px,2.6vw);color:rgba(255,255,255,.85);line-height:1.35;white-space:normal}
 .header-inner .sub span{text-decoration:none}
-.header-sub{margin:0;padding:0 12px 8px;font-size:11px;color:rgba(255,255,255,.88);line-height:1.35}
+.header-sub{margin:0;padding:0 12px 7px;font-size:11px;color:rgba(255,255,255,.88);line-height:1.35}
+.header-sub-name{font-size:12.5px;font-weight:800;color:#fff;letter-spacing:.2px}
 .btn-compact{min-height:36px;padding:6px 12px;font-size:13px;font-weight:700;border-radius:10px}
 .mode-tabs.sm button{min-height:36px;padding:6px 12px;font-size:13px;border-radius:10px}
 @media(min-width:768px){.header-inner .sub{font-size:12px}}
@@ -813,14 +814,14 @@ function renderShell() {
   <header class="header-glass">
     <div class="header-inner">
       <button type="button" class="hamb" aria-label="Mở menu" onclick="openDrawer()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
-      ${Logo(46)}
+      ${Logo(44)}
       <div style="flex:1"></div>
       <button type="button" class="bell-btn" aria-label="Mở Cảnh báo & Zalo" onclick="go('alerts')"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 8-3 8h18s-3-1-3-8M10.3 21a2 2 0 0 0 3.4 0"/></svg><span id="bell-badge" class="bell-badge" hidden>0</span></button>
       <div class="admin-box">
         <p style="font-size:14px;font-weight:700">Quản trị viên</p>
       </div>
     </div>
-    <p class="header-sub" data-center-sub>${CENTER.address} · SĐT: ${CENTER.phone}</p>
+    <p class="header-sub"><span class="header-sub-name">Trung tâm đào tạo lái xe</span><br><span data-center-sub>${CENTER.address} · SĐT: ${CENTER.phone}</span></p>
   </header>
   <div class="layout">
     <aside class="glass-panel sidebar" aria-label="Menu chính">
