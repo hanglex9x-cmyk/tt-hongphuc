@@ -1216,6 +1216,41 @@ function priceFor_(cls) {
   const v = k ? num_(cfg_(k, 0)) : 0;
   return v > 0 ? v : (TUITION[cls] || 0);
 }
+function setCfg_(key, value) {
+  const t = tab_('CauHinh');
+  const row = t.objs.find(o => String(o['Khoa']) === key);
+  if (row) t.sheet.getRange(row._row, 2).setValue(value);
+  else t.sheet.appendRow([key, value]);
+  invalidateDerived_();
+}
+function apiGetCenterInfo() {
+  return {
+    name: String(cfg_('TenTrungTam', '') || ''),
+    address: String(cfg_('DiaChi', '') || ''),
+    phone: String(cfg_('SDT', '') || ''),
+    logo: String(cfg_('Logo', '') || ''),
+    logoMark: String(cfg_('LogoMark', '') || ''),
+  };
+}
+function apiSaveCenterInfo(p) {
+  const name = String(p.name || '').trim();
+  if (!name) throw new Error('Thiếu tên trung tâm');
+  setCfg_('TenTrungTam', name);
+  setCfg_('DiaChi', String(p.address || '').trim());
+  setCfg_('SDT', String(p.phone || '').trim());
+  if (p.logo !== undefined && p.logo !== null) {
+    const lg = String(p.logo || '');
+    if (lg.length > 49000) throw new Error('Ảnh logo quá lớn — chọn ảnh khác nhẹ hơn');
+    setCfg_('Logo', lg);
+  }
+  if (p.logoMark !== undefined && p.logoMark !== null) {
+    const lm = String(p.logoMark || '');
+    if (lm.length > 49000) throw new Error('Ảnh logo quá lớn — chọn ảnh khác nhẹ hơn');
+    setCfg_('LogoMark', lm);
+  }
+  logHistory_('saveCenterInfo', '', 'Cập nhật thông tin trung tâm: ' + name);
+  return { ok: true };
+}
 function apiGetPrices() {
   const prices = {};
   Object.keys(PRICE_KEYS).forEach(c => { prices[c] = priceFor_(c); });
@@ -1250,7 +1285,8 @@ const READ_ACTIONS = {
   listcenters: apiListCenters, getfleet: apiGetFleet, listfuellogs: apiListFuelLogs,
   listadmissions: apiListAdmissions, listexamrounds: apiListExamRounds,
   listexams: apiListExams, getreports: apiGetReports, getgovreports: apiGetGovReports,
-  listnotifications: apiNotifications, getlookups: apiGetLookups, getprices: apiGetPrices
+  listnotifications: apiNotifications, getlookups: apiGetLookups, getprices: apiGetPrices,
+  getcenterinfo: apiGetCenterInfo
 };
 const WRITE_ACTIONS = {
   savestudent: apiSaveStudent, setstudentstatus: apiSetStudentStatus,
@@ -1258,6 +1294,7 @@ const WRITE_ACTIONS = {
   updateschedule: apiUpdateSchedule, deleteschedule: apiDeleteSchedule,
   addpayment: apiAddPayment, saveteacher: apiSaveTeacher, savevehicle: apiSaveVehicle,
   savecenter: apiSaveCenter, deletecenter: apiDeleteCenter, saveprices: apiSavePrices,
+  savecenterinfo: apiSaveCenterInfo,
   savebotuc: apiSaveBotuc, deletebotuc: apiDeleteBotuc,
   addfuellog: apiAddFuelLog, deletefuellog: apiDeleteFuelLog,
   saveadmission: apiSaveAdmission, deleteadmission: apiDeleteAdmission,
