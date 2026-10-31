@@ -240,23 +240,35 @@ function conflicts_() {
   return memo_('conflicts', () => {
   const rows = allSchedules_().filter(s => s.studentId);
   const out = [];
-  function groupBy(keyFn, kind, severity) {
-    const g = {};
-    rows.forEach(s => { const k = keyFn(s); if (!k) return; (g[k] = g[k] || []).push(s); });
-    Object.keys(g).forEach(k => {
-      if (g[k].length > 1) out.push({ kind, severity, key: k, date: g[k][0].date, slot: g[k][0].slot, sessions: g[k] });
-    });
+  // Giờ học tự do: trùng = hai buổi cùng ngày, cùng xe/HV/GV và khoảng giờ CHỒNG LẤN
+  // (không còn so khớp chuỗi khung giờ như hồi khung cố định).
+  function overlaps_(a, b) {
+    const ra = slotRangeMin_(a.slot), rb = slotRangeMin_(b.slot);
+    if (!ra || !rb) return a.slot === b.slot;
+    return ra[0] < rb[1] && rb[0] < ra[1];
   }
-  groupBy(s => s.vehicleId ? s.date + '|' + s.slot + '|xe' + s.vehicleId : null, 'Trùng xe', 'error');
-  groupBy(s => s.date + '|' + s.slot + '|hv' + s.studentId, 'Trùng học viên', 'error');
-  groupBy(s => s.teacherId ? s.date + '|' + s.slot + '|gv' + s.teacherId : null, 'Trùng giáo viên', 'warning');
+  function pairCheck_(list, keyFn, kind, severity) {
+    for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length; j++) {
+      const a = list[i], b = list[j];
+      const ka = keyFn(a), kb = keyFn(b);
+      if (!ka || ka !== kb || !overlaps_(a, b)) continue;
+      out.push({ kind, severity, key: a.date + '|' + ka, date: a.date, slot: a.slot, sessions: [a, b] });
+    }
+  }
+  const byDate = {};
+  rows.forEach(s => { (byDate[s.date] = byDate[s.date] || []).push(s); });
+  Object.keys(byDate).forEach(d => {
+    const list = byDate[d];
+    pairCheck_(list, s => s.vehicleId ? 'xe' + s.vehicleId : null, 'Trùng xe', 'error');
+    pairCheck_(list, s => 'hv' + s.studentId, 'Trùng học viên', 'error');
+    pairCheck_(list, s => s.teacherId ? 'gv' + s.teacherId : null, 'Trùng giáo viên', 'warning');
+  });
   return out;
   });
 }
 function slotHours_(slot) {
-  const p = String(slot).replace('h', '').split('-');
-  if (p.length !== 2) return 2;
-  return Math.max(1, num_(p[1]) - num_(p[0]));
+  const r = slotRangeMin_(slot);
+  return r ? Math.max(1, (r[1] - r[0]) / 60) : 2;
 }
 function weekHoursByVehicle_() {
   return memo_('weekHours', () => {
@@ -858,9 +870,15 @@ function apiTransferCourse(p) {
   logHistory_('transferCourse', str_(st['MaHV']), 'Chuyển khóa ' + oldCode + ' → ' + p.toCourse);
   return { ok: true, fromCourse: oldCode, toCourse: p.toCourse };
 }
+function slotRangeMin_(slot) {
+  const m = String(slot || '').trim().match(/^(\d{1,2})(?::(\d{2}))?\s*-\s*(\d{1,2})(?::(\d{2}))?/);
+  if (!m) return null;
+  const f = (h, mi) => Number(h) * 60 + Number(mi || 0);
+  return [f(m[1], m[2]), f(m[3], m[4])];
+}
 function slotStartMinutes_(slot) {
-  const m = String(slot || '').match(/(\d+)/);
-  return m ? Number(m[1]) * 60 : 480;
+  const r = slotRangeMin_(slot);
+  return r ? r[0] : 480;
 }
 function apiCreateSchedule(p) {
   const st = p.studentId ? bystId_(num_(p.studentId)) : null;
