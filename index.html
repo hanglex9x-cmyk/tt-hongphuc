@@ -43,6 +43,10 @@ html,body{touch-action:manipulation}
 .h-phones{display:flex;align-items:center;gap:5px;color:#fff;font-weight:800;font-size:12.5px;line-height:1.3;white-space:nowrap;margin-left:2px}
 .h-sub{margin:1px 0 0;font-size:11px;color:rgba(255,255,255,.88);line-height:1.35}
 .btn-compact{min-height:36px;padding:6px 12px;font-size:13px;font-weight:700;border-radius:10px}
+.row4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-bottom:12px}
+.row4 .btn,.row4 .tab{min-height:36px;padding:6px 2px;font-size:12px;font-weight:700;border-radius:10px;width:100%;min-width:0;white-space:nowrap}
+.row4 .tab{border:1px solid var(--border);background:#fff;color:var(--text);cursor:pointer}
+.row4 .tab.on{border:none;color:#fff;background:linear-gradient(135deg,#00C853 0%,#00B050 45%,#007A38 100%);box-shadow:0 5px 16px rgba(0,150,70,.38),inset 0 1px 0 rgba(255,255,255,.35)}
 .mode-tabs.sm button{min-height:36px;padding:6px 12px;font-size:13px;border-radius:10px}
 @media(min-width:768px){.header-inner .sub{font-size:12px}}
 @media(min-width:768px){.header-inner .sub{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}
@@ -143,7 +147,7 @@ table.tbl-plain td{border-bottom:1px solid rgba(220,232,223,.6);padding:10px 8px
 @media(min-width:768px){.d-only{display:block!important}}
 .m-only{display:block!important}
 @media(min-width:768px){.m-only{display:none!important}}
-.mcard{border:1px solid var(--border);border-radius:16px;padding:12px;background:#fff}
+.mcard{border:1px solid var(--border);border-radius:16px;padding:10px 12px;background:#fff}
 .mlist{display:flex;flex-direction:column;gap:12px}
 
 /* ---------- KPI / thẻ số ---------- */
@@ -258,7 +262,7 @@ table.tbl-plain td{border-bottom:1px solid rgba(220,232,223,.6);padding:10px 8px
 /* ---------- Modal / toast ---------- */
 .modal-overlay{position:fixed;inset:0;z-index:60;display:flex;align-items:flex-end;justify-content:center;background:rgba(6,61,32,.45)}
 @media(min-width:768px){.modal-overlay{align-items:center}}
-.modal-box{width:100%;max-width:672px;max-height:92vh;overflow-y:auto;padding:16px;background:linear-gradient(150deg,rgba(255,255,255,.97),rgba(255,255,255,.94));border:1px solid #DCE8DF;border-radius:20px}
+.modal-box{width:100%;max-width:672px;max-height:94vh;overflow-y:auto;padding:16px;background:#fff;border:1px solid #DCE8DF;border-radius:20px}
 @media(min-width:768px){.modal-box{padding:24px}}
 .modal-head{display:flex;align-items:center;justify-content:space-between;gap:8px;position:sticky;top:-16px;margin:-16px -16px 12px;padding:10px 16px;background:rgba(255,255,255,.97);border-bottom:1px solid var(--border);border-radius:20px 20px 0 0;z-index:6}
 @media(min-width:768px){.modal-head{top:-24px;margin:-24px -24px 12px;padding:14px 24px}}
@@ -280,6 +284,15 @@ table.tbl-plain td{border-bottom:1px solid rgba(220,232,223,.6);padding:10px 8px
 .timeline .dot{position:absolute;top:5px;left:-21px;height:10px;width:10px;border-radius:99px}
 .crit{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
 .crit li{display:flex;align-items:center;gap:8px;font-size:14px}
+.stu-detail{gap:8px}
+.stu-detail .detail-grid{gap:2px 10px;font-size:12.5px;line-height:1.3}
+.stu-detail .stack-sm{gap:3px}
+.stu-detail .timeline{gap:4px;margin-left:6px}
+.stu-detail .timeline li{font-size:12.5px}
+.stu-detail .crit{display:grid;grid-template-columns:1fr 1fr;gap:3px 10px}
+.stu-detail .crit li{font-size:12.5px;gap:6px}
+.stu-detail details.ops{border:1px solid var(--border);border-radius:12px;padding:10px 12px}
+.stu-detail details.ops summary{font-size:13.5px;font-weight:700;cursor:pointer}
 .crit .ic{display:flex;height:20px;width:20px;flex:none;align-items:center;justify-content:center;border-radius:99px;font-size:11px;font-weight:700;color:#fff}
 
 /* ---------- Tuyển sinh ---------- */
@@ -318,12 +331,9 @@ const DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycbxFG7h7a-FiI2UB
 document.addEventListener('gesturestart', e => e.preventDefault());
 document.addEventListener('gesturechange', e => e.preventDefault());
 document.addEventListener('touchmove', e => { if (e.touches && e.touches.length > 1) e.preventDefault(); }, { passive: false });
-let __lastTouchEnd = 0;
-document.addEventListener('touchend', e => {
-  const now = Date.now();
-  if (now - __lastTouchEnd <= 300) e.preventDefault();
-  __lastTouchEnd = now;
-}, { passive: false });
+/* KHÔNG chặn touchend để khóa double-tap zoom nữa: CSS touch-action:manipulation
+   đã lo việc đó. Bản chặn touchend ≤300ms (bản 21:02) nuốt luôn cú chạm ĐÓNG
+   modal khi người dùng vừa cuộn xong hoặc chạm liên tiếp — nút × bấm không ăn. */
 
 const API_URL = (() => {
   const q = new URLSearchParams(location.search).get('api');
@@ -702,7 +712,7 @@ function Pagination(page, total, pageSize, fnName) {
   return `<div class="row-wrap" style="justify-content:space-between;margin-top:12px;font-size:14px"><span style="color:var(--dim)">Trang ${page}/${pages} · Tổng ${total}</span><span class="row-wrap"><button type="button" class="btn btn-sm" ${page <= 1 ? 'disabled' : ''} onclick="${fnName}(${page - 1})">‹ Trước</button><button type="button" class="btn btn-sm" ${page >= pages ? 'disabled' : ''} onclick="${fnName}(${page + 1})">Sau ›</button></span></div>`;
 }
 function openModal(title, bodyHtml) {
-  document.getElementById('modal-root').innerHTML = `<div class="modal-overlay" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="modal-box"><div class="modal-head"><h3>${esc(title)}</h3><button type="button" class="modal-x" aria-label="Đóng" onclick="closeModal()">×</button></div>${bodyHtml}</div></div>`;
+  document.getElementById('modal-root').innerHTML = `<div class="modal-overlay" role="dialog" aria-modal="true" aria-label="${esc(title)}" onclick="if(event.target===this)closeModal()"><div class="modal-box"><div class="modal-head"><h3>${esc(title)}</h3><button type="button" class="modal-x" aria-label="Đóng" onclick="closeModal()">×</button></div>${bodyHtml}</div></div>`;
 }
 function closeModal() { document.getElementById('modal-root').innerHTML = ''; }
 let toastTimer = null;
@@ -1620,14 +1630,11 @@ RENDERERS.today = async (main) => {
   const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
   regExport('schedules', `lich-hoc-${TD.date}.csv`, ['Giờ học', 'Tên học viên', 'Biển số xe', 'Tên giáo viên'], () => displayed.map(s => ({ 'Giờ học': s.slot, 'Tên học viên': s.studentName, 'Biển số xe': s.plate, 'Tên giáo viên': s.teacherShort })));
   main.innerHTML = Section(`Bảng chi tiết lịch học — ${fmtDate(TD.date)}`, '4 cột: Giờ học · Tên học viên (rút gọn 2 từ cuối) · Biển số xe · Tên giáo viên (Gv. + tên, mỗi GV một màu). Bấm vào một dòng để sửa trực tiếp buổi học.', `
-    <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:12px">
-      <span class="mode-tabs sm">
-        <button type="button" role="tab" class="on btn-green-grad" onclick="tdMode('today')">Hôm nay</button>
-        <button type="button" role="tab" onclick="tdMode('month')">Theo tháng</button>
-      </span>
-      <span style="flex:1"></span>
-      <button type="button" class="btn btn-green btn-compact" onclick="document.getElementById('imp-schedules').click()">Import Excel</button>
-      <button type="button" class="btn btn-amber btn-compact" onclick="doExport('schedules')">Export Excel</button>
+    <div class="row4">
+      <button type="button" class="tab ${TD.mode !== 'month' ? 'on' : ''}" onclick="tdMode('today')">Hôm nay</button>
+      <button type="button" class="tab ${TD.mode === 'month' ? 'on' : ''}" onclick="tdMode('month')">Theo tháng</button>
+      <button type="button" class="btn btn-green" onclick="document.getElementById('imp-schedules').click()">Import Excel</button>
+      <button type="button" class="btn btn-amber" onclick="doExport('schedules')">Export Excel</button>
       <input id="imp-schedules" type="file" accept=".csv,text/csv" style="display:none" onchange="doImport('schedules',this)">
     </div>
     <p data-impmsg="schedules" class="note-dim" style="margin:0 0 8px"></p>
@@ -1718,17 +1725,17 @@ function stuRowHtml_(s, i) {
 }
 function stuCardHtml_(s) {
   const pct = s.datKmTotal > 0 ? Math.min(100, Math.round((s.datKmDone / s.datKmTotal) * 100)) : 0;
-  const tuitionLine = s.muaLL ? '<p style="margin-top:8px;font-size:14px;color:#E65100;font-weight:600">Mua LL — GV tự thu học phí, không qua trung tâm</p>' : `<p style="margin-top:8px;font-size:14px">Đã thu <b>${fmtMoney(s.tuitionPaid)}</b> · Phải thu ${fmtMoney(s.tuitionPayable)} · Còn nợ <b style="color:#E53935">${fmtMoney(s.tuitionDebt)}</b>${s.tuitionDiscount > 0 ? `<span style="display:block;font-size:12px;font-weight:600;color:#007A38;margin-top:2px">Giảm ${fmtMoney(s.tuitionDiscount)}${s.discountReason ? ` · ${esc(s.discountReason)}` : ''}</span>` : ''}</p>`;
+  const tuitionLine = s.muaLL ? '<p style="margin-top:6px;font-size:13px;color:#E65100;font-weight:600">Mua LL — GV tự thu học phí, không qua trung tâm</p>' : `<p style="margin-top:6px;font-size:13px">Đã thu <b>${fmtMoney(s.tuitionPaid)}</b> · Phải thu ${fmtMoney(s.tuitionPayable)} · Còn nợ <b style="color:#E53935">${fmtMoney(s.tuitionDebt)}</b>${s.tuitionDiscount > 0 ? `<span style="display:block;font-size:12px;font-weight:600;color:#007A38;margin-top:2px">Giảm ${fmtMoney(s.tuitionDiscount)}${s.discountReason ? ` · ${esc(s.discountReason)}` : ''}</span>` : ''}</p>`;
   return `<article class="mcard">
-      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:4px">
-        <div style="min-width:0"><p style="margin:0;font-size:17px;font-weight:700">${esc(s.name)}${s.muaLL ? ' <span class="chip" style="background:#FFF3E0;color:#E65100">Mua LL</span>' : ''}</p><p style="margin:0;font-size:12px;color:var(--dim)">${esc(s.code)} · MHV ${esc(s.maHv || '—')} · ${esc(s.phone || '—')}</p></div>
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:2px">
+        <div style="min-width:0"><p style="margin:0;font-size:16px;font-weight:700">${esc(s.name)}${s.muaLL ? ' <span class="chip" style="background:#FFF3E0;color:#E65100">Mua LL</span>' : ''}</p><p style="margin:0;font-size:12px;color:var(--dim)">${esc(s.code)} · MHV ${esc(s.maHv || '—')} · ${esc(s.phone || '—')}</p></div>
         <span style="flex:none">${StatusChip(s.status)}</span>
       </div>
-      <p style="margin:0;font-size:14px"><b>${esc(s.courseCode)}</b> · Hạng ${esc(s.licenseClass)} · <span style="color:var(--dim)">KG ${fmtDate(s.openDate)} · Hạn ${fmtDate(s.closeDate)}</span></p>
-      <p class="row-wrap" style="margin-top:6px">${CenterBadge(s.centerName)}${s.plateKg ? `<span class="plate-badge">${esc(s.plateKg)}</span>` : ''}${DatMarkerChip(s.datMarkerKm)}</p>
-      <div style="margin-top:8px"><p style="margin:0;font-size:14px">DAT: <b>${s.datKmDone}/${s.datKmTotal} km</b> (${pct}%)</p><span class="bar" style="margin-top:4px"><i style="width:${pct}%"></i></span></div>
+      <p style="margin:0;font-size:13.5px"><b>${esc(s.courseCode)}</b> · Hạng ${esc(s.licenseClass)} · <span style="color:var(--dim)">KG ${fmtDate(s.openDate)} · Hạn ${fmtDate(s.closeDate)}</span></p>
+      <p class="row-wrap" style="margin-top:5px;align-items:center">${CenterBadge(s.centerName)}${s.plateKg ? `<span class="plate-badge">${esc(s.plateKg)}</span>` : ''}${DatMarkerChip(s.datMarkerKm)}<span style="font-size:13px">DAT: <b>${s.datKmDone}/${s.datKmTotal} km</b> (${pct}%)</span></p>
+      <span class="bar" style="margin-top:4px"><i style="width:${pct}%"></i></span>
       ${tuitionLine}
-      <div class="row-wrap" style="margin-top:10px"><button type="button" class="btn" style="flex:1" aria-label="Xem timeline ${esc(s.name)}" onclick="openStudentDetail(${s.id})">Timeline</button><button type="button" class="btn btn-green" style="flex:1" aria-label="Sửa học viên ${esc(s.name)}" onclick="openStudentForm(${s.id})">Sửa</button></div>
+      <div class="row-wrap" style="margin-top:8px"><button type="button" class="btn" style="flex:1;min-height:40px" aria-label="Xem timeline ${esc(s.name)}" onclick="openStudentDetail(${s.id})">Timeline</button><button type="button" class="btn btn-green" style="flex:1;min-height:40px" aria-label="Sửa học viên ${esc(s.name)}" onclick="openStudentForm(${s.id})">Sửa</button></div>
     </article>`;
 }
 function stuResultsHtml_(q) {
@@ -1832,8 +1839,8 @@ function renderStudentDetail_(s, q) {
       { ok: s.criteria.cabin, label: `Cabin ${s.cabinHours}/3h (${s.cabinSessions} ca)` },
       { ok: s.criteria.dat, label: `DAT ${s.datKmDone}/${s.datKmTotal} km` },
       { ok: s.criteria.sahinh, label: 'Sa hình đủ bài' },
-      { ok: s.muaLL ? true : s.criteria.tuition, label: s.muaLL ? 'Học phí: Mua LL — GV tự thu, không qua trung tâm' : `Học phí ${fmtMoney(s.tuitionPaid)}/${fmtMoney(s.tuitionPayable)}${s.tuitionDiscount > 0 ? ` (chuẩn ${fmtMoney(s.tuitionTotal)} − giảm ${fmtMoney(s.tuitionDiscount)})` : ''}` },
-      { ok: s.gradResult === 'Đậu', label: `Tốt nghiệp${!s.gradResult || s.gradResult === 'Chưa thi' ? ' — chưa thi' : ` — ${s.gradResult}`}${s.certNo ? ` · CC ${s.certNo}` : ''} (điều kiện đăng ký đợt sát hạch)` },
+      { ok: s.muaLL ? true : s.criteria.tuition, label: s.muaLL ? 'Học phí: Mua LL — GV tự thu' : `Học phí ${fmtMoneyShort(s.tuitionPaid)}/${fmtMoneyShort(s.tuitionPayable)}` },
+      { ok: s.gradResult === 'Đậu', label: `Tốt nghiệp${!s.gradResult || s.gradResult === 'Chưa thi' ? ' — chưa thi' : ` — ${s.gradResult}`}${s.certNo ? ` · CC ${s.certNo}` : ''}` },
     ];
     const examHtml = exam ? `<div>
       <p style="margin:0 0 4px;font-size:14px"><b>Kết quả sát hạch (SBD ${esc(exam.sbd || '—')} · ${fmtDate(exam.examDate)})</b></p>
@@ -1845,13 +1852,14 @@ function renderStudentDetail_(s, q) {
       ${exam.theory === 'Đậu' && exam.sahinh === 'Đậu' && exam.road === 'Đậu' ? `<p style="margin-top:6px;font-size:14px">Bằng lái hạng <b>${esc(s.licenseClass)}</b> · Ngày thi đậu: <b>${fmtDate(exam.examDate)}</b> · ${s.hasLicense ? `Trạng thái bằng: <b style="color:#00893D">Đã có bằng</b> — ngày có bằng: <b>${fmtDate(s.licenseDate)}</b>` : 'Trạng thái bằng: <b>Chưa có bằng</b> <span style="color:var(--dim)">(bằng chưa về trung tâm — cập nhật ở module Kỳ thi sát hạch)</span>'}</p>` : ''}
     </div>` : '';
     const paysList = q ? (q.payments || []) : null;
+    const payLi = p => `<li class="reg-row" style="padding:5px 0;border-bottom:1px solid var(--border);font-size:13px"><span>${fmtDate(p.date)} · ${esc(p.note || '')} · ${esc(p.method || '')}${p.kmDeducted > 0 ? ` · Đã trừ ${p.kmDeducted}KM` : ''}${p.kind && p.kind !== 'Học phí' ? `<span class="chip" style="background:#FFF8E1;color:#B45309;margin-left:4px">${esc(p.kind)}</span>` : ''}</span><b ${p.amount < 0 ? 'style="color:#E53935"' : ''}>${fmtMoney(p.amount)}</b></li>`;
     const tuitionRows = s.muaLL ? '<p class="reg-row" style="margin:0"><span style="color:var(--dim)">Học viên Mua LL — GV tự thu học phí, không qua trung tâm nên trung tâm không tính học phí cho học viên này.</span></p>' : `<p class="reg-row" style="margin:0"><span style="color:var(--dim)">Học phí chuẩn (theo hạng ${esc(s.licenseClass)})</span><b>${fmtMoney(s.tuitionTotal)}</b></p>
           <p class="reg-row" style="margin:0"><span style="color:var(--dim)">Giảm tiền${s.discountReason ? ` — ${esc(s.discountReason)}` : ''}</span><b ${s.tuitionDiscount > 0 ? 'style="color:#00893D"' : ''}>${s.tuitionDiscount > 0 ? `−${fmtMoney(s.tuitionDiscount)}` : fmtMoney(0)}</b></p>
           <p class="reg-row" style="margin:0;border-top:1px solid var(--border);padding-top:6px"><span style="font-weight:600">Phải thu (chuẩn − giảm)</span><b>${fmtMoney(s.tuitionPayable)}</b></p>
           <p class="reg-row" style="margin:0"><span style="color:var(--dim)">Đã thu</span><b>${fmtMoney(s.tuitionPaid)}</b></p>
           ${s.tuitionPaid > s.tuitionPayable ? `<p class="reg-row" style="margin:0"><span style="color:var(--dim)">Đã thu vượt phải thu (hoàn lại / đối trừ)</span><b style="color:#00893D">${fmtMoney(s.tuitionPaid - s.tuitionPayable)}</b></p>` : ''}
           <p class="reg-row" style="margin:0"><span style="color:var(--dim)">Còn nợ (phải thu − đã thu)</span><b style="color:#E53935">${fmtMoney(s.tuitionDebt)}</b></p>`;
-    openModal(`${s.name} — ${s.code}`, `<div class="stack">
+    openModal(`${s.name} — ${s.code}`, `<div class="stack stu-detail">
       <div class="detail-grid">
         <p><span class="dim">Mã HV:</span> <b>${esc(s.maHv || '—')}</b></p>
         <p><span class="dim">SĐT:</span> ${esc(s.phone || '—')}</p>
@@ -1880,9 +1888,9 @@ function renderStudentDetail_(s, q) {
         <p style="margin:0 0 4px;font-size:14px"><b>Điều kiện đủ thi sát hạch — 5 tiêu chí (TT 108/2026)</b></p>
         <ul class="crit">${critItems.map(it => `<li><span class="ic" style="background:${it.ok ? BRAND.green : '#B0BEC5'}">${it.ok ? '✓' : '–'}</span><span ${it.ok ? '' : 'style="color:var(--dim)"'}>${esc(it.label)}</span></li>`).join('')}</ul>
       </div>
-      <div style="border:1px solid var(--border);border-radius:12px;padding:12px">
-        <p style="margin:0 0 8px;font-size:14px"><b>Thao tác hồ sơ — bảo lưu / nghỉ học / chuyển khóa</b></p>
-        <div class="row-wrap">
+      <details class="ops">
+        <summary>Bảo lưu / nghỉ học / chuyển khóa</summary>
+        <div class="row-wrap" style="margin-top:8px">
           <select id="ops-status" aria-label="Chọn trạng thái đặc biệt" class="select" style="flex:1 1 220px;width:auto">
             <option value="">— Đổi trạng thái: Bảo lưu / Đã nghỉ học / Đang học —</option>
             <option value="Bảo lưu">Bảo lưu</option>
@@ -1898,18 +1906,18 @@ function renderStudentDetail_(s, q) {
           </select>
           <button type="button" class="btn" onclick="opsTransfer(${s.id})">Chuyển khóa</button>
         </div>
-        <p id="ops-msg" style="margin:8px 0 0;font-size:14px;font-weight:500"></p>
-      </div>
+        <p id="ops-msg" style="margin:8px 0 0;font-size:13px;font-weight:500"></p>
+      </details>
       ${examHtml}
       <div style="border-radius:12px;background:var(--surface-alt);padding:12px">
         <p style="margin:0 0 6px;font-size:14px"><b>Học phí</b></p>
-        <div class="stack-sm" style="font-size:14px">
+        <div class="stack-sm" style="font-size:13px">
 ${tuitionRows}
         </div>
       </div>
       <div>
         <p style="margin:0 0 4px;font-size:14px"><b>Lịch sử thu học phí</b></p>
-        ${paysList === null ? '<p style="font-size:14px;color:var(--dim);margin:0">Đang tải lịch sử thu…</p>' : paysList.length === 0 ? '<p style="font-size:14px;color:var(--dim);margin:0">Chưa có lần thu nào.</p>' : `<ul style="list-style:none;margin:0;padding:0">${paysList.map(p => `<li class="reg-row" style="padding:6px 0;border-bottom:1px solid var(--border);font-size:14px"><span>${fmtDate(p.date)} · ${esc(p.note || '')} · ${esc(p.method || '')}${p.kmDeducted > 0 ? ` · Đã trừ ${p.kmDeducted}KM` : ''}${p.kind && p.kind !== 'Học phí' ? `<span class="chip" style="background:#FFF8E1;color:#B45309;margin-left:4px">${esc(p.kind)}</span>` : ''}</span><b ${p.amount < 0 ? 'style="color:#E53935"' : ''}>${fmtMoney(p.amount)}</b></li>`).join('')}</ul>`}
+        ${paysList === null ? '<p style="font-size:13px;color:var(--dim);margin:0">Đang tải lịch sử thu…</p>' : paysList.length === 0 ? '<p style="font-size:13px;color:var(--dim);margin:0">Chưa có lần thu nào.</p>' : `<ul style="list-style:none;margin:0;padding:0">${paysList.slice(0, 3).map(payLi).join('')}</ul>${paysList.length > 3 ? `<details><summary style="font-size:13px;color:var(--dim);cursor:pointer;padding:4px 0">Xem thêm ${paysList.length - 3} lần thu nữa</summary><ul style="list-style:none;margin:0;padding:0">${paysList.slice(3).map(payLi).join('')}</ul></details>` : ''}`}
         ${s.muaLL ? '' : `<p style="margin-top:4px;font-size:14px">Đã thu <b>${fmtMoney(s.tuitionPaid)}</b> · Còn nợ <b style="color:#E53935">${fmtMoney(s.tuitionDebt)}</b></p>`}
       </div>
     </div>`);
