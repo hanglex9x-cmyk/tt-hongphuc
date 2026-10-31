@@ -151,7 +151,8 @@ function studentObj_(o, payMap, kmMap) {
   const course = cm[str_(o['MaKhoa'])] || {};
   const sid = num_(o['ID']);
   const paid = payMap[sid] ? payMap[sid].paid : 0;
-  const total = num_(o['ID']) ? (course.tuition || 0) : 0;
+  const ownFee = num_(o['HocPhi']);
+  const total = num_(o['ID']) ? (ownFee > 0 ? ownFee : (course.tuition || 0)) : 0;
   const discount = num_(o['GiamTien']);
   const payable = total - discount;
   const cls = str_(o['Hang']);
@@ -772,7 +773,7 @@ function apiSaveStudent(p) {
       HanKhamSK: p.healthExamDate ? String(Number(String(p.healthExamDate).slice(0, 4)) + 1) + String(p.healthExamDate).slice(4) : '',
       GioCabin: 0, BuoiCabin: 0, DiemLyThuyet: '', DatLyThuyet: 'Chưa đạt', DaHocSaHinh: 'Chưa học',
       KmDATDaChay: 0, KmDATMucTieu: TARGET_KM[p.licenseClass || c.licenseClass] || 810, MocKmDAT: 0,
-      GiamTien: num_(p.discount), MuaLL: p.muaLL ? 1 : '', LyDoGiam: p.discountReason || '', TrangThai: p.status || 'Đang học',
+      GiamTien: num_(p.discount), MuaLL: p.muaLL ? 1 : '', HocPhi: num_(p.tuition) > 0 ? num_(p.tuition) : priceFor_(p.licenseClass || c.licenseClass || ''), LyDoGiam: p.discountReason || '', TrangThai: p.status || 'Đang học',
       NgayThiTotNghiep: '', KetQuaTotNghiep: '', SoChungChi: '', NgayCapChungChi: '',
       NgayCoBang: '', CoBang: 'Chưa', DiemBangLai: ''
     });
@@ -792,6 +793,7 @@ function apiSaveStudent(p) {
   if (p.discount !== undefined) patch['GiamTien'] = num_(p.discount);
   if (p.discountReason !== undefined) patch['LyDoGiam'] = p.discountReason;
   if (p.muaLL !== undefined) patch['MuaLL'] = p.muaLL ? 1 : '';
+  if (p.tuition !== undefined) patch['HocPhi'] = num_(p.tuition);
   if (p.homeTeacherId !== undefined) {
     const t = tab_('GiaoVien').objs.find(o => num_(o['ID']) === num_(p.homeTeacherId));
     if (t) patch['GVChinh'] = str_(t['HoTen']);
@@ -1159,6 +1161,31 @@ function apiEnrollAdmission(p) {
   logHistory_('enrollAdmission', code, 'Nhập học từ hồ sơ ' + adm.expectedCode + ' → ' + code + ' vào khóa ' + c.code);
   return { ok: true, id: nid, code, name: adm.name, courseCode: c.code };
 }
+// ---------- Bang gia hoc phi theo hang (tab CauHinh, khoa HocPhi_*) ----------
+const PRICE_KEYS = { 'B1': 'HocPhi_B1', 'B2': 'HocPhi_B2', 'C1': 'HocPhi_C1', 'C': 'HocPhi_C', 'Nâng dấu': 'HocPhi_NangDau' };
+function priceFor_(cls) {
+  const k = PRICE_KEYS[cls];
+  const v = k ? num_(cfg_(k, 0)) : 0;
+  return v > 0 ? v : (TUITION[cls] || 0);
+}
+function apiGetPrices() {
+  const prices = {};
+  Object.keys(PRICE_KEYS).forEach(c => { prices[c] = priceFor_(c); });
+  return { prices };
+}
+function apiSavePrices(p) {
+  const prices = p.prices || {};
+  const t = tab_('CauHinh');
+  Object.keys(PRICE_KEYS).forEach(cls => {
+    if (prices[cls] === undefined) return;
+    const key = PRICE_KEYS[cls];
+    const row = t.objs.find(o => String(o['Khoa']) === key);
+    if (row) t.sheet.getRange(row._row, 2).setValue(num_(prices[cls]));
+    else t.sheet.appendRow([key, num_(prices[cls])]);
+  });
+  logHistory_('savePrices', '', 'Cập nhật bảng giá học phí theo hạng');
+  return { ok: true };
+}
 function apiCheckCccd(p) {
   const cccd = String(p.cccd || '');
   const found = tab_('HocVien').objs.find(o => str_(o['CCCD']) === cccd);
@@ -1175,14 +1202,14 @@ const READ_ACTIONS = {
   listcenters: apiListCenters, getfleet: apiGetFleet, listfuellogs: apiListFuelLogs,
   listadmissions: apiListAdmissions, listexamrounds: apiListExamRounds,
   listexams: apiListExams, getreports: apiGetReports, getgovreports: apiGetGovReports,
-  listnotifications: apiNotifications, getlookups: apiGetLookups
+  listnotifications: apiNotifications, getlookups: apiGetLookups, getprices: apiGetPrices
 };
 const WRITE_ACTIONS = {
   savestudent: apiSaveStudent, setstudentstatus: apiSetStudentStatus,
   transferstudentcourse: apiTransferCourse, createschedule: apiCreateSchedule,
   updateschedule: apiUpdateSchedule, deleteschedule: apiDeleteSchedule,
   addpayment: apiAddPayment, saveteacher: apiSaveTeacher, savevehicle: apiSaveVehicle,
-  savecenter: apiSaveCenter, deletecenter: apiDeleteCenter,
+  savecenter: apiSaveCenter, deletecenter: apiDeleteCenter, saveprices: apiSavePrices,
   savebotuc: apiSaveBotuc, deletebotuc: apiDeleteBotuc,
   addfuellog: apiAddFuelLog, deletefuellog: apiDeleteFuelLog,
   saveadmission: apiSaveAdmission, deleteadmission: apiDeleteAdmission,
