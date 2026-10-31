@@ -2165,36 +2165,59 @@ async function openQuickSchedule(dateStr, preselId) {
     </div>`);
   } catch (e) { toast('Không mở được form xếp lịch: ' + e.message); }
 }
+let _dcBusy = false;
+function daySessionsFromCache_(dateStr) {
+  for (const [k, rr] of RANGE_CACHE) {
+    const parts = k.split('|');
+    if (parts.length === 2 && dateStr >= parts[0] && dateStr <= parts[1] && rr && Array.isArray(rr.schedules)) {
+      return rr.schedules.filter(s => s.date === dateStr);
+    }
+  }
+  return null;
+}
 async function datCreate(pfx) {
   pfx = pfx || 'dc';
+  if (_dcBusy) return; // đang xử lý — chặn bấm đúp gây lưu trùng
+  _dcBusy = true;
   const box = document.getElementById(pfx + '-result');
-  const payload = {
-    date: document.getElementById(pfx + '-date').value,
-    slot: document.getElementById(pfx + '-slot').value,
-    type: document.getElementById(pfx + '-type').value,
-    studentId: document.getElementById(pfx + '-student').value ? Number(document.getElementById(pfx + '-student').value) : (state.focusStudentId || null),
-    teacherId: document.getElementById(pfx + '-teacher').value ? Number(document.getElementById(pfx + '-teacher').value) : null,
-    vehicleId: document.getElementById(pfx + '-vehicle').value ? Number(document.getElementById(pfx + '-vehicle').value) : null,
-    km: 0,
-  };
-  payload.km = payload.type === 'DAT' ? (Number(document.getElementById(pfx + '-km').value) || 0) : 0;
-  const veh = (LK.vehicles || []).find(v => v.id === payload.vehicleId);
-  if (veh) payload.plate = veh.plate;
-  box.innerHTML = '<p class="loading">Đang kiểm tra trùng lịch…</p>';
+  const btns = document.querySelectorAll('button[onclick*="datCreate"]');
+  btns.forEach(b => { b.disabled = true; });
   try {
-    // Kiểm tra trùng phía client trên lịch cùng ngày (backend Sheet không chặn trùng)
-    const day = await call('listschedules', { date: payload.date });
-    const same = (day.schedules || []).filter(s => s.slot === payload.slot);
+    // Chụp bản lookups TRƯỚC khi ghi: write() xóa cache đọc (LK thành null) nên
+    // chạm vào LK sau khi ghi sẽ văng lỗi "null is not an object" dù đã lưu thành công.
+    const lk = (await getLookups().catch(() => null)) || LK || {};
+    const payload = {
+      date: document.getElementById(pfx + '-date').value,
+      slot: document.getElementById(pfx + '-slot').value,
+      type: document.getElementById(pfx + '-type').value,
+      studentId: document.getElementById(pfx + '-student').value ? Number(document.getElementById(pfx + '-student').value) : (state.focusStudentId || null),
+      teacherId: document.getElementById(pfx + '-teacher').value ? Number(document.getElementById(pfx + '-teacher').value) : null,
+      vehicleId: document.getElementById(pfx + '-vehicle').value ? Number(document.getElementById(pfx + '-vehicle').value) : null,
+      km: 0,
+    };
+    payload.km = payload.type === 'DAT' ? (Number(document.getElementById(pfx + '-km').value) || 0) : 0;
+    const veh = (lk.vehicles || []).find(v => v.id === payload.vehicleId);
+    if (veh) payload.plate = veh.plate;
+    box.innerHTML = '<p class="loading">Đang kiểm tra trùng lịch…</p>';
+    // Kiểm tra trùng phía client trên lịch cùng ngày (backend Sheet không chặn trùng).
+    // Ưu tiên dữ liệu lịch ĐÃ tải sẵn trên màn hình (RANGE_CACHE) — khỏi thêm 1 chuyến API chờ 1–4 giây;
+    // ngày chưa có dữ liệu mới gọi API và ép lấy bản mới nhất (force).
+    let dayList = daySessionsFromCache_(payload.date);
+    if (!dayList) {
+      const day = await call('listschedules', { date: payload.date }, { force: true });
+      dayList = day.schedules || [];
+    }
+    const same = dayList.filter(s => s.slot === payload.slot);
     const conflicts = [];
     if (payload.vehicleId && same.some(s => s.vehicleId === payload.vehicleId)) conflicts.push(`Trùng xe ${payload.plate || ''} — xe đã có buổi ${payload.slot} ngày ${fmtDate(payload.date)}`);
     if (payload.studentId && same.some(s => s.studentId === payload.studentId)) conflicts.push('Trùng học viên — HV đã có buổi cùng khung giờ');
-    if (payload.studentId && (day.schedules || []).some(s => s.studentId === payload.studentId)) conflicts.push('Học viên đã có buổi khác trong ngày (luật 1 HV tối đa 1 buổi/ngày)');
+    if (payload.studentId && dayList.some(s => s.studentId === payload.studentId)) conflicts.push('Học viên đã có buổi khác trong ngày (luật 1 HV tối đa 1 buổi/ngày)');
     if (payload.teacherId && same.some(s => s.teacherId === payload.teacherId)) conflicts.push('Trùng giáo viên — GV đã có buổi cùng khung giờ');
     if (conflicts.length) {
       const busyV = new Set(same.map(s => s.vehicleId));
       const busyT = new Set(same.map(s => s.teacherId));
-      const freeV = (LK.vehicles || []).filter(v => !busyV.has(v.id) && v.status !== 'Bảo dưỡng').slice(0, 5);
-      const freeT = (LK.teachers || []).filter(t => !busyT.has(t.id)).slice(0, 5);
+      const freeV = (lk.vehicles || []).filter(v => !busyV.has(v.id) && v.status !== 'Bảo dưỡng').slice(0, 5);
+      const freeT = (lk.teachers || []).filter(t => !busyT.has(t.id)).slice(0, 5);
       box.innerHTML = `<div class="err-box" style="margin-top:12px"><p style="margin:0;font-weight:700">Trùng lịch: ${conflicts.map(esc).join(' · ')}</p>
         ${freeV.length ? `<p style="margin-top:4px">Xe trống gần nhất khung giờ này: ${freeV.map(v => PlateBadge(v.plate)).join(' ')}</p>` : ''}
         ${freeT.length ? `<p style="margin-top:4px">GV còn trống: ${freeT.map(t => esc(t.name)).join(', ')}</p>` : ''}
@@ -2203,18 +2226,22 @@ async function datCreate(pfx) {
     }
     await write('createschedule', payload);
     const warnings = [];
-    const stu = (LK.students || []).find(s => s.id === payload.studentId);
-    const tch = (LK.teachers || []).find(t => t.id === payload.teacherId);
+    const stu = (lk.students || []).find(s => s.id === payload.studentId);
+    const tch = (lk.teachers || []).find(t => t.id === payload.teacherId);
     if (stu && tch && stu.homeTeacherName && tch.name !== stu.homeTeacherName) warnings.push(`Đổi cặp GV: GV chính của ${stu.name} là ${gvName(stu.homeTeacherName)}`);
     if (stu && payload.plate && stu.plateKg && payload.plate !== stu.plateKg) warnings.push(`Đổi xe quen: xe khai giảng của ${stu.name} là ${stu.plateKg}`);
     const dsRow = DS.data && (DS.data.rows || []).find(r => r.studentId === payload.studentId);
     if (payload.type === 'Sa hình' && dsRow && dsRow.doneKm < 500) warnings.push(`${stu ? stu.name : 'HV'} chưa đủ 500km DAT (${dsRow.doneKm}km) — chưa đủ ĐK sa hình`);
     CONF = null;
-    if (pfx === 'qc') refresh();
-    box.innerHTML = `<div class="ok-box" style="margin-top:12px"><p style="margin:0;font-weight:600;color:#00893D">Đã xếp lịch thành công.</p>${warnings.length ? `<ul style="margin:6px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:4px">${warnings.map(w => `<li class="warn-box" style="padding:6px 10px;font-weight:600;color:#B45309">⚠ ${esc(w)}</li>`).join('')}</ul>` : ''}${pfx === 'qc' ? '<p style="margin-top:6px"><button type="button" class="btn btn-sm" onclick="closeModal()">Đóng</button></p>' : '<p style="margin-top:6px"><button type="button" class="btn btn-sm" onclick="refresh()">Tải lại lịch</button></p>'}</div>`;
+    // KHÔNG refresh() ngay ở bản qc: refresh() -> go() luôn đóng modal nên thông báo + cảnh báo
+    // chưa kịp hiện đã bị xóa. Nút Đóng sẽ tự đóng modal rồi mới refresh (đúng mẫu form sửa buổi học).
+    box.innerHTML = `<div class="ok-box" style="margin-top:12px"><p style="margin:0;font-weight:600;color:#00893D">Đã xếp lịch thành công.</p>${warnings.length ? `<ul style="margin:6px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:4px">${warnings.map(w => `<li class="warn-box" style="padding:6px 10px;font-weight:600;color:#B45309">⚠ ${esc(w)}</li>`).join('')}</ul>` : ''}${pfx === 'qc' ? '<p style="margin-top:6px"><button type="button" class="btn btn-sm" onclick="closeModal();refresh()">Đóng</button></p>' : '<p style="margin-top:6px"><button type="button" class="btn btn-sm" onclick="refresh()">Tải lại lịch</button></p>'}</div>`;
     toast('Đã xếp lịch thành công');
   } catch (e) {
     box.innerHTML = `<div class="err-box" style="margin-top:12px">Không xếp được lịch — ${esc(e.message)}</div>`;
+  } finally {
+    _dcBusy = false;
+    btns.forEach(b => { b.disabled = false; });
   }
 }
 
