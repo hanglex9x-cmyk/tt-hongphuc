@@ -177,6 +177,7 @@ function studentObj_(o, payMap, kmMap) {
     openDate: course.openDate || '', closeDate: course.closeDate || '',
     tuitionTotal: total, tuitionDiscount: discount, discountReason: str_(o['LyDoGiam']),
     tuitionPayable: payable, tuitionPaid: paid, tuitionDebt: Math.max(0, payable - paid),
+    muaLL: num_(o['MuaLL']) === 1,
     status: str_(o['TrangThai']), gradExamDate: dstr_(o['NgayThiTotNghiep']), gradResult: str_(o['KetQuaTotNghiep']),
     certNo: str_(o['SoChungChi']), certDate: dstr_(o['NgayCapChungChi']),
     licenseDate: dstr_(o['NgayCoBang']), hasLicense: str_(o['CoBang']) === 'Có',
@@ -290,9 +291,11 @@ function apiGetDashboard() {
   const passed = exams.filter(e => str_(e['KetQua']) === 'Đậu');
   const examined = exams.filter(e => str_(e['KetQua']) === 'Đậu' || str_(e['KetQua']) === 'Rớt');
   const licensed = students.filter(s => s.hasLicense);
+  const mllIds = {};
+  students.filter(s => s.muaLL).forEach(s => { mllIds[s.id] = 1; });
   let revMonth = 0;
   for (const p of tab_('ThanhToan').objs) {
-    if (str_(p['Loai']) === 'Học phí' && dstr_(p['Ngay']).slice(0, 7) === T.slice(0, 7)) revMonth += num_(p['SoTien']);
+    if (str_(p['Loai']) === 'Học phí' && !mllIds[num_(p['IDHocVien'])] && dstr_(p['Ngay']).slice(0, 7) === T.slice(0, 7)) revMonth += num_(p['SoTien']);
   }
   const pl = JSON.parse(cfg_('PLSeries', '[]'));
   const cur = pl.length ? pl[pl.length - 1] : { profit: 0, revenue: 0 };
@@ -332,7 +335,8 @@ function apiGetDashboard() {
     })),
     heatmap: Object.keys(heat).sort().map(d => ({ date: d, sessions: heat[d] })),
     licensed: licensed.map(s => ({ name: s.name, licenseClass: s.licenseClass, licenseDate: s.licenseDate, licenseScore: s.licenseScore })),
-    alerts: apiNotifications()
+    alerts: apiNotifications(),
+    muaLLStudents: students.filter(s => s.muaLL).map(s => ({ name: s.name, code: s.code, courseCode: s.courseCode, licenseClass: s.licenseClass, homeTeacherName: s.homeTeacherName }))
   };
 }
 function apiGetDatSummary() {
@@ -441,14 +445,17 @@ function apiListPayments(p) {
       kind: str_(x['Loai']), method: str_(x['PhuongThuc']), note: str_(x['GhiChu']), kmDeducted: num_(x['KmTru']) };
   }).sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id);
   const students = allStudents_();
+  const core = students.filter(s => !s.muaLL);
+  const mllIds = {};
+  students.forEach(s => { if (s.muaLL) mllIds[s.id] = 1; });
   return {
     payments: rows.filter(r => r.date.slice(0, 7) === month),
-    totalMonth: rows.filter(r => r.date.slice(0, 7) === month && r.kind === 'Học phí').reduce((a, r) => a + r.amount, 0),
-    totalPaidAll: students.reduce((a, s) => a + s.tuitionPaid, 0),
-    totalGrossAll: students.reduce((a, s) => a + s.tuitionTotal, 0),
-    totalPayableAll: students.reduce((a, s) => a + s.tuitionPayable, 0),
-    totalDiscountAll: students.reduce((a, s) => a + s.tuitionDiscount, 0),
-    totalDebtAll: students.reduce((a, s) => a + s.tuitionPayable, 0) - students.reduce((a, s) => a + s.tuitionPaid, 0)
+    totalMonth: rows.filter(r => r.date.slice(0, 7) === month && r.kind === 'Học phí' && !mllIds[r.studentId]).reduce((a, r) => a + r.amount, 0),
+    totalPaidAll: core.reduce((a, s) => a + s.tuitionPaid, 0),
+    totalGrossAll: core.reduce((a, s) => a + s.tuitionTotal, 0),
+    totalPayableAll: core.reduce((a, s) => a + s.tuitionPayable, 0),
+    totalDiscountAll: core.reduce((a, s) => a + s.tuitionDiscount, 0),
+    totalDebtAll: core.reduce((a, s) => a + s.tuitionPayable, 0) - core.reduce((a, s) => a + s.tuitionPaid, 0)
   };
 }
 function studentsById_() {
@@ -599,6 +606,7 @@ function apiListExams() {
 }
 function apiGetReports() {
   const students = allStudents_();
+  const core = students.filter(s => !s.muaLL);
   const rows = allSchedules_();
   const T = today_();
   const pl = JSON.parse(cfg_('PLSeries', '[]'));
@@ -607,7 +615,7 @@ function apiGetReports() {
   tab_('ThanhToan').objs.forEach(p => {
     if (str_(p['Loai']) !== 'Học phí') return;
     const st = bystId_(num_(p['IDHocVien']));
-    if (!st) return;
+    if (!st || st.muaLL) return;
     revByCourse[st.courseCode] = (revByCourse[st.courseCode] || 0) + num_(p['SoTien']);
   });
   const byVehicle = {}, bySlot = {};
@@ -627,11 +635,11 @@ function apiGetReports() {
     totalStudents: students.length,
     studentsByCourse: courses_().map(c => ({ courseCode: c.code, licenseClass: c.licenseClass, count: students.filter(s => s.courseCode === c.code).length })),
     receivable: {
-      totalGross: students.reduce((a, s) => a + s.tuitionTotal, 0) / 1000000,
-      totalDiscount: students.reduce((a, s) => a + s.tuitionDiscount, 0) / 1000000,
-      totalDue: students.reduce((a, s) => a + s.tuitionPayable, 0) / 1000000,
-      collected: students.reduce((a, s) => a + s.tuitionPaid, 0) / 1000000,
-      debt: (students.reduce((a, s) => a + s.tuitionPayable, 0) - students.reduce((a, s) => a + s.tuitionPaid, 0)) / 1000000
+      totalGross: core.reduce((a, s) => a + s.tuitionTotal, 0) / 1000000,
+      totalDiscount: core.reduce((a, s) => a + s.tuitionDiscount, 0) / 1000000,
+      totalDue: core.reduce((a, s) => a + s.tuitionPayable, 0) / 1000000,
+      collected: core.reduce((a, s) => a + s.tuitionPaid, 0) / 1000000,
+      debt: (core.reduce((a, s) => a + s.tuitionPayable, 0) - core.reduce((a, s) => a + s.tuitionPaid, 0)) / 1000000
     },
     revenueByCourse: Object.keys(revByCourse).map(k => {
       const c = courseMap_()[k];
@@ -764,7 +772,7 @@ function apiSaveStudent(p) {
       HanKhamSK: p.healthExamDate ? String(Number(String(p.healthExamDate).slice(0, 4)) + 1) + String(p.healthExamDate).slice(4) : '',
       GioCabin: 0, BuoiCabin: 0, DiemLyThuyet: '', DatLyThuyet: 'Chưa đạt', DaHocSaHinh: 'Chưa học',
       KmDATDaChay: 0, KmDATMucTieu: TARGET_KM[p.licenseClass || c.licenseClass] || 810, MocKmDAT: 0,
-      GiamTien: num_(p.discount), LyDoGiam: p.discountReason || '', TrangThai: p.status || 'Đang học',
+      GiamTien: num_(p.discount), MuaLL: p.muaLL ? 1 : '', LyDoGiam: p.discountReason || '', TrangThai: p.status || 'Đang học',
       NgayThiTotNghiep: '', KetQuaTotNghiep: '', SoChungChi: '', NgayCapChungChi: '',
       NgayCoBang: '', CoBang: 'Chưa', DiemBangLai: ''
     });
@@ -783,6 +791,7 @@ function apiSaveStudent(p) {
   }
   if (p.discount !== undefined) patch['GiamTien'] = num_(p.discount);
   if (p.discountReason !== undefined) patch['LyDoGiam'] = p.discountReason;
+  if (p.muaLL !== undefined) patch['MuaLL'] = p.muaLL ? 1 : '';
   if (p.homeTeacherId !== undefined) {
     const t = tab_('GiaoVien').objs.find(o => num_(o['ID']) === num_(p.homeTeacherId));
     if (t) patch['GVChinh'] = str_(t['HoTen']);
