@@ -1144,7 +1144,7 @@ function svRenderFilters(id) {
       <select id="${id}-fS" aria-label="Lọc lịch theo học viên" class="select" style="flex:1 1 150px;width:auto" onchange="svFilter('${id}')"><option value="">Tất cả học viên</option>${svStudentOptions(st).map(x => `<option value="${x.id}" ${String(x.id) === st.fStudentId ? 'selected' : ''}>${esc(x.name)} · ${esc(x.code)} · ${esc(x.courseCode)}</option>`).join('')}</select>
     </span>
     ${(st.fTeacher || st.fPlate || st.fCenter || st.fType || st.fStudentId) ? `<button type="button" class="btn" onclick="svClear('${id}')">Xóa lọc</button>` : ''}
-    <span class="note-dim d-only" style="margin-left:auto">${SLOTS.map(s => `${s}: ${slotHint(s)}`).join(' · ')}</span>`;
+    <span class="note-dim d-only" style="margin-left:auto">Giờ học tự chọn linh hoạt — bắt đầu / kết thúc tùy ý</span>`;
 }
 const DOW_SHORT = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
 const DOW_ACCENT = ['#1E88E5', '#F57C00', '#0097A7', '#00B050', '#E53935', '#FB8C00', '#C2185B'];
@@ -2004,7 +2004,7 @@ RENDERERS.dat = async (main) => {
   main.innerHTML = `<div class="stack">
     ${Section('Kế hoạch xếp xe DAT & Sa hình — xem theo tuần / 2 tuần / tháng', 'Luật xếp lịch: 1 HV tối đa 1 buổi/ngày · 1 xe tối đa 2 ca/ngày · 1 GV tối đa 2 ca/ngày. Trùng xe / trùng học viên = viền ĐỎ (lỗi), trùng giáo viên = viền VÀNG (cảnh báo). HV chưa đủ 500km DAT gắn cờ vàng khi xếp sa hình. Mỗi HV có GV DAT chính + xe quen (GV chủ xe) — đổi cặp sẽ hiện cảnh báo.', `
       ${over.length ? `<div class="err-box" style="margin-bottom:12px;font-weight:600">Cảnh báo bảo dưỡng: ${over.map(v => `xe ${esc(v.plate)} chạy ${v.hoursWeek}h/tuần (&gt;56h)`).join(' · ')}</div>` : ''}
-      <div class="row-wrap" style="margin-bottom:12px">${SLOTS.map(s => `<span class="tagchip" style="background:var(--surface-alt)"><b>${s}</b> · ${slotHint(s)}</span>`).join('')}</div>
+      <div class="row-wrap" style="margin-bottom:12px"><span class="note-dim">Giờ học linh hoạt: tự chọn giờ bắt đầu – kết thúc cho từng buổi, không theo khung cố định.</span></div>
       ${ScheduleViewsHtml('svDat')}`)}
     ${Section('Tổng hợp DAT', 'Chuẩn trung tâm: mục tiêu DAT theo hạng — B1: 710 km · B2: 810 km · C1: 825 km · C: 825 km. Giờ DAT đã chạy = tổng giờ các buổi DAT đã qua của HV; Giờ còn cần = km còn lại ÷ tốc độ DAT bình quân thực tế của chính HV đó (chưa chạy buổi nào dùng tốc độ chuẩn 40 km/h), làm tròn 0,5h. Trạng thái so %km với % thời gian Giai đoạn 2 (DAT + Sa hình, theo kế hoạch từng khóa) đã trôi qua, trừ hao 10%.', '<div id="datsum">' + Loading() + '</div>', `<button type="button" class="btn btn-amber" onclick="datExport()">Export Excel</button>`)}
     ${Section('Xếp lịch mới', '', '<div id="datcreate">' + Loading() + '</div>')}
@@ -2132,7 +2132,8 @@ async function datCreateLoad() {
       <p class="note-dim" style="margin:0 0 12px;font-size:14px;color:var(--dim)">${esc(sub)}</p>
       <div class="form-grid" style="grid-template-columns:1fr 1fr;gap:12px">
         <label class="field"><span>Ngày</span><input id="dc-date" type="date" class="input" value="${DC.date}"></label>
-        <label class="field"><span>Khung giờ</span><select id="dc-slot" class="select">${SLOTS.map(s => `<option value="${s}" ${s === DC.slot ? 'selected' : ''}>${s} — ${slotHint(s)}</option>`).join('')}</select></label>
+        <label class="field"><span>Giờ bắt đầu</span><select id="dc-start" class="select">${TIME_OPTIONS.map(x => `<option ${x === parseSlot(DC.slot).start ? 'selected' : ''}>${x}</option>`).join('')}</select></label>
+        <label class="field"><span>Giờ kết thúc</span><select id="dc-end" class="select">${TIME_OPTIONS.map(x => `<option ${x === parseSlot(DC.slot).end ? 'selected' : ''}>${x}</option>`).join('')}</select></label>
         <label class="field"><span>Loại buổi</span><select id="dc-type" class="select">${['DAT', 'Sa hình', 'Lý thuyết', 'Cabin', 'Bổ túc'].map(t => `<option ${t === DC.type ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
         <label class="field"><span>KM DAT (nếu là buổi DAT)</span><input id="dc-km" type="number" min="0" class="input" value="${DC.km}"></label>
         <label class="field span2"><span>Học viên</span><select id="dc-student" class="select"><option value="">— Chọn học viên —</option>${(lk.students || []).map(s => `<option value="${s.id}" ${focus && s.id === focus.id ? 'selected' : ''}>${esc(s.code)} · ${esc(s.name)} · DAT ${s.datKmDone}/${s.datKmTotal}km · Xe KG ${esc(s.plateKg || '—')}</option>`).join('')}</select></label>
@@ -2153,7 +2154,8 @@ async function openQuickSchedule(dateStr, preselId) {
     openModal(`Xếp lịch mới — ${fmtDate(dateStr)}`, `<div class="stack">
       <div class="form-grid" style="grid-template-columns:1fr 1fr;gap:12px">
         <label class="field"><span>Ngày</span><input id="qc-date" type="date" class="input" value="${dateStr}"></label>
-        <label class="field"><span>Khung giờ</span><select id="qc-slot" class="select">${SLOTS.map(s2 => `<option value="${s2}" ${s2 === DC.slot ? 'selected' : ''}>${s2} — ${slotHint(s2)}</option>`).join('')}</select></label>
+        <label class="field"><span>Giờ bắt đầu</span><select id="qc-start" class="select">${TIME_OPTIONS.map(x => `<option ${x === parseSlot(DC.slot).start ? 'selected' : ''}>${x}</option>`).join('')}</select></label>
+        <label class="field"><span>Giờ kết thúc</span><select id="qc-end" class="select">${TIME_OPTIONS.map(x => `<option ${x === parseSlot(DC.slot).end ? 'selected' : ''}>${x}</option>`).join('')}</select></label>
         <label class="field"><span>Loại buổi</span><select id="qc-type" class="select">${['DAT', 'Sa hình', 'Lý thuyết', 'Cabin', 'Bổ túc'].map(t => `<option ${t === DC.type ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
         <label class="field"><span>KM DAT (nếu là buổi DAT)</span><input id="qc-km" type="number" min="0" class="input" value="${DC.km}"></label>
         <label class="field span2"><span>Học viên</span><select id="qc-student" class="select"><option value="">— Chọn học viên —</option>${(lk.students || []).map(s2 => `<option value="${s2.id}" ${stu && s2.id === stu.id ? 'selected' : ''}>${esc(s2.code)} · ${esc(s2.name)} · DAT ${s2.datKmDone}/${s2.datKmTotal}km · Xe KG ${esc(s2.plateKg || '—')}</option>`).join('')}</select></label>
@@ -2186,9 +2188,11 @@ async function datCreate(pfx) {
     // Chụp bản lookups TRƯỚC khi ghi: write() xóa cache đọc (LK thành null) nên
     // chạm vào LK sau khi ghi sẽ văng lỗi "null is not an object" dù đã lưu thành công.
     const lk = (await getLookups().catch(() => null)) || LK || {};
+    const tStart = document.getElementById(pfx + '-start').value;
+    const tEnd = document.getElementById(pfx + '-end').value;
     const payload = {
       date: document.getElementById(pfx + '-date').value,
-      slot: document.getElementById(pfx + '-slot').value,
+      slot: composeSlot(tStart, tEnd),
       type: document.getElementById(pfx + '-type').value,
       studentId: document.getElementById(pfx + '-student').value ? Number(document.getElementById(pfx + '-student').value) : (state.focusStudentId || null),
       teacherId: document.getElementById(pfx + '-teacher').value ? Number(document.getElementById(pfx + '-teacher').value) : null,
@@ -2196,6 +2200,10 @@ async function datCreate(pfx) {
       km: 0,
     };
     payload.km = payload.type === 'DAT' ? (Number(document.getElementById(pfx + '-km').value) || 0) : 0;
+    if (!tStart || !tEnd || tEnd <= tStart) {
+      box.innerHTML = '<div class="err-box" style="margin-top:12px">Giờ kết thúc phải sau giờ bắt đầu — kiểm tra lại giờ học.</div>';
+      return;
+    }
     const veh = (lk.vehicles || []).find(v => v.id === payload.vehicleId);
     if (veh) payload.plate = veh.plate;
     box.innerHTML = '<p class="loading">Đang kiểm tra trùng lịch…</p>';
@@ -2207,7 +2215,11 @@ async function datCreate(pfx) {
       const day = await call('listschedules', { date: payload.date }, { force: true });
       dayList = day.schedules || [];
     }
-    const same = dayList.filter(s => s.slot === payload.slot);
+    // Trùng = khoảng giờ CHỒNG LẤN nhau (giờ tự do nên không so khớp chuỗi khung giờ nữa)
+    const toMin_ = t => { const p = String(t).split(':'); return Number(p[0]) * 60 + Number(p[1] || 0); };
+    const nR = parseSlot(payload.slot);
+    const nS = toMin_(nR.start), nE = toMin_(nR.end);
+    const same = dayList.filter(s => { const r = parseSlot(s.slot); return nS < toMin_(r.end) && toMin_(r.start) < nE; });
     const conflicts = [];
     if (payload.vehicleId && same.some(s => s.vehicleId === payload.vehicleId)) conflicts.push(`Trùng xe ${payload.plate || ''} — xe đã có buổi ${payload.slot} ngày ${fmtDate(payload.date)}`);
     if (payload.studentId && same.some(s => s.studentId === payload.studentId)) conflicts.push('Trùng học viên — HV đã có buổi cùng khung giờ');
