@@ -165,12 +165,13 @@ function studentObj_(o, payMap, kmMap) {
   const cls = str_(o['Hang']);
   const kmDone = kmMap[sid] !== undefined ? kmMap[sid] : num_(o['KmDATDaChay']);
   const target = TARGET_KM[cls] || 810;
+  const isMLL = num_(o['MuaLL']) === 1;
   const crit = {
     theory: str_(o['DatLyThuyet']) === 'Đạt',
     cabin: num_(o['GioCabin']) >= 3,
     dat: kmDone >= target,
     sahinh: str_(o['DaHocSaHinh']) === 'Đã học',
-    tuition: (payable - paid) <= 0
+    tuition: isMLL ? true : (payable - paid) <= 0
   };
   return {
     id: sid, code: str_(o['MaHV']), maHv: str_(o['MaHVSach']), name: str_(o['HoTen']),
@@ -185,7 +186,7 @@ function studentObj_(o, payMap, kmMap) {
     openDate: course.openDate || '', closeDate: course.closeDate || '',
     tuitionTotal: total, tuitionDiscount: discount, discountReason: str_(o['LyDoGiam']),
     tuitionPayable: payable, tuitionPaid: paid, tuitionDebt: Math.max(0, payable - paid),
-    muaLL: num_(o['MuaLL']) === 1,
+    muaLL: isMLL,
     status: str_(o['TrangThai']), gradExamDate: dstr_(o['NgayThiTotNghiep']), gradResult: str_(o['KetQuaTotNghiep']),
     certNo: str_(o['SoChungChi']), certDate: dstr_(o['NgayCapChungChi']),
     licenseDate: dstr_(o['NgayCoBang']), hasLicense: str_(o['CoBang']) === 'Có',
