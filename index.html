@@ -1392,6 +1392,7 @@ function paintDashboard_(main, d) {
     <div id="dash-remind">${remindCardHtml_(al)}</div>
     <span id="dash-conf">${ConflictBannerHtml(`go('today')`)}</span>
     <div class="kpi-grid">${cards.map(c => `<div class="glass-panel kpi-card"><p class="lb">${esc(c.label)}</p><p class="vl" style="color:${c.color}">${esc(c.value)}</p><p class="sb">${esc(c.sub)}</p></div>`).join('')}</div>
+    ${(d.muaLLStudents || []).length ? Section('Học viên Mua LL — GV ngoài', `${d.muaLLStudents.length} HV của giáo viên ngoài: GV mua LL của trung tâm, tự dạy và tự thu phần phí của họ — KHÔNG tính vào doanh số`, `<ul style="list-style:none;margin:0;padding:0">${d.muaLLStudents.map(s2 => `<li style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);font-size:14px"><span style="font-weight:500">${esc(s2.name)}</span><span class="row-wrap"><span class="chip" style="background:#FFF3E0;color:#E65100">Mua LL</span><span style="color:var(--dim)">${esc(s2.courseCode)} · Hạng ${esc(s2.licenseClass)}${s2.homeTeacherName ? ` · ${esc(gvName(s2.homeTeacherName))}` : ''}</span></span></li>`).join('')}</ul>`) : ''}
     ${sp && sp.total > 0 ? Section('Tiến độ xếp lịch cả khóa', `Theo lịch đã xếp trong app: ${fmtDate(sp.from)} – ${fmtDate(sp.to)} · ${sp.days} ngày có lịch`, `
       <p style="margin:0;font-size:14px"><b>${sp.scheduled} buổi đã xếp</b> / ${sp.total} buổi tổng khóa · Chưa xếp <b>${sp.remaining}</b> · Trung bình <b>${String(sp.avgPerDay).replace('.', ',')} buổi/ngày</b> · Tiến độ ${sp.scheduled}/${sp.total} (${String(spPct).replace('.', ',')}%)</p>
       <div class="bar bar-lg" style="margin-top:8px" role="progressbar" aria-valuenow="${sp.scheduled}" aria-valuemin="0" aria-valuemax="${sp.total}" aria-label="Tiến độ xếp lịch cả khóa"><i style="width:${spPct}%"></i></div>
@@ -1608,7 +1609,7 @@ function beGiangState(closeDate) {
 function stuRowHtml_(s, i) {
   const pct = s.datKmTotal > 0 ? Math.min(100, Math.round((s.datKmDone / s.datKmTotal) * 100)) : 0;
   return `<tr class="${i % 2 ? 'alt' : ''}">
-      <td><b>${esc(s.name)}</b><span style="display:block;font-size:12px;color:var(--dim)">${esc(s.code)} · MHV ${esc(s.maHv || '—')} · ${esc(s.phone || '')}</span></td>
+      <td><b>${esc(s.name)}</b>${s.muaLL ? ' <span class="chip" style="background:#FFF3E0;color:#E65100">Mua LL</span>' : ''}<span style="display:block;font-size:12px;color:var(--dim)">${esc(s.code)} · MHV ${esc(s.maHv || '—')} · ${esc(s.phone || '')}</span></td>
       <td><b>${esc(s.courseCode)}</b> · ${esc(s.licenseClass)}<span style="display:block;font-size:12px;white-space:nowrap;color:var(--dim)">KG ${fmtDate(s.openDate)} · Hạn ${fmtDate(s.closeDate)}</span></td>
       <td>${CenterBadge(s.centerName)}</td>
       <td>${s.plateKg ? `<span class="plate-badge">${esc(s.plateKg)}</span>` : '<span style="color:var(--dim)">—</span>'}</td>
@@ -1623,7 +1624,7 @@ function stuCardHtml_(s) {
   const pct = s.datKmTotal > 0 ? Math.min(100, Math.round((s.datKmDone / s.datKmTotal) * 100)) : 0;
   return `<article class="mcard">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:4px">
-        <div style="min-width:0"><p style="margin:0;font-size:17px;font-weight:700">${esc(s.name)}</p><p style="margin:0;font-size:12px;color:var(--dim)">${esc(s.code)} · MHV ${esc(s.maHv || '—')} · ${esc(s.phone || '—')}</p></div>
+        <div style="min-width:0"><p style="margin:0;font-size:17px;font-weight:700">${esc(s.name)}${s.muaLL ? ' <span class="chip" style="background:#FFF3E0;color:#E65100">Mua LL</span>' : ''}</p><p style="margin:0;font-size:12px;color:var(--dim)">${esc(s.code)} · MHV ${esc(s.maHv || '—')} · ${esc(s.phone || '—')}</p></div>
         <span style="flex:none">${StatusChip(s.status)}</span>
       </div>
       <p style="margin:0;font-size:14px"><b>${esc(s.courseCode)}</b> · Hạng ${esc(s.licenseClass)} · <span style="color:var(--dim)">KG ${fmtDate(s.openDate)} · Hạn ${fmtDate(s.closeDate)}</span></p>
@@ -1832,7 +1833,7 @@ async function openStudentForm(id) {
   const f = {
     name: s ? s.name : '', phone: s ? s.phone : '', cccd: s ? s.cccd : '', dob: s ? s.dob : '', address: s ? s.address : '',
     courseCode: s ? s.courseCode : 'K40', centerName: s ? s.centerName : '', healthExamDate: s ? s.healthExamDate : '',
-    tuitionDiscount: s ? s.tuitionDiscount : 0, discountReason: s ? s.discountReason : '',
+    tuitionDiscount: s ? s.tuitionDiscount : 0, discountReason: s ? s.discountReason : '', muaLL: s ? !!s.muaLL : false,
     openDate: s ? s.openDate : '', closeDate: s ? s.closeDate : '',
   };
   const fld = (label, fid, val, type, extra) => `<label class="field"><span>${label}</span><input id="${fid}" type="${type || 'text'}" class="input" value="${esc(val)}" ${extra || ''}></label>`;
@@ -1875,6 +1876,10 @@ async function openStudentForm(id) {
         <datalist id="discount-reason-options">${DISCOUNT_REASONS.map(r => `<option value="${esc(r)}">`).join('')}</datalist>
       </label>
     </div>
+    <label style="display:flex;gap:10px;align-items:flex-start;background:#FFF8E1;border:1px solid #FFE082;border-radius:12px;padding:12px;cursor:pointer">
+      <input type="checkbox" id="sf-muall" style="width:20px;height:20px;margin-top:2px;flex:none" ${f.muaLL ? 'checked' : ''}>
+      <span style="font-size:14px"><b>Mua LL — học viên của GV ngoài</b><br><span style="color:var(--dim)">GV ngoài mua LL của trung tâm, tự dạy và tự thu phần phí của họ. Học viên này KHÔNG tính vào doanh số.</span></span>
+    </label>
     <p id="sf-error"></p>
     <div class="row-wrap">
       <button type="button" class="btn btn-green" style="flex:1;min-height:48px;font-weight:700" onclick="sfSave()">Lưu học viên</button>
@@ -1937,6 +1942,7 @@ async function sfSave() {
       healthExamDate: document.getElementById('sf-health').value,
       discount: disc,
       discountReason: document.getElementById('sf-dreason').value,
+      muaLL: document.getElementById('sf-muall').checked ? 1 : 0,
     });
     LK = null;
     toast('Đã lưu học viên');
