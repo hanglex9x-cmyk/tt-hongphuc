@@ -1826,6 +1826,7 @@ let SF_ID = null;
 async function openStudentForm(id) {
   const lk = await getLookups();
   const ct = await call('listcenters', {});
+  try { const pr = await call('getprices', {}); window._SF_PRICES = pr.prices || {}; } catch (e) { window._SF_PRICES = {}; }
   const centers = ct.centers || [];
   const s = id ? (window._STU_ROWS || []).find(x => x.id === id) : null;
   SF_ID = id || null;
@@ -1833,7 +1834,7 @@ async function openStudentForm(id) {
   const f = {
     name: s ? s.name : '', phone: s ? s.phone : '', cccd: s ? s.cccd : '', dob: s ? s.dob : '', address: s ? s.address : '',
     courseCode: s ? s.courseCode : 'K40', centerName: s ? s.centerName : '', healthExamDate: s ? s.healthExamDate : '',
-    tuitionDiscount: s ? s.tuitionDiscount : 0, discountReason: s ? s.discountReason : '', muaLL: s ? !!s.muaLL : false,
+    tuitionDiscount: s ? s.tuitionDiscount : 0, discountReason: s ? s.discountReason : '', muaLL: s ? !!s.muaLL : false, tuition: s ? s.tuitionTotal : 0,
     openDate: s ? s.openDate : '', closeDate: s ? s.closeDate : '',
   };
   const fld = (label, fid, val, type, extra) => `<label class="field"><span>${label}</span><input id="${fid}" type="${type || 'text'}" class="input" value="${esc(val)}" ${extra || ''}></label>`;
@@ -1857,6 +1858,10 @@ async function openStudentForm(id) {
         <input id="sf-course" aria-label="Khóa học" list="course-options" class="input" value="${esc(f.courseCode)}" oninput="sfCourseHint()">
         <datalist id="course-options">${COURSE_OPTIONS.map(c => `<option value="${c}">${esc(courseOptionLabel(c))} (khóa chính)</option>`).join('')}</datalist>
         <span class="hint" id="sf-course-hint">${esc(courseKgHan(f.courseCode, f.openDate, f.closeDate))}</span>
+      </label>
+      <label class="field"><span>Học phí của HV này (VNĐ) — chốt theo tháng đăng ký</span>
+        <input id="sf-tuition" aria-label="Học phí của học viên" type="number" min="0" step="100000" class="input" value="${f.tuition || ''}" placeholder="Để trống = tự chốt theo bảng giá của hạng" oninput="sfDiscountHint()">
+        <span class="hint" id="sf-tuition-hint"></span>
       </label>
       <label class="field"><span>Trung tâm</span>
         <select id="sf-center" aria-label="Trung tâm học viên thuộc" class="select">
@@ -1886,16 +1891,31 @@ async function openStudentForm(id) {
       <button type="button" class="btn" style="min-height:48px" onclick="closeModal()">Hủy</button>
     </div>
   </div>`);
+  if (!SF_ID) { const inp0 = document.getElementById('sf-tuition'); if (inp0 && !inp0.value) inp0.value = sfClassPrice_(); }
+  sfTuitionHint_();
   sfDiscountHint();
 }
-function sfStdTuition() {
+function sfClassPrice_() {
   const code = document.getElementById('sf-course').value;
   const c = (LK && LK.courses || []).find(x => x.code === code);
-  return c ? c.tuition : 20000000;
+  const cls = c ? c.licenseClass : '';
+  const p = (window._SF_PRICES || {})[cls];
+  return p > 0 ? p : (c ? c.tuition : 20000000);
+}
+function sfStdTuition() {
+  const t = Number((document.getElementById('sf-tuition') || {}).value) || 0;
+  return t > 0 ? t : sfClassPrice_();
+}
+function sfTuitionHint_() {
+  const el = document.getElementById('sf-tuition-hint');
+  if (!el) return;
+  el.textContent = `Bảng giá hiện tại của hạng: ${fmtMoney(sfClassPrice_())} — để trống ô này thì app tự chốt giá đó vào hồ sơ HV.`;
 }
 function sfCourseHint() {
   const code = document.getElementById('sf-course').value;
   document.getElementById('sf-course-hint').textContent = courseKgHan(code);
+  if (!SF_ID) { const inp = document.getElementById('sf-tuition'); if (inp) inp.value = sfClassPrice_(); }
+  sfTuitionHint_();
   sfDiscountHint();
 }
 function sfDiscountHint() {
@@ -1943,6 +1963,7 @@ async function sfSave() {
       discount: disc,
       discountReason: document.getElementById('sf-dreason').value,
       muaLL: document.getElementById('sf-muall').checked ? 1 : 0,
+      tuition: Number(document.getElementById('sf-tuition').value) || 0,
     });
     LK = null;
     toast('Đã lưu học viên');
@@ -2398,12 +2419,23 @@ function receiptHtmlFor(students) {
     .sign { display: flex; justify-content: space-between; margin-top: 18px; font-size: 12px; text-align: center; }
   </style></head><body>${students.map(one).join('')}</body></html>`;
 }
+async function savePrices_() {
+  const prices = {};
+  document.querySelectorAll('.price-inp').forEach(i => { prices[i.dataset.cls] = Number(i.value) || 0; });
+  try {
+    await write('saveprices', { prices });
+    toast('Đã lưu bảng giá học phí theo hạng');
+    refresh();
+  } catch (e) { toast('Lỗi lưu bảng giá: ' + e.message); }
+}
 RENDERERS.tuition = async (main) => {
-  const [pays, stuQ, lk] = await Promise.all([
+  const [pays, stuQ, lk, pricesR] = await Promise.all([
     call('listpayments', { month: TUI.month }),
     call('liststudents', { page: TUI.page, pageSize: 20 }),
     getLookups(),
+    call('getprices', {}).catch(() => ({ prices: {} })),
   ]);
+  const PRICES = Object.assign({ 'B1': 18000000, 'B2': 20000000, 'C1': 25000000, 'C': 24000000, 'Nâng dấu': 13000000 }, pricesR.prices || {});
   window._TUI_PAYS = pays;
   window._TUI_STUS = stuQ.students || [];
   const feesMonth = (pays.payments || []).filter(p => p.kind && p.kind !== 'Học phí' && p.amount > 0).reduce((a, p) => a + p.amount, 0);
@@ -2423,9 +2455,14 @@ RENDERERS.tuition = async (main) => {
   };
   const selIds = new Set(TUI.selected.map(s => s.id));
   main.innerHTML = `<div class="stack">
-    ${Section('Bảng học phí chuẩn áp dụng', 'Mặt bằng giá trọn gói TP.HCM 2026 — học phí từng HV đúng theo hạng của khóa; toàn bộ lần thu và biên lai sinh theo bảng này', `
+    ${Section('Bảng học phí chuẩn áp dụng', 'Trung tâm tự sửa giá theo hạng ngay tại đây — giá thay đổi theo tháng cũng không sao: HV mới chốt theo giá tháng đăng ký, HV cũ giữ giá đã chốt', `
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:14px" class="fee-grid">
-        ${[['Hạng B1 (số tự động) — khóa BK220', '18.000.000đ/HV'], ['Hạng B2 (số sàn) — khóa K38 · K39 · K40 · K41', '20.000.000đ/HV'], ['Hạng C1 — khóa C1-K120', '25.000.000đ/HV'], ['Hạng C', '24.000.000đ/HV'], ['Nâng dấu', '13.000.000đ/HV'], ['Bổ túc tay lái', '350.000đ/giờ'], ['Thuê xe tập lái', '300.000đ/giờ'], ['Giảm tiền', 'Tùy chỉnh từng HV ở mục Học viên']].map(([l, v]) => `<div style="border-radius:12px;background:var(--surface-alt);padding:12px"><p style="margin:0;font-size:12px;color:var(--dim)">${l}</p><p style="margin:2px 0 0;font-weight:800">${v}</p></div>`).join('')}
+        ${[['B1', 'Hạng B1 (số tự động)'], ['B2', 'Hạng B2 (số sàn)'], ['C1', 'Hạng C1'], ['C', 'Hạng C'], ['Nâng dấu', 'Nâng dấu']].map(([cls, l]) => `<div style="border-radius:12px;background:var(--surface-alt);padding:12px"><p style="margin:0;font-size:12px;color:var(--dim)">${l} — đ/HV</p><input type="number" class="input price-inp" data-cls="${cls}" min="0" step="100000" value="${PRICES[cls]}" style="margin-top:4px;font-weight:800" aria-label="Học phí ${l}"></div>`).join('')}
+        ${[['Bổ túc tay lái', '350.000đ/giờ'], ['Thuê xe tập lái', '300.000đ/giờ'], ['Giảm tiền', 'Tùy chỉnh từng HV ở mục Học viên']].map(([l, v]) => `<div style="border-radius:12px;background:var(--surface-alt);padding:12px"><p style="margin:0;font-size:12px;color:var(--dim)">${l}</p><p style="margin:2px 0 0;font-weight:800">${v}</p></div>`).join('')}
+      </div>
+      <div class="row-wrap" style="margin-top:12px">
+        <button type="button" class="btn btn-green" style="min-height:44px;font-weight:700" onclick="savePrices_()">Lưu bảng giá</button>
+        <span style="font-size:13px;color:var(--dim)">Bảng giá áp dụng cho HV ĐĂNG KÝ MỚI — app tự chốt giá vào hồ sơ từng HV theo tháng đăng ký. HV đã có hồ sơ giữ nguyên giá đã chốt; muốn đổi giá cho HV cũ thì mở hồ sơ HV đó ở mục Học viên.</span>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;font-size:14px" id="fee-cards">
         ${feeCards.map(c => `<div style="border-radius:12px;background:${c.bg};padding:12px"><p style="margin:0;font-size:12px;color:var(--dim)">${c.label}</p><p style="margin:2px 0 0;font-weight:800;${c.color ? `color:${c.color}` : ''}">${c.value}</p></div>`).join('')}
