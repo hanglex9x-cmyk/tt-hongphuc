@@ -1400,7 +1400,7 @@ function paintDashboard_(main, d) {
     <div id="dash-remind">${remindCardHtml_(al)}</div>
     <span id="dash-conf">${ConflictBannerHtml(`go('today')`)}</span>
     <div class="kpi-grid">${cards.map(c => `<div class="glass-panel kpi-card"><p class="lb">${esc(c.label)}</p><p class="vl" style="color:${c.color}">${esc(c.value)}</p><p class="sb">${esc(c.sub)}</p></div>`).join('')}</div>
-    ${(d.muaLLStudents || []).length ? Section('Học viên Mua LL — GV ngoài', `${d.muaLLStudents.length} HV của giáo viên ngoài: GV mua LL của trung tâm, tự dạy và tự thu phần phí của họ — KHÔNG tính vào doanh số`, `<ul style="list-style:none;margin:0;padding:0">${d.muaLLStudents.map(s2 => `<li style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);font-size:14px"><span style="font-weight:500">${esc(s2.name)}</span><span class="row-wrap"><span class="chip" style="background:#FFF3E0;color:#E65100">Mua LL</span><span style="color:var(--dim)">${esc(s2.courseCode)} · Hạng ${esc(s2.licenseClass)}${s2.homeTeacherName ? ` · ${esc(gvName(s2.homeTeacherName))}` : ''}</span></span></li>`).join('')}</ul>`) : ''}
+    ${(d.muaLLStudents || []).length ? Section('Học viên Mua LL', `${d.muaLLStudents.length} HV: GV mua LL của trung tâm, tự dạy và tự thu học phí — KHÔNG tính vào doanh số`, `<ul style="list-style:none;margin:0;padding:0">${d.muaLLStudents.map(s2 => `<li style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);font-size:14px;white-space:nowrap;overflow:hidden"><span style="font-weight:600;overflow:hidden;text-overflow:ellipsis;min-width:0">${esc(s2.name)}</span><span class="chip" style="background:#FFF3E0;color:#E65100;flex:none">Mua LL</span><span style="color:var(--dim);font-size:13px;overflow:hidden;text-overflow:ellipsis;min-width:0">${esc(s2.courseCode)} · ${esc(s2.licenseClass)}${s2.homeTeacherName ? ` · ${esc(gvName(s2.homeTeacherName))}` : ''}</span></li>`).join('')}</ul>`) : ''}
     ${sp && sp.total > 0 ? Section('Tiến độ xếp lịch cả khóa', `Theo lịch đã xếp trong app: ${fmtDate(sp.from)} – ${fmtDate(sp.to)} · ${sp.days} ngày có lịch`, `
       <p style="margin:0;font-size:14px"><b>${sp.scheduled} buổi đã xếp</b> / ${sp.total} buổi tổng khóa · Chưa xếp <b>${sp.remaining}</b> · Trung bình <b>${String(sp.avgPerDay).replace('.', ',')} buổi/ngày</b> · Tiến độ ${sp.scheduled}/${sp.total} (${String(spPct).replace('.', ',')}%)</p>
       <div class="bar bar-lg" style="margin-top:8px" role="progressbar" aria-valuenow="${sp.scheduled}" aria-valuemin="0" aria-valuemax="${sp.total}" aria-label="Tiến độ xếp lịch cả khóa"><i style="width:${spPct}%"></i></div>
@@ -1616,7 +1616,7 @@ function beGiangState(closeDate) {
 }
 function stuRowHtml_(s, i) {
   const pct = s.datKmTotal > 0 ? Math.min(100, Math.round((s.datKmDone / s.datKmTotal) * 100)) : 0;
-  const tuitionCell = s.muaLL ? '<span style="color:#E65100;font-weight:600">Mua LL</span><span style="display:block;font-size:12px;color:var(--dim)">GV ngoài tự thu — không qua trung tâm</span>' : `${fmtMoney(s.tuitionPaid)}<span style="display:block;font-size:12px;color:var(--dim)">phải thu ${fmtMoney(s.tuitionPayable)} · nợ ${fmtMoney(s.tuitionDebt)}</span>${s.tuitionDiscount > 0 ? `<span class="chip" style="background:#E8F5E9;color:#007A38;margin-top:2px" title="${esc(s.discountReason || '')}">Giảm ${fmtMoney(s.tuitionDiscount)}${s.discountReason ? ` · ${esc(s.discountReason)}` : ''}</span>` : ''}`;
+  const tuitionCell = s.muaLL ? '<span style="color:#E65100;font-weight:600">Mua LL</span><span style="display:block;font-size:12px;color:var(--dim)">GV tự thu — không qua trung tâm</span>' : `${fmtMoney(s.tuitionPaid)}<span style="display:block;font-size:12px;color:var(--dim)">phải thu ${fmtMoney(s.tuitionPayable)} · nợ ${fmtMoney(s.tuitionDebt)}</span>${s.tuitionDiscount > 0 ? `<span class="chip" style="background:#E8F5E9;color:#007A38;margin-top:2px" title="${esc(s.discountReason || '')}">Giảm ${fmtMoney(s.tuitionDiscount)}${s.discountReason ? ` · ${esc(s.discountReason)}` : ''}</span>` : ''}`;
   return `<tr class="${i % 2 ? 'alt' : ''}">
       <td><b>${esc(s.name)}</b>${s.muaLL ? ' <span class="chip" style="background:#FFF3E0;color:#E65100">Mua LL</span>' : ''}<span style="display:block;font-size:12px;color:var(--dim)">${esc(s.code)} · MHV ${esc(s.maHv || '—')} · ${esc(s.phone || '')}</span></td>
       <td><b>${esc(s.courseCode)}</b> · ${esc(s.licenseClass)}<span style="display:block;font-size:12px;white-space:nowrap;color:var(--dim)">KG ${fmtDate(s.openDate)} · Hạn ${fmtDate(s.closeDate)}</span></td>
@@ -1631,7 +1631,7 @@ function stuRowHtml_(s, i) {
 }
 function stuCardHtml_(s) {
   const pct = s.datKmTotal > 0 ? Math.min(100, Math.round((s.datKmDone / s.datKmTotal) * 100)) : 0;
-  const tuitionLine = s.muaLL ? '<p style="margin-top:8px;font-size:14px;color:#E65100;font-weight:600">Mua LL — GV ngoài tự thu học phí, không qua trung tâm</p>' : `<p style="margin-top:8px;font-size:14px">Đã thu <b>${fmtMoney(s.tuitionPaid)}</b> · Phải thu ${fmtMoney(s.tuitionPayable)} · Còn nợ <b style="color:#E53935">${fmtMoney(s.tuitionDebt)}</b>${s.tuitionDiscount > 0 ? `<span style="display:block;font-size:12px;font-weight:600;color:#007A38;margin-top:2px">Giảm ${fmtMoney(s.tuitionDiscount)}${s.discountReason ? ` · ${esc(s.discountReason)}` : ''}</span>` : ''}</p>`;
+  const tuitionLine = s.muaLL ? '<p style="margin-top:8px;font-size:14px;color:#E65100;font-weight:600">Mua LL — GV tự thu học phí, không qua trung tâm</p>' : `<p style="margin-top:8px;font-size:14px">Đã thu <b>${fmtMoney(s.tuitionPaid)}</b> · Phải thu ${fmtMoney(s.tuitionPayable)} · Còn nợ <b style="color:#E53935">${fmtMoney(s.tuitionDebt)}</b>${s.tuitionDiscount > 0 ? `<span style="display:block;font-size:12px;font-weight:600;color:#007A38;margin-top:2px">Giảm ${fmtMoney(s.tuitionDiscount)}${s.discountReason ? ` · ${esc(s.discountReason)}` : ''}</span>` : ''}</p>`;
   return `<article class="mcard">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:4px">
         <div style="min-width:0"><p style="margin:0;font-size:17px;font-weight:700">${esc(s.name)}${s.muaLL ? ' <span class="chip" style="background:#FFF3E0;color:#E65100">Mua LL</span>' : ''}</p><p style="margin:0;font-size:12px;color:var(--dim)">${esc(s.code)} · MHV ${esc(s.maHv || '—')} · ${esc(s.phone || '—')}</p></div>
@@ -1745,7 +1745,7 @@ function renderStudentDetail_(s, q) {
       { ok: s.criteria.cabin, label: `Cabin ${s.cabinHours}/3h (${s.cabinSessions} ca)` },
       { ok: s.criteria.dat, label: `DAT ${s.datKmDone}/${s.datKmTotal} km` },
       { ok: s.criteria.sahinh, label: 'Sa hình đủ bài' },
-      { ok: s.muaLL ? true : s.criteria.tuition, label: s.muaLL ? 'Học phí: Mua LL — GV ngoài tự thu, không qua trung tâm' : `Học phí ${fmtMoney(s.tuitionPaid)}/${fmtMoney(s.tuitionPayable)}${s.tuitionDiscount > 0 ? ` (chuẩn ${fmtMoney(s.tuitionTotal)} − giảm ${fmtMoney(s.tuitionDiscount)})` : ''}` },
+      { ok: s.muaLL ? true : s.criteria.tuition, label: s.muaLL ? 'Học phí: Mua LL — GV tự thu, không qua trung tâm' : `Học phí ${fmtMoney(s.tuitionPaid)}/${fmtMoney(s.tuitionPayable)}${s.tuitionDiscount > 0 ? ` (chuẩn ${fmtMoney(s.tuitionTotal)} − giảm ${fmtMoney(s.tuitionDiscount)})` : ''}` },
       { ok: s.gradResult === 'Đậu', label: `Tốt nghiệp${!s.gradResult || s.gradResult === 'Chưa thi' ? ' — chưa thi' : ` — ${s.gradResult}`}${s.certNo ? ` · CC ${s.certNo}` : ''} (điều kiện đăng ký đợt sát hạch)` },
     ];
     const examHtml = exam ? `<div>
@@ -1758,7 +1758,7 @@ function renderStudentDetail_(s, q) {
       ${exam.theory === 'Đậu' && exam.sahinh === 'Đậu' && exam.road === 'Đậu' ? `<p style="margin-top:6px;font-size:14px">Bằng lái hạng <b>${esc(s.licenseClass)}</b> · Ngày thi đậu: <b>${fmtDate(exam.examDate)}</b> · ${s.hasLicense ? `Trạng thái bằng: <b style="color:#00893D">Đã có bằng</b> — ngày có bằng: <b>${fmtDate(s.licenseDate)}</b>` : 'Trạng thái bằng: <b>Chưa có bằng</b> <span style="color:var(--dim)">(bằng chưa về trung tâm — cập nhật ở module Kỳ thi sát hạch)</span>'}</p>` : ''}
     </div>` : '';
     const paysList = q ? (q.payments || []) : null;
-    const tuitionRows = s.muaLL ? '<p class="reg-row" style="margin:0"><span style="color:var(--dim)">Học viên Mua LL — GV ngoài tự thu học phí, không qua trung tâm nên trung tâm không tính học phí cho học viên này.</span></p>' : `<p class="reg-row" style="margin:0"><span style="color:var(--dim)">Học phí chuẩn (theo hạng ${esc(s.licenseClass)})</span><b>${fmtMoney(s.tuitionTotal)}</b></p>
+    const tuitionRows = s.muaLL ? '<p class="reg-row" style="margin:0"><span style="color:var(--dim)">Học viên Mua LL — GV tự thu học phí, không qua trung tâm nên trung tâm không tính học phí cho học viên này.</span></p>' : `<p class="reg-row" style="margin:0"><span style="color:var(--dim)">Học phí chuẩn (theo hạng ${esc(s.licenseClass)})</span><b>${fmtMoney(s.tuitionTotal)}</b></p>
           <p class="reg-row" style="margin:0"><span style="color:var(--dim)">Giảm tiền${s.discountReason ? ` — ${esc(s.discountReason)}` : ''}</span><b ${s.tuitionDiscount > 0 ? 'style="color:#00893D"' : ''}>${s.tuitionDiscount > 0 ? `−${fmtMoney(s.tuitionDiscount)}` : fmtMoney(0)}</b></p>
           <p class="reg-row" style="margin:0;border-top:1px solid var(--border);padding-top:6px"><span style="font-weight:600">Phải thu (chuẩn − giảm)</span><b>${fmtMoney(s.tuitionPayable)}</b></p>
           <p class="reg-row" style="margin:0"><span style="color:var(--dim)">Đã thu</span><b>${fmtMoney(s.tuitionPaid)}</b></p>
@@ -1904,7 +1904,7 @@ async function openStudentForm(id) {
     </div>
     <label style="display:flex;gap:10px;align-items:flex-start;background:#FFF8E1;border:1px solid #FFE082;border-radius:12px;padding:12px;cursor:pointer">
       <input type="checkbox" id="sf-muall" style="width:20px;height:20px;margin-top:2px;flex:none" ${f.muaLL ? 'checked' : ''}>
-      <span style="font-size:14px"><b>Mua LL — học viên của GV ngoài</b><br><span style="color:var(--dim)">GV ngoài mua LL của trung tâm, tự dạy và tự thu phần phí của họ. Học viên này KHÔNG tính vào doanh số.</span></span>
+      <span style="font-size:14px"><b>Mua LL</b><br><span style="color:var(--dim)">GV mua LL của trung tâm, tự dạy và tự thu học phí. Học viên này KHÔNG tính vào doanh số.</span></span>
     </label>
     <p id="sf-error"></p>
     <div class="row-wrap">
@@ -2474,7 +2474,7 @@ function receiptHtmlFor(students) {
     <table>
       <tr><td>Họ tên học viên</td><td><b>${esc(s.name)}</b></td></tr>
       <tr><td>Mã học viên</td><td>${esc(s.code)} · MHV ${esc(s.maHv || '—')}</td></tr>
-      <tr><td>Ghi chú</td><td>Học viên Mua LL — giáo viên ngoài tự thu học phí, trung tâm không thu học phí của học viên này.</td></tr>
+      <tr><td>Ghi chú</td><td>Học viên Mua LL — GV tự thu học phí, trung tâm không thu học phí của học viên này.</td></tr>
     </table>
   </div>` : `
   <div class="receipt">
