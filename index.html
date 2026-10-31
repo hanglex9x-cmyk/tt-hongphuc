@@ -253,7 +253,8 @@ table.tbl-plain td{border-bottom:1px solid rgba(220,232,223,.6);padding:10px 8px
 @media(min-width:768px){.modal-overlay{align-items:center}}
 .modal-box{width:100%;max-width:672px;max-height:92vh;overflow-y:auto;padding:16px;background:linear-gradient(150deg,rgba(255,255,255,.97),rgba(255,255,255,.94));border:1px solid #DCE8DF;border-radius:20px}
 @media(min-width:768px){.modal-box{padding:24px}}
-.modal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:8px}
+.modal-head{display:flex;align-items:center;justify-content:space-between;gap:8px;position:sticky;top:-16px;margin:-16px -16px 12px;padding:10px 16px;background:rgba(255,255,255,.97);border-bottom:1px solid var(--border);border-radius:20px 20px 0 0;z-index:6}
+@media(min-width:768px){.modal-head{top:-24px;margin:-24px -24px 12px;padding:14px 24px}}
 .modal-head h3{margin:0;font-size:18px;font-weight:700}
 .modal-x{display:flex;height:44px;width:44px;flex:none;align-items:center;justify-content:center;border:none;border-radius:999px;background:var(--surface-alt);font-size:20px}
 #toast{position:fixed;left:50%;bottom:92px;transform:translateX(-50%);z-index:80;max-width:92vw;display:none}
@@ -1149,17 +1150,18 @@ const DOW_SHORT = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
 const DOW_ACCENT = ['#1E88E5', '#F57C00', '#0097A7', '#00B050', '#E53935', '#FB8C00', '#C2185B'];
 function dowIndexOf(d) { return (new Date(Date.UTC(Number(d.slice(0, 4)), Number(d.slice(5, 7)) - 1, Number(d.slice(8, 10)))).getUTCDay() + 6) % 7; }
 /* Cột ngày theo mẫu user gửi: thẻ đầu cột (T4 + 04/10 + gạch màu) + các thẻ buổi xếp dọc */
-function DayColumn(d, list, mks) {
+function DayColumn(d, list, mks, preselId) {
   const i = dowIndexOf(d);
   return `<div class="day-col ${d === TODAY ? 'today' : ''}" data-date="${d}">
     <div class="day-head" style="--acc:${DOW_ACCENT[i]}"><span class="dh-dow">${DOW_SHORT[i]}</span><span class="dh-date">${fmtDate(d).slice(0, 5)}</span>${d === TODAY ? '<span class="dh-today">Hôm nay</span>' : ''}</div>
     ${(mks || []).map(mk => `<span class="marker-pill" style="background:${mk.kind === 'exam' ? '#1E3A8A' : '#B45309'}">${mk.kind === 'exam' ? 'Thi sát hạch' : 'Bế giảng'}: ${esc(mk.label)}</span>`).join('')}
     ${(list || []).map(s => SessionCard(s, DOW_ACCENT[i])).join('') || '<p style="padding:8px 0;text-align:center;font-size:12px;color:var(--dim);margin:0">— Không có buổi —</p>'}
+    <button type="button" class="btn btn-sm btn-block" style="margin-top:6px;min-height:40px;font-weight:600" onclick="openQuickSchedule('${d}', ${preselId || 'null'})" aria-label="Thêm buổi ngày ${fmtDate(d)}">+ Thêm buổi</button>
   </div>`;
 }
 /* Dải cột ngày vuốt/kéo ngang: điện thoại hiện 3 cột, kéo sang trái/phải xem ngày kế tiếp — dùng cho Tuần / 2 tuần / Tháng */
-function SwipeStrip(days, byDate, markersByDate) {
-  return `<div class="swipe-wrap"><div class="swipe-cols">${days.map(d => DayColumn(d, byDate[d] || [], markersByDate[d] || [])).join('')}</div></div>`;
+function SwipeStrip(days, byDate, markersByDate, preselId) {
+  return `<div class="swipe-wrap"><div class="swipe-cols">${days.map(d => DayColumn(d, byDate[d] || [], markersByDate[d] || [], preselId)).join('')}</div></div>`;
 }
 /* Tự thu cỡ chữ tên HV trong thẻ buổi cho VỪA KHUNG đúng 1 hàng (user chốt 28/10: tuyệt đối không xuống hàng, không tràn) — đo bề rộng thật trên máy người dùng rồi giảm size tới khi vừa. */
 function fitCardNames_(root) {
@@ -1195,7 +1197,7 @@ function svRenderMain(id) {
   if (st.mode === 'week') head = `<b style="font-size:16px">Tuần ${fmtDate(st.weekStart)} – ${fmtDate(addDays(st.weekStart, 6))}</b>`;
   else if (st.mode === 'half') { const [y, m] = st.monthCursor.split('-'); head = `<b style="font-size:16px">Tháng ${Number(m)}/${y} · ${st.half === 1 ? 'Ngày 1–15' : `Ngày 15–${lastDayOf(st.monthCursor)}`}</b>`; }
   else { const [y, m] = st.monthCursor.split('-'); head = `<b style="font-size:16px">Tháng ${Number(m)}/${y}</b>`; }
-  head += `<span style="margin-left:8px;font-size:14px;color:var(--dim)">${filtered.length} thẻ buổi hiển thị${hasFilter ? ' (đang lọc)' : ''}${fStudent ? ` · Chỉ HV: ${esc(fStudent.name)} (${esc(fStudent.courseCode)})` : ''} · Tên HV rút gọn 2 từ cuối · Vuốt/kéo ngang để xem ngày kế tiếp · Bấm vào thẻ buổi để sửa trực tiếp</span>`;
+  head += `<span style="margin-left:8px;font-size:14px;color:var(--dim)">${filtered.length} thẻ buổi hiển thị${hasFilter ? ' (đang lọc)' : ''}${fStudent ? ` · Chỉ HV: ${esc(fStudent.name)} (${esc(fStudent.courseCode)})` : ''} · Tên HV rút gọn 2 từ cuối · Vuốt/kéo ngang để xem ngày kế tiếp · Bấm vào thẻ buổi để sửa trực tiếp · Bấm nút + Thêm buổi dưới mỗi cột ngày để xếp lịch mới đúng ngày đó</span>`;
   let spHtml = '';
   if (window._DASH_SP && window._DASH_SP.total > 0) {
     const sp = window._DASH_SP;
@@ -1223,16 +1225,16 @@ function svRenderMain(id) {
   let body = '';
   if (st.mode === 'week') {
     const days = Array.from({ length: 7 }, (_, i) => addDays(st.weekStart, i));
-    body = SwipeStrip(days, byDate, markersByDate);
+    body = SwipeStrip(days, byDate, markersByDate, fStudent ? fStudent.id : null);
   } else if (st.mode === 'half') {
     const first = st.monthCursor; const last = lastDayOf(first);
     const a = st.half === 1 ? 0 : 14; const b = st.half === 1 ? 14 : last - 1;
     const days = Array.from({ length: b - a + 1 }, (_, k) => addDays(first, a + k));
-    body = SwipeStrip(days, byDate, markersByDate);
+    body = SwipeStrip(days, byDate, markersByDate, fStudent ? fStudent.id : null);
   } else {
     const first = st.monthCursor; const last = lastDayOf(first);
     const days = Array.from({ length: last }, (_, k) => addDays(first, k));
-    body = SwipeStrip(days, byDate, markersByDate);
+    body = SwipeStrip(days, byDate, markersByDate, fStudent ? fStudent.id : null);
   }
   host.innerHTML = `<p style="margin:0 0 4px">${head}</p>${spHtml}${cabinHtml}<div id="${id}-filters" class="row-wrap" style="margin:12px 0"></div>${TypeLegend()}<div style="margin-top:12px">${body}</div><div style="display:flex;justify-content:flex-end;margin-top:12px">${importExportHtml('schedules', 'lich.csv', 'impmsg-schedules')}</div>`;
   svRenderFilters(id);
@@ -1710,21 +1712,32 @@ function normalizeExam(raw) {
   };
 }
 async function openStudentDetail(id) {
-  openModal('Chi tiết học viên', Loading());
+  window._DET_ID = id;
+  const cachedStu = (window._STU_ROWS || []).find(x => x.id === id) || (typeof LK !== 'undefined' && LK && (LK.students || []).find(x => x.id === id)) || null;
+  if (cachedStu) renderStudentDetail_(cachedStu, null);
+  else openModal('Chi tiết học viên', Loading());
   try {
     const q = await call('getstudent', { id });
-    const s = q.student;
-    if (!s) throw new Error('Không tìm thấy học viên');
+    if (window._DET_ID !== id || !q.student) return;
+    const h3 = document.querySelector('#modal-root .modal-head h3');
+    if (!h3) return;
+    if (h3.textContent !== 'Chi tiết học viên' && h3.textContent.indexOf(q.student.name) !== 0) return;
+    renderStudentDetail_(q.student, q);
+  } catch (e) {
+    if (!cachedStu && window._DET_ID === id) openModal('Chi tiết học viên', LoadError(e.message));
+  }
+}
+function renderStudentDetail_(s, q) {
     const bg = beGiangState(s.closeDate);
     const datPct = s.datKmTotal > 0 ? Math.min(100, Math.round((s.datKmDone / s.datKmTotal) * 100)) : 0;
-    const exam = normalizeExam((q.exams || [])[0]);
+    const exam = normalizeExam(q ? (q.exams || [])[0] : null);
     const timeline = [
       { label: 'Ngày khai giảng', value: fmtDate(s.openDate), color: BRAND.navy },
       ...(s.datStartDate ? [{ label: 'Ngày xuống DAT', value: fmtDate(s.datStartDate), color: BRAND.green }] : []),
       { label: 'Lịch Cabin', value: `${s.cabinSessions} ca · ${s.cabinHours}/3 giờ`, color: '#7B1FA2' },
       { label: 'Lịch DAT', value: `Đã chạy ${s.datKmDone}/${s.datKmTotal} km (${datPct}%) · Hạn ${fmtDate(s.datDeadline)}`, color: BRAND.amber },
       ...(s.hasLicense && s.licenseDate ? [{ label: 'Có bằng lái', value: fmtDate(s.licenseDate), color: BRAND.green }] : []),
-      ...((q.history || []).map(h => ({ label: h.action || h.kind || 'Lịch sử', value: `${h.detail || ''}${h.time ? ` — ${h.time}` : (h.date ? ` — ${fmtDate(h.date)}` : '')}`, color: BRAND.navy }))),
+      ...(q ? (q.history || []).map(h => ({ label: h.action || h.kind || 'Lịch sử', value: `${h.detail || ''}${h.time ? ` — ${h.time}` : (h.date ? ` — ${fmtDate(h.date)}` : '')}`, color: BRAND.navy })) : [{ label: 'Lịch sử hồ sơ', value: 'Đang tải…', color: BRAND.navy }]),
       { label: 'Ngày bế giảng', value: fmtDate(s.closeDate), color: BRAND.red },
     ];
     const critItems = [
@@ -1744,6 +1757,7 @@ async function openStudentDetail(id) {
       ${exam.note ? `<p style="margin-top:6px;font-size:14px;color:var(--dim)">Ghi chú: ${esc(exam.note)}</p>` : ''}
       ${exam.theory === 'Đậu' && exam.sahinh === 'Đậu' && exam.road === 'Đậu' ? `<p style="margin-top:6px;font-size:14px">Bằng lái hạng <b>${esc(s.licenseClass)}</b> · Ngày thi đậu: <b>${fmtDate(exam.examDate)}</b> · ${s.hasLicense ? `Trạng thái bằng: <b style="color:#00893D">Đã có bằng</b> — ngày có bằng: <b>${fmtDate(s.licenseDate)}</b>` : 'Trạng thái bằng: <b>Chưa có bằng</b> <span style="color:var(--dim)">(bằng chưa về trung tâm — cập nhật ở module Kỳ thi sát hạch)</span>'}</p>` : ''}
     </div>` : '';
+    const paysList = q ? (q.payments || []) : null;
     const tuitionRows = s.muaLL ? '<p class="reg-row" style="margin:0"><span style="color:var(--dim)">Học viên Mua LL — GV ngoài tự thu học phí, không qua trung tâm nên trung tâm không tính học phí cho học viên này.</span></p>' : `<p class="reg-row" style="margin:0"><span style="color:var(--dim)">Học phí chuẩn (theo hạng ${esc(s.licenseClass)})</span><b>${fmtMoney(s.tuitionTotal)}</b></p>
           <p class="reg-row" style="margin:0"><span style="color:var(--dim)">Giảm tiền${s.discountReason ? ` — ${esc(s.discountReason)}` : ''}</span><b ${s.tuitionDiscount > 0 ? 'style="color:#00893D"' : ''}>${s.tuitionDiscount > 0 ? `−${fmtMoney(s.tuitionDiscount)}` : fmtMoney(0)}</b></p>
           <p class="reg-row" style="margin:0;border-top:1px solid var(--border);padding-top:6px"><span style="font-weight:600">Phải thu (chuẩn − giảm)</span><b>${fmtMoney(s.tuitionPayable)}</b></p>
@@ -1809,13 +1823,10 @@ ${tuitionRows}
       </div>
       <div>
         <p style="margin:0 0 4px;font-size:14px"><b>Lịch sử thu học phí</b></p>
-        ${(q.payments || []).length === 0 ? '<p style="font-size:14px;color:var(--dim);margin:0">Chưa có lần thu nào.</p>' : `<ul style="list-style:none;margin:0;padding:0">${(q.payments || []).map(p => `<li class="reg-row" style="padding:6px 0;border-bottom:1px solid var(--border);font-size:14px"><span>${fmtDate(p.date)} · ${esc(p.note || '')} · ${esc(p.method || '')}${p.kmDeducted > 0 ? ` · Đã trừ ${p.kmDeducted}KM` : ''}${p.kind && p.kind !== 'Học phí' ? `<span class="chip" style="background:#FFF8E1;color:#B45309;margin-left:4px">${esc(p.kind)}</span>` : ''}</span><b ${p.amount < 0 ? 'style="color:#E53935"' : ''}>${fmtMoney(p.amount)}</b></li>`).join('')}</ul>`}
+        ${paysList === null ? '<p style="font-size:14px;color:var(--dim);margin:0">Đang tải lịch sử thu…</p>' : paysList.length === 0 ? '<p style="font-size:14px;color:var(--dim);margin:0">Chưa có lần thu nào.</p>' : `<ul style="list-style:none;margin:0;padding:0">${paysList.map(p => `<li class="reg-row" style="padding:6px 0;border-bottom:1px solid var(--border);font-size:14px"><span>${fmtDate(p.date)} · ${esc(p.note || '')} · ${esc(p.method || '')}${p.kmDeducted > 0 ? ` · Đã trừ ${p.kmDeducted}KM` : ''}${p.kind && p.kind !== 'Học phí' ? `<span class="chip" style="background:#FFF8E1;color:#B45309;margin-left:4px">${esc(p.kind)}</span>` : ''}</span><b ${p.amount < 0 ? 'style="color:#E53935"' : ''}>${fmtMoney(p.amount)}</b></li>`).join('')}</ul>`}
         ${s.muaLL ? '' : `<p style="margin-top:4px;font-size:14px">Đã thu <b>${fmtMoney(s.tuitionPaid)}</b> · Còn nợ <b style="color:#E53935">${fmtMoney(s.tuitionDebt)}</b></p>`}
       </div>
     </div>`);
-  } catch (e) {
-    openModal('Chi tiết học viên', LoadError(e.message));
-  }
 }
 async function opsStatus(id) {
   const v = document.getElementById('ops-status').value;
@@ -2130,23 +2141,43 @@ async function datCreateLoad() {
       </div>
       <button type="button" class="btn btn-green btn-block" style="min-height:48px;font-weight:700;margin-top:12px" onclick="datCreate()">Xếp lịch — kiểm tra trùng tự động</button>
       <div id="dc-result"></div>
-      <p class="note-dim" style="margin-top:12px">App đang có 3 lịch trùng để thực hành xử lý: K41 + K40 cùng xe 51F-123.45 lúc 08-10h ngày 09/11 (đỏ) · Huỳnh Hà Gia Khang 2 ca 13-15h ngày 10/11 (đỏ) · Gv. Tùng dạy 2 khóa 15-17h ngày 11/11 (vàng) — bấm banner "⚠️ 3 lịch trùng - Bấm để sửa" ở đầu trang để xem và xóa buổi thừa. Các mốc DAT vẫn giữ: Võ Nguyễn Bảo Hân còn thiếu 225km (buổi bù 04/11 + 07/11), Huỳnh Hà Gia Khang thiếu 500km (buổi bù 28–31/10), Võ Ngọc Phát Vinh đã chạy 157km (buổi bù 28/10–09/11), Huỳnh Võ Ngọc Huy 8H00 + 13H, Nguyễn Lê Minh Huy 8H00, Phạm Hồng Đăng 02/11 + 03/11, Trịnh Anh Quang 30/10.</p>`);
+      <p class="note-dim" style="margin-top:12px">Mẹo: ngay trên lịch ở mục Lịch, bấm nút "+ Thêm buổi" dưới mỗi cột ngày để xếp lịch nhanh đúng ngày đó — nếu đang lọc theo 1 học viên thì form tự chọn sẵn học viên đó.</p>`);
     const sec = host.closest('section');
     if (sec) { const subEl = sec.querySelector('.sec-head .sub'); if (subEl) subEl.textContent = sub; }
   } catch (e) { host.innerHTML = LoadError(e.message); }
 }
-async function datCreate() {
-  const box = document.getElementById('dc-result');
+async function openQuickSchedule(dateStr, preselId) {
+  try {
+    const lk = await getLookups();
+    const stu = preselId ? (lk.students || []).find(s => s.id === preselId) : (state.focusStudentId ? (lk.students || []).find(s => s.id === state.focusStudentId) : null);
+    openModal(`Xếp lịch mới — ${fmtDate(dateStr)}`, `<div class="stack">
+      <div class="form-grid" style="grid-template-columns:1fr 1fr;gap:12px">
+        <label class="field"><span>Ngày</span><input id="qc-date" type="date" class="input" value="${dateStr}"></label>
+        <label class="field"><span>Khung giờ</span><select id="qc-slot" class="select">${SLOTS.map(s2 => `<option value="${s2}" ${s2 === DC.slot ? 'selected' : ''}>${s2} — ${slotHint(s2)}</option>`).join('')}</select></label>
+        <label class="field"><span>Loại buổi</span><select id="qc-type" class="select">${['DAT', 'Sa hình', 'Lý thuyết', 'Cabin', 'Bổ túc'].map(t => `<option ${t === DC.type ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
+        <label class="field"><span>KM DAT (nếu là buổi DAT)</span><input id="qc-km" type="number" min="0" class="input" value="${DC.km}"></label>
+        <label class="field span2"><span>Học viên</span><select id="qc-student" class="select"><option value="">— Chọn học viên —</option>${(lk.students || []).map(s2 => `<option value="${s2.id}" ${stu && s2.id === stu.id ? 'selected' : ''}>${esc(s2.code)} · ${esc(s2.name)} · DAT ${s2.datKmDone}/${s2.datKmTotal}km · Xe KG ${esc(s2.plateKg || '—')}</option>`).join('')}</select></label>
+        <label class="field"><span>Giáo viên</span><select id="qc-teacher" class="select"><option value="">— Chọn GV —</option>${(lk.teachers || []).map(t => `<option value="${t.id}">${esc(gvName(t.name))}${t.kind === 'botuc' ? ' (bổ túc)' : ''}</option>`).join('')}</select></label>
+        <label class="field"><span>Xe</span><select id="qc-vehicle" class="select"><option value="">— Chọn xe —</option>${(lk.vehicles || []).map(v => `<option value="${v.id}" ${v.status === 'Bảo dưỡng' ? 'disabled' : ''}>${esc(v.plate)} (${esc(v.status)})</option>`).join('')}</select></label>
+      </div>
+      <button type="button" class="btn btn-green btn-block" style="min-height:48px;font-weight:700" onclick="datCreate('qc')">Xếp lịch — kiểm tra trùng tự động</button>
+      <div id="qc-result"></div>
+    </div>`);
+  } catch (e) { toast('Không mở được form xếp lịch: ' + e.message); }
+}
+async function datCreate(pfx) {
+  pfx = pfx || 'dc';
+  const box = document.getElementById(pfx + '-result');
   const payload = {
-    date: document.getElementById('dc-date').value,
-    slot: document.getElementById('dc-slot').value,
-    type: document.getElementById('dc-type').value,
-    studentId: document.getElementById('dc-student').value ? Number(document.getElementById('dc-student').value) : (state.focusStudentId || null),
-    teacherId: document.getElementById('dc-teacher').value ? Number(document.getElementById('dc-teacher').value) : null,
-    vehicleId: document.getElementById('dc-vehicle').value ? Number(document.getElementById('dc-vehicle').value) : null,
+    date: document.getElementById(pfx + '-date').value,
+    slot: document.getElementById(pfx + '-slot').value,
+    type: document.getElementById(pfx + '-type').value,
+    studentId: document.getElementById(pfx + '-student').value ? Number(document.getElementById(pfx + '-student').value) : (state.focusStudentId || null),
+    teacherId: document.getElementById(pfx + '-teacher').value ? Number(document.getElementById(pfx + '-teacher').value) : null,
+    vehicleId: document.getElementById(pfx + '-vehicle').value ? Number(document.getElementById(pfx + '-vehicle').value) : null,
     km: 0,
   };
-  payload.km = payload.type === 'DAT' ? (Number(document.getElementById('dc-km').value) || 0) : 0;
+  payload.km = payload.type === 'DAT' ? (Number(document.getElementById(pfx + '-km').value) || 0) : 0;
   const veh = (LK.vehicles || []).find(v => v.id === payload.vehicleId);
   if (veh) payload.plate = veh.plate;
   box.innerHTML = '<p class="loading">Đang kiểm tra trùng lịch…</p>';
@@ -2179,7 +2210,8 @@ async function datCreate() {
     const dsRow = DS.data && (DS.data.rows || []).find(r => r.studentId === payload.studentId);
     if (payload.type === 'Sa hình' && dsRow && dsRow.doneKm < 500) warnings.push(`${stu ? stu.name : 'HV'} chưa đủ 500km DAT (${dsRow.doneKm}km) — chưa đủ ĐK sa hình`);
     CONF = null;
-    box.innerHTML = `<div class="ok-box" style="margin-top:12px"><p style="margin:0;font-weight:600;color:#00893D">Đã xếp lịch thành công.</p>${warnings.length ? `<ul style="margin:6px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:4px">${warnings.map(w => `<li class="warn-box" style="padding:6px 10px;font-weight:600;color:#B45309">⚠ ${esc(w)}</li>`).join('')}</ul>` : ''}<p style="margin-top:6px"><button type="button" class="btn btn-sm" onclick="refresh()">Tải lại lịch</button></p></div>`;
+    if (pfx === 'qc') refresh();
+    box.innerHTML = `<div class="ok-box" style="margin-top:12px"><p style="margin:0;font-weight:600;color:#00893D">Đã xếp lịch thành công.</p>${warnings.length ? `<ul style="margin:6px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:4px">${warnings.map(w => `<li class="warn-box" style="padding:6px 10px;font-weight:600;color:#B45309">⚠ ${esc(w)}</li>`).join('')}</ul>` : ''}${pfx === 'qc' ? '<p style="margin-top:6px"><button type="button" class="btn btn-sm" onclick="closeModal()">Đóng</button></p>' : '<p style="margin-top:6px"><button type="button" class="btn btn-sm" onclick="refresh()">Tải lại lịch</button></p>'}</div>`;
     toast('Đã xếp lịch thành công');
   } catch (e) {
     box.innerHTML = `<div class="err-box" style="margin-top:12px">Không xếp được lịch — ${esc(e.message)}</div>`;
