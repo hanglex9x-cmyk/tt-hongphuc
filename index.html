@@ -1614,6 +1614,7 @@ function beGiangState(closeDate) {
 }
 function stuRowHtml_(s, i) {
   const pct = s.datKmTotal > 0 ? Math.min(100, Math.round((s.datKmDone / s.datKmTotal) * 100)) : 0;
+  const tuitionCell = s.muaLL ? '<span style="color:#E65100;font-weight:600">Mua LL</span><span style="display:block;font-size:12px;color:var(--dim)">GV ngoài tự thu — không qua trung tâm</span>' : `${fmtMoney(s.tuitionPaid)}<span style="display:block;font-size:12px;color:var(--dim)">phải thu ${fmtMoney(s.tuitionPayable)} · nợ ${fmtMoney(s.tuitionDebt)}</span>${s.tuitionDiscount > 0 ? `<span class="chip" style="background:#E8F5E9;color:#007A38;margin-top:2px" title="${esc(s.discountReason || '')}">Giảm ${fmtMoney(s.tuitionDiscount)}${s.discountReason ? ` · ${esc(s.discountReason)}` : ''}</span>` : ''}`;
   return `<tr class="${i % 2 ? 'alt' : ''}">
       <td><b>${esc(s.name)}</b>${s.muaLL ? ' <span class="chip" style="background:#FFF3E0;color:#E65100">Mua LL</span>' : ''}<span style="display:block;font-size:12px;color:var(--dim)">${esc(s.code)} · MHV ${esc(s.maHv || '—')} · ${esc(s.phone || '')}</span></td>
       <td><b>${esc(s.courseCode)}</b> · ${esc(s.licenseClass)}<span style="display:block;font-size:12px;white-space:nowrap;color:var(--dim)">KG ${fmtDate(s.openDate)} · Hạn ${fmtDate(s.closeDate)}</span></td>
@@ -1621,13 +1622,14 @@ function stuRowHtml_(s, i) {
       <td>${s.plateKg ? `<span class="plate-badge">${esc(s.plateKg)}</span>` : '<span style="color:var(--dim)">—</span>'}</td>
       <td>${DatMarkerChip(s.datMarkerKm)}</td>
       <td><span>${s.datKmDone}/${s.datKmTotal}</span><span class="bar" style="margin-top:4px;width:96px"><i style="width:${pct}%"></i></span></td>
-      <td>${fmtMoney(s.tuitionPaid)}<span style="display:block;font-size:12px;color:var(--dim)">phải thu ${fmtMoney(s.tuitionPayable)} · nợ ${fmtMoney(s.tuitionDebt)}</span>${s.tuitionDiscount > 0 ? `<span class="chip" style="background:#E8F5E9;color:#007A38;margin-top:2px" title="${esc(s.discountReason || '')}">Giảm ${fmtMoney(s.tuitionDiscount)}${s.discountReason ? ` · ${esc(s.discountReason)}` : ''}</span>` : ''}</td>
+      <td>${tuitionCell}</td>
       <td>${StatusChip(s.status)}</td>
       <td><span class="row-wrap" style="flex-wrap:nowrap"><button type="button" class="btn btn-sm" aria-label="Xem timeline ${esc(s.name)}" onclick="openStudentDetail(${s.id})">Timeline</button><button type="button" class="btn btn-green btn-sm" aria-label="Sửa học viên ${esc(s.name)}" onclick="openStudentForm(${s.id})">Sửa</button></span></td>
     </tr>`;
 }
 function stuCardHtml_(s) {
   const pct = s.datKmTotal > 0 ? Math.min(100, Math.round((s.datKmDone / s.datKmTotal) * 100)) : 0;
+  const tuitionLine = s.muaLL ? '<p style="margin-top:8px;font-size:14px;color:#E65100;font-weight:600">Mua LL — GV ngoài tự thu học phí, không qua trung tâm</p>' : `<p style="margin-top:8px;font-size:14px">Đã thu <b>${fmtMoney(s.tuitionPaid)}</b> · Phải thu ${fmtMoney(s.tuitionPayable)} · Còn nợ <b style="color:#E53935">${fmtMoney(s.tuitionDebt)}</b>${s.tuitionDiscount > 0 ? `<span style="display:block;font-size:12px;font-weight:600;color:#007A38;margin-top:2px">Giảm ${fmtMoney(s.tuitionDiscount)}${s.discountReason ? ` · ${esc(s.discountReason)}` : ''}</span>` : ''}</p>`;
   return `<article class="mcard">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:4px">
         <div style="min-width:0"><p style="margin:0;font-size:17px;font-weight:700">${esc(s.name)}${s.muaLL ? ' <span class="chip" style="background:#FFF3E0;color:#E65100">Mua LL</span>' : ''}</p><p style="margin:0;font-size:12px;color:var(--dim)">${esc(s.code)} · MHV ${esc(s.maHv || '—')} · ${esc(s.phone || '—')}</p></div>
@@ -1636,7 +1638,7 @@ function stuCardHtml_(s) {
       <p style="margin:0;font-size:14px"><b>${esc(s.courseCode)}</b> · Hạng ${esc(s.licenseClass)} · <span style="color:var(--dim)">KG ${fmtDate(s.openDate)} · Hạn ${fmtDate(s.closeDate)}</span></p>
       <p class="row-wrap" style="margin-top:6px">${CenterBadge(s.centerName)}${s.plateKg ? `<span class="plate-badge">${esc(s.plateKg)}</span>` : ''}${DatMarkerChip(s.datMarkerKm)}</p>
       <div style="margin-top:8px"><p style="margin:0;font-size:14px">DAT: <b>${s.datKmDone}/${s.datKmTotal} km</b> (${pct}%)</p><span class="bar" style="margin-top:4px"><i style="width:${pct}%"></i></span></div>
-      <p style="margin-top:8px;font-size:14px">Đã thu <b>${fmtMoney(s.tuitionPaid)}</b> · Phải thu ${fmtMoney(s.tuitionPayable)} · Còn nợ <b style="color:#E53935">${fmtMoney(s.tuitionDebt)}</b>${s.tuitionDiscount > 0 ? `<span style="display:block;font-size:12px;font-weight:600;color:#007A38;margin-top:2px">Giảm ${fmtMoney(s.tuitionDiscount)}${s.discountReason ? ` · ${esc(s.discountReason)}` : ''}</span>` : ''}</p>
+      ${tuitionLine}
       <div class="row-wrap" style="margin-top:10px"><button type="button" class="btn" style="flex:1" aria-label="Xem timeline ${esc(s.name)}" onclick="openStudentDetail(${s.id})">Timeline</button><button type="button" class="btn btn-green" style="flex:1" aria-label="Sửa học viên ${esc(s.name)}" onclick="openStudentForm(${s.id})">Sửa</button></div>
     </article>`;
 }
@@ -1673,7 +1675,7 @@ RENDERERS.students = async (main) => {
   ]);
   const centers = ct.centers || [];
   window._STU_ROWS = q.students || [];
-  regExport('students', 'hoc-vien-hong-phuc.csv', ['Mã HV', 'Họ tên', 'SĐT', 'CCCD', 'Khóa', 'Khai giảng', 'Hạn khóa', 'Hạng', 'Trung tâm', 'Mốc DAT (km)', 'Học phí chuẩn', 'Giảm tiền', 'Lý do giảm', 'Phải thu', 'Đã thu', 'Còn nợ', 'Ngày ĐK', 'Biển số xe KG'], () => (window._STU_ROWS || []).map(s => ({ 'Mã HV': s.maHv, 'Họ tên': s.name, 'SĐT': s.phone, CCCD: s.cccd, 'Khóa': s.courseCode, 'Khai giảng': fmtDate(s.openDate), 'Hạn khóa': fmtDate(s.closeDate), 'Hạng': s.licenseClass, 'Trung tâm': s.centerName ? shortCenterName(s.centerName) : '', 'Mốc DAT (km)': s.datMarkerKm !== 0 ? s.datMarkerKm : '', 'Học phí chuẩn': s.tuitionTotal, 'Giảm tiền': s.tuitionDiscount, 'Lý do giảm': s.discountReason, 'Phải thu': s.tuitionPayable, 'Đã thu': s.tuitionPaid, 'Còn nợ': s.tuitionDebt, 'Ngày ĐK': s.regDate, 'Biển số xe KG': s.plateKg })));
+  regExport('students', 'hoc-vien-hong-phuc.csv', ['Mã HV', 'Họ tên', 'SĐT', 'CCCD', 'Khóa', 'Khai giảng', 'Hạn khóa', 'Hạng', 'Trung tâm', 'Mốc DAT (km)', 'Học phí chuẩn', 'Giảm tiền', 'Lý do giảm', 'Phải thu', 'Đã thu', 'Còn nợ', 'Ngày ĐK', 'Biển số xe KG'], () => (window._STU_ROWS || []).map(s => ({ 'Mã HV': s.maHv, 'Họ tên': s.name, 'SĐT': s.phone, CCCD: s.cccd, 'Khóa': s.courseCode, 'Khai giảng': fmtDate(s.openDate), 'Hạn khóa': fmtDate(s.closeDate), 'Hạng': s.licenseClass, 'Trung tâm': s.centerName ? shortCenterName(s.centerName) : '', 'Mốc DAT (km)': s.datMarkerKm !== 0 ? s.datMarkerKm : '', 'Học phí chuẩn': s.muaLL ? '' : s.tuitionTotal, 'Giảm tiền': s.muaLL ? '' : s.tuitionDiscount, 'Lý do giảm': s.muaLL ? 'Mua LL' : s.discountReason, 'Phải thu': s.muaLL ? '' : s.tuitionPayable, 'Đã thu': s.muaLL ? '' : s.tuitionPaid, 'Còn nợ': s.muaLL ? '' : s.tuitionDebt, 'Ngày ĐK': s.regDate, 'Biển số xe KG': s.plateKg })));
   main.innerHTML = Section('Quản lý học viên', `${q.total} HV thuộc ${(lk.courses || []).length} khóa (${(lk.courses || []).map(c => c.code).join(' · ')}) — kèm trung tâm HV thuộc về, GV DAT chính, xe quen, biển số xe khai giảng và mốc DAT`, `
     <div class="row-wrap" style="margin-bottom:12px">
       <input aria-label="Tìm học viên" placeholder="Tìm theo tên, mã HV, CCCD, SĐT…" value="${esc(STU.search)}" oninput="stuSearch(this.value)" onkeydown="if(event.key==='Enter')event.preventDefault()" class="input" style="flex:1 1 220px;width:auto;max-width:340px">
@@ -1730,7 +1732,7 @@ async function openStudentDetail(id) {
       { ok: s.criteria.cabin, label: `Cabin ${s.cabinHours}/3h (${s.cabinSessions} ca)` },
       { ok: s.criteria.dat, label: `DAT ${s.datKmDone}/${s.datKmTotal} km` },
       { ok: s.criteria.sahinh, label: 'Sa hình đủ bài' },
-      { ok: s.criteria.tuition, label: `Học phí ${fmtMoney(s.tuitionPaid)}/${fmtMoney(s.tuitionPayable)}${s.tuitionDiscount > 0 ? ` (chuẩn ${fmtMoney(s.tuitionTotal)} − giảm ${fmtMoney(s.tuitionDiscount)})` : ''}` },
+      { ok: s.muaLL ? true : s.criteria.tuition, label: s.muaLL ? 'Học phí: Mua LL — GV ngoài tự thu, không qua trung tâm' : `Học phí ${fmtMoney(s.tuitionPaid)}/${fmtMoney(s.tuitionPayable)}${s.tuitionDiscount > 0 ? ` (chuẩn ${fmtMoney(s.tuitionTotal)} − giảm ${fmtMoney(s.tuitionDiscount)})` : ''}` },
       { ok: s.gradResult === 'Đậu', label: `Tốt nghiệp${!s.gradResult || s.gradResult === 'Chưa thi' ? ' — chưa thi' : ` — ${s.gradResult}`}${s.certNo ? ` · CC ${s.certNo}` : ''} (điều kiện đăng ký đợt sát hạch)` },
     ];
     const examHtml = exam ? `<div>
@@ -1742,6 +1744,12 @@ async function openStudentDetail(id) {
       ${exam.note ? `<p style="margin-top:6px;font-size:14px;color:var(--dim)">Ghi chú: ${esc(exam.note)}</p>` : ''}
       ${exam.theory === 'Đậu' && exam.sahinh === 'Đậu' && exam.road === 'Đậu' ? `<p style="margin-top:6px;font-size:14px">Bằng lái hạng <b>${esc(s.licenseClass)}</b> · Ngày thi đậu: <b>${fmtDate(exam.examDate)}</b> · ${s.hasLicense ? `Trạng thái bằng: <b style="color:#00893D">Đã có bằng</b> — ngày có bằng: <b>${fmtDate(s.licenseDate)}</b>` : 'Trạng thái bằng: <b>Chưa có bằng</b> <span style="color:var(--dim)">(bằng chưa về trung tâm — cập nhật ở module Kỳ thi sát hạch)</span>'}</p>` : ''}
     </div>` : '';
+    const tuitionRows = s.muaLL ? '<p class="reg-row" style="margin:0"><span style="color:var(--dim)">Học viên Mua LL — GV ngoài tự thu học phí, không qua trung tâm nên trung tâm không tính học phí cho học viên này.</span></p>' : `<p class="reg-row" style="margin:0"><span style="color:var(--dim)">Học phí chuẩn (theo hạng ${esc(s.licenseClass)})</span><b>${fmtMoney(s.tuitionTotal)}</b></p>
+          <p class="reg-row" style="margin:0"><span style="color:var(--dim)">Giảm tiền${s.discountReason ? ` — ${esc(s.discountReason)}` : ''}</span><b ${s.tuitionDiscount > 0 ? 'style="color:#00893D"' : ''}>${s.tuitionDiscount > 0 ? `−${fmtMoney(s.tuitionDiscount)}` : fmtMoney(0)}</b></p>
+          <p class="reg-row" style="margin:0;border-top:1px solid var(--border);padding-top:6px"><span style="font-weight:600">Phải thu (chuẩn − giảm)</span><b>${fmtMoney(s.tuitionPayable)}</b></p>
+          <p class="reg-row" style="margin:0"><span style="color:var(--dim)">Đã thu</span><b>${fmtMoney(s.tuitionPaid)}</b></p>
+          ${s.tuitionPaid > s.tuitionPayable ? `<p class="reg-row" style="margin:0"><span style="color:var(--dim)">Đã thu vượt phải thu (hoàn lại / đối trừ)</span><b style="color:#00893D">${fmtMoney(s.tuitionPaid - s.tuitionPayable)}</b></p>` : ''}
+          <p class="reg-row" style="margin:0"><span style="color:var(--dim)">Còn nợ (phải thu − đã thu)</span><b style="color:#E53935">${fmtMoney(s.tuitionDebt)}</b></p>`;
     openModal(`${s.name} — ${s.code}`, `<div class="stack">
       <div class="detail-grid">
         <p><span class="dim">Mã HV:</span> <b>${esc(s.maHv || '—')}</b></p>
@@ -1796,18 +1804,13 @@ async function openStudentDetail(id) {
       <div style="border-radius:12px;background:var(--surface-alt);padding:12px">
         <p style="margin:0 0 6px;font-size:14px"><b>Học phí</b></p>
         <div class="stack-sm" style="font-size:14px">
-          <p class="reg-row" style="margin:0"><span style="color:var(--dim)">Học phí chuẩn (theo hạng ${esc(s.licenseClass)})</span><b>${fmtMoney(s.tuitionTotal)}</b></p>
-          <p class="reg-row" style="margin:0"><span style="color:var(--dim)">Giảm tiền${s.discountReason ? ` — ${esc(s.discountReason)}` : ''}</span><b ${s.tuitionDiscount > 0 ? 'style="color:#00893D"' : ''}>${s.tuitionDiscount > 0 ? `−${fmtMoney(s.tuitionDiscount)}` : fmtMoney(0)}</b></p>
-          <p class="reg-row" style="margin:0;border-top:1px solid var(--border);padding-top:6px"><span style="font-weight:600">Phải thu (chuẩn − giảm)</span><b>${fmtMoney(s.tuitionPayable)}</b></p>
-          <p class="reg-row" style="margin:0"><span style="color:var(--dim)">Đã thu</span><b>${fmtMoney(s.tuitionPaid)}</b></p>
-          ${s.tuitionPaid > s.tuitionPayable ? `<p class="reg-row" style="margin:0"><span style="color:var(--dim)">Đã thu vượt phải thu (hoàn lại / đối trừ)</span><b style="color:#00893D">${fmtMoney(s.tuitionPaid - s.tuitionPayable)}</b></p>` : ''}
-          <p class="reg-row" style="margin:0"><span style="color:var(--dim)">Còn nợ (phải thu − đã thu)</span><b style="color:#E53935">${fmtMoney(s.tuitionDebt)}</b></p>
+${tuitionRows}
         </div>
       </div>
       <div>
         <p style="margin:0 0 4px;font-size:14px"><b>Lịch sử thu học phí</b></p>
         ${(q.payments || []).length === 0 ? '<p style="font-size:14px;color:var(--dim);margin:0">Chưa có lần thu nào.</p>' : `<ul style="list-style:none;margin:0;padding:0">${(q.payments || []).map(p => `<li class="reg-row" style="padding:6px 0;border-bottom:1px solid var(--border);font-size:14px"><span>${fmtDate(p.date)} · ${esc(p.note || '')} · ${esc(p.method || '')}${p.kmDeducted > 0 ? ` · Đã trừ ${p.kmDeducted}KM` : ''}${p.kind && p.kind !== 'Học phí' ? `<span class="chip" style="background:#FFF8E1;color:#B45309;margin-left:4px">${esc(p.kind)}</span>` : ''}</span><b ${p.amount < 0 ? 'style="color:#E53935"' : ''}>${fmtMoney(p.amount)}</b></li>`).join('')}</ul>`}
-        <p style="margin-top:4px;font-size:14px">Đã thu <b>${fmtMoney(s.tuitionPaid)}</b> · Còn nợ <b style="color:#E53935">${fmtMoney(s.tuitionDebt)}</b></p>
+        ${s.muaLL ? '' : `<p style="margin-top:4px;font-size:14px">Đã thu <b>${fmtMoney(s.tuitionPaid)}</b> · Còn nợ <b style="color:#E53935">${fmtMoney(s.tuitionDebt)}</b></p>`}
       </div>
     </div>`);
   } catch (e) {
@@ -2390,7 +2393,19 @@ async function admEnroll(id) {
 /* ================= HỌC PHÍ & BIÊN LAI (Tuition) ================= */
 const TUI = { month: '2026-10', page: 1, selected: [] };
 function receiptHtmlFor(students) {
-  const one = (s) => `
+  const one = (s) => s.muaLL ? `
+  <div class="receipt">
+    <div class="brand"><div class="logo">HỒNG PHÚC</div><div>
+      <h1>TRUNG TÂM ĐÀO TẠO LÁI XE HỒNG PHÚC</h1>
+      <p>404 QL1A, P. Thới An, Quận 12, TP.HCM · SĐT: 0949 155 955</p>
+    </div></div>
+    <h2>BIÊN LAI THU HỌC PHÍ</h2>
+    <table>
+      <tr><td>Họ tên học viên</td><td><b>${esc(s.name)}</b></td></tr>
+      <tr><td>Mã học viên</td><td>${esc(s.code)} · MHV ${esc(s.maHv || '—')}</td></tr>
+      <tr><td>Ghi chú</td><td>Học viên Mua LL — giáo viên ngoài tự thu học phí, trung tâm không thu học phí của học viên này.</td></tr>
+    </table>
+  </div>` : `
   <div class="receipt">
     <div class="brand"><div class="logo">HỒNG PHÚC</div><div>
       <h1>TRUNG TÂM ĐÀO TẠO LÁI XE HỒNG PHÚC</h1>
@@ -2527,9 +2542,9 @@ RENDERERS.tuition = async (main) => {
       </div>
       <div style="display:grid;grid-template-columns:1fr;gap:6px" id="tui-pick">
         ${(stuQ.students || []).map(s => `<label class="row-wrap" style="min-height:44px;cursor:pointer;border-radius:8px;background:var(--surface-alt);padding:6px 12px;font-size:14px">
-          <input type="checkbox" style="height:20px;width:20px" aria-label="Chọn in biên lai cho ${esc(s.name)}" ${selIds.has(s.id) ? 'checked' : ''} onchange="tuiToggle(${s.id},this.checked)">
+          <input type="checkbox" style="height:20px;width:20px" aria-label="Chọn in biên lai cho ${esc(s.name)}" ${selIds.has(s.id) ? 'checked' : ''} ${s.muaLL ? 'disabled' : ''} onchange="tuiToggle(${s.id},this.checked)">
           <span style="flex:1"><b>${esc(s.name)}</b> <span style="color:var(--dim)">(${esc(s.code)} · ${esc(s.courseCode)})</span>${s.tuitionDiscount > 0 ? `<span class="chip" style="background:#E8F5E9;color:#007A38;margin-left:6px">Giảm ${fmtMoneyShort(s.tuitionDiscount)}</span>` : ''}</span>
-          <span style="color:var(--dim)">đã thu ${fmtMoneyShort(s.tuitionPaid)} · nợ ${fmtMoneyShort(s.tuitionDebt)}</span>
+          ${s.muaLL ? '<span style="color:#E65100;font-weight:600">Mua LL — không thu qua trung tâm</span>' : '<span style="color:var(--dim)">đã thu ' + fmtMoneyShort(s.tuitionPaid) + ' · nợ ' + fmtMoneyShort(s.tuitionDebt) + '</span>'}
         </label>`).join('')}
       </div>
       <style>@media(min-width:768px){#tui-pick{grid-template-columns:1fr 1fr!important}}</style>
@@ -2539,7 +2554,7 @@ RENDERERS.tuition = async (main) => {
 function tuiPage(d) { TUI.page = Math.max(1, TUI.page + d); refresh(); }
 function tuiToggle(id, on) {
   const s = (window._TUI_STUS || []).find(x => x.id === id);
-  if (!s) return;
+  if (!s || s.muaLL) return;
   if (on) { if (TUI.selected.length < 20 && !TUI.selected.some(x => x.id === id)) TUI.selected.push(s); }
   else TUI.selected = TUI.selected.filter(x => x.id !== id);
   refresh();
