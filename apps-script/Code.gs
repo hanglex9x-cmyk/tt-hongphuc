@@ -87,6 +87,23 @@ function nextId_(tabName) {
   for (const o of t.objs) mx = Math.max(mx, num_(o['ID']));
   return mx + 1;
 }
+// Các cột định danh toàn số: setValues/appendRow diễn giải chuỗi số thành SỐ nên
+// CCCD/SĐT bị mất số 0 đầu (0790... -> 790...). Sau mỗi lần ghi, ép các ô này về
+// định dạng text (@) rồi ghi lại dạng chuỗi để giữ nguyên số 0 đầu.
+const TEXT_COLS_ = { HocVien: ['CCCD', 'SDT', 'SoChungChi'], TuyenSinh: ['SDT'], GiaoVien: ['SDT'], BoTucThueXe: ['SDT'] };
+function forceTextCells_(tabName, sheet, row, headers, vals) {
+  const cols = TEXT_COLS_[tabName];
+  if (!cols || !row) return;
+  for (const h of cols) {
+    const i = headers.indexOf(h);
+    if (i < 0) continue;
+    const v = vals[i];
+    if (v === '' || v === null || v === undefined) continue;
+    const cell = sheet.getRange(row, i + 1);
+    cell.setNumberFormat('@');
+    cell.setValue(String(v));
+  }
+}
 function writeRow_(tabName, id, fields) {
   const t = tab_(tabName);
   const o = findRow_(tabName, id);
@@ -94,6 +111,7 @@ function writeRow_(tabName, id, fields) {
   const headers = t.headers;
   const vals = headers.map(h => (fields[h] !== undefined ? fields[h] : o[h]));
   t.sheet.getRange(o._row, 1, 1, headers.length).setValues([vals]);
+  forceTextCells_(tabName, t.sheet, o._row, headers, vals);
   dropTab_(tabName);
   return true;
 }
@@ -101,6 +119,7 @@ function appendObj_(tabName, fields) {
   const t = tab_(tabName);
   const vals = t.headers.map(h => (fields[h] !== undefined ? fields[h] : ''));
   t.sheet.appendRow(vals);
+  forceTextCells_(tabName, t.sheet, t.sheet.getLastRow(), t.headers, vals);
   dropTab_(tabName);
   return true;
 }
@@ -153,7 +172,26 @@ function datKmByStudent_() {
     return m;
   });
 }
-function studentObj_(o, payMap, kmMap) {
+function cabinByStudent_() {
+  // Giờ/buổi Cabin TỰ CỘNG từ các buổi 'Cabin' đã điểm danh 'Đã học' (quá khứ),
+  // giờ tính theo khoảng giờ thật của buổi — cùng mẫu với datKmByStudent_().
+  return memo_('cabinMap', () => {
+    const T = today_();
+    const m = {};
+    for (const s of tab_('LichHoc').objs) {
+      if (str_(s['LoaiBuoi']) !== 'Cabin' || !s['IDHocVien']) continue;
+      if (dstr_(s['Ngay']) > T) continue;
+      if (str_(s['DiemDanh']) !== 'Đã học') continue;
+      const r = slotRangeMin_(str_(s['KhungGio']));
+      const sid = num_(s['IDHocVien']);
+      if (!m[sid]) m[sid] = { hours: 0, sessions: 0 };
+      m[sid].hours += r ? (r[1] - r[0]) / 60 : 0;
+      m[sid].sessions += 1;
+    }
+    return m;
+  });
+}
+function studentObj_(o, payMap, kmMap, cabinMap) {
   const cm = courseMap_();
   const course = cm[str_(o['MaKhoa'])] || {};
   const sid = num_(o['ID']);
@@ -166,9 +204,12 @@ function studentObj_(o, payMap, kmMap) {
   const kmDone = kmMap[sid] !== undefined ? kmMap[sid] : num_(o['KmDATDaChay']);
   const target = TARGET_KM[cls] || 810;
   const isMLL = num_(o['MuaLL']) === 1;
+  const cab = cabinMap && cabinMap[sid] ? cabinMap[sid] : null;
+  const cabinHours = Math.max(num_(o['GioCabin']), cab ? Math.round(cab.hours * 10) / 10 : 0);
+  const cabinSessions = Math.max(num_(o['BuoiCabin']), cab ? cab.sessions : 0);
   const crit = {
     theory: str_(o['DatLyThuyet']) === 'Đạt',
-    cabin: num_(o['GioCabin']) >= 3,
+    cabin: cabinHours >= 3,
     dat: kmDone >= target,
     sahinh: str_(o['DaHocSaHinh']) === 'Đã học',
     tuition: isMLL ? true : (payable - paid) <= 0
@@ -179,7 +220,7 @@ function studentObj_(o, payMap, kmMap) {
     courseCode: str_(o['MaKhoa']), licenseClass: cls, centerName: str_(o['TrungTamLienKet']),
     homeTeacherName: str_(o['GVChinh']), homePlate: str_(o['XeQuen']), plateKg: str_(o['BienSoKG']),
     regDate: dstr_(o['NgayDangKy']), healthExamDate: dstr_(o['NgayKhamSK']), healthExpiry: dstr_(o['HanKhamSK']),
-    cabinHours: num_(o['GioCabin']), cabinSessions: num_(o['BuoiCabin']),
+    cabinHours: cabinHours, cabinSessions: cabinSessions,
     theoryScore: o['DiemLyThuyet'] === '' ? null : num_(o['DiemLyThuyet']), theoryPassed: crit.theory,
     sahinhDone: crit.sahinh, datKmDone: kmDone, datKmTotal: target, datMarkerKm: num_(o['MocKmDAT']),
     datStartDate: course.datStart || '', datDeadline: course.closeDate || '',
@@ -198,7 +239,8 @@ function allStudents_() {
   return memo_('students', () => {
     const payMap = paymentsByStudent_();
     const kmMap = datKmByStudent_();
-    return tab_('HocVien').objs.map(o => studentObj_(o, payMap, kmMap));
+    const cabinMap = cabinByStudent_();
+    return tab_('HocVien').objs.map(o => studentObj_(o, payMap, kmMap, cabinMap));
   });
 }
 function teacherLook_() {
@@ -291,6 +333,24 @@ function weekHoursByVehicle_() {
   });
 }
 
+function sessionsProgress_(students, rows, T) {
+  // Công thức tiến độ xếp lịch DÙNG CHUNG cho apiGetDashboard + apiGetReports
+  // (trước đây mỗi nơi chép 1 bản giống hệt nhau — sửa 1 nơi dễ lệch nơi còn lại).
+  const indiv = rows.filter(s => s.studentId);
+  const le = indiv.filter(s => s.date <= T);
+  const cnt = (arr, t) => arr.filter(s => s.type === t).length;
+  const ltWeighted = rows.filter(s => s.type === 'Lý thuyết').reduce((a, s) => a + (s.courseSize || 0), 0);
+  const scheduled = cnt(le, 'DAT') + cnt(le, 'Sa hình') + cnt(le, 'Thi tốt nghiệp') + ltWeighted;
+  const total = students.length * 16;
+  const days = new Set(indiv.map(s => s.date)).size;
+  return {
+    total, scheduled, remaining: total - scheduled, gridCells: total,
+    datSpecial: cnt(le, 'DAT'), sahinh: cnt(le, 'Sa hình') + cnt(le, 'Thi tốt nghiệp'), regular: ltWeighted,
+    off: 0, days, avgPerDay: days ? Math.round(scheduled / days * 10) / 10 : 0,
+    from: '2026-06-07', to: '2026-12-31'
+  };
+}
+
 // ---------- API: Đọc ----------
 function apiGetDashboard() {
   const T = today_();
@@ -338,12 +398,7 @@ function apiGetDashboard() {
       vehiclesInUse: tab_('Xe').objs.filter(v => str_(v['TrangThai']) === 'Đang sử dụng').length,
       conflicts: conflicts.length
     },
-    sessionsProgress: {
-      total, scheduled, remaining: total - scheduled, gridCells: total,
-      datSpecial: cnt(le, 'DAT'), sahinh: cnt(le, 'Sa hình') + cnt(le, 'Thi tốt nghiệp'), regular: ltWeighted,
-      off: 0, days, avgPerDay: days ? Math.round(scheduled / days * 10) / 10 : 0,
-      from: '2026-06-07', to: '2026-12-31'
-    },
+    sessionsProgress: sessionsProgress_(students, rows, T),
     cabinStats: {
       fullCount: students.filter(s => s.cabinHours >= 3).length,
       total: students.length,
@@ -459,7 +514,12 @@ function apiListSchedulesRange(p) {
     cabinByCourse: Object.keys(cabin).map(k => ({ courseCode: k, students: cabin[k].students, done3h: cabin[k].done3h, avgHours: Math.round(cabin[k].sum / cabin[k].students * 10) / 10, pct: Math.round(cabin[k].done3h / cabin[k].students * 100) }))
   };
 }
-function apiListConflicts() { return { conflicts: conflicts_() }; }
+function apiListConflicts() {
+  // Chỉ gửi các trường giao diện dùng (id/khung/loại/HV/khóa/GV/xe) — trước đây nhúng
+  // nguyên object buổi (~900B/mục) làm payload phình 160KB+ khi nhiều trùng lịch.
+  const slim = s => ({ id: s.id, slot: s.slot, type: s.type, studentName: s.studentName, courseCode: s.courseCode, teacherName: s.teacherName, plate: s.plate });
+  return { conflicts: conflicts_().map(c => ({ kind: c.kind, severity: c.severity, key: c.key, date: c.date, slot: c.slot, sessions: (c.sessions || []).map(slim) })) };
+}
 function apiListPayments(p) {
   const month = p.month || today_().slice(0, 7);
   const rows = tab_('ThanhToan').objs.map(x => {
@@ -654,16 +714,8 @@ function apiGetReports() {
     if (s.type === 'DAT') bySlot[key].dat++;
     if (s.type === 'Sa hình') bySlot[key].sahinh++;
   });
-  // (Ban cu co dong apiListSchedulesRange 7 thang ma ket qua khong dung o dau — da bo.)
-  // sessionsProgress tinh tai cho (cong thuc y het apiGetDashboard) — tranh goi
-  // lai apiGetDashboard() (keo theo notifications + conflicts) va apiListExams() 2 lan.
-  const indivR = rows.filter(s => s.studentId);
-  const leR = indivR.filter(s => s.date <= T);
-  const cntR = (arr, t) => arr.filter(s => s.type === t).length;
-  const ltWeightedR = rows.filter(s => s.type === 'Lý thuyết').reduce((a, s) => a + (s.courseSize || 0), 0);
-  const scheduledR = cntR(leR, 'DAT') + cntR(leR, 'Sa hình') + cntR(leR, 'Thi tốt nghiệp') + ltWeightedR;
-  const totalR = students.length * 16;
-  const daysR = new Set(indivR.map(s => s.date)).size;
+  // sessionsProgress dung chung helper sessionsProgress_() — tranh goi lai
+  // apiGetDashboard() (keo theo notifications + conflicts) va apiListExams() 2 lan.
   const examsR = apiListExams();
   return {
     totalStudents: students.length,
@@ -682,12 +734,7 @@ function apiGetReports() {
     plSeries: pl, costBreakdown: cost,
     datByVehicle: Object.keys(byVehicle).map(k => byVehicle[k]).sort((a, b) => b.km - a.km),
     datBySlot: Object.keys(bySlot).sort().map(k => bySlot[k]),
-    sessionsProgress: {
-      total: totalR, scheduled: scheduledR, remaining: totalR - scheduledR, gridCells: totalR,
-      datSpecial: cntR(leR, 'DAT'), sahinh: cntR(leR, 'Sa hình') + cntR(leR, 'Thi tốt nghiệp'), regular: ltWeightedR,
-      off: 0, days: daysR, avgPerDay: daysR ? Math.round(scheduledR / daysR * 10) / 10 : 0,
-      from: '2026-06-07', to: '2026-12-31'
-    },
+    sessionsProgress: sessionsProgress_(students, rows, T),
     eligibleCount: examsR.eligibleTotal,
     passRate: examsR.passRate
   };
@@ -834,6 +881,11 @@ function apiSaveStudent(p) {
   if (p.discountReason !== undefined) patch['LyDoGiam'] = p.discountReason;
   if (p.muaLL !== undefined) patch['MuaLL'] = p.muaLL ? 1 : '';
   if (p.tuition !== undefined) patch['HocPhi'] = num_(p.tuition);
+  if (p.theoryScore !== undefined) patch['DiemLyThuyet'] = (p.theoryScore === '' || p.theoryScore === null) ? '' : num_(p.theoryScore);
+  if (p.theoryPassed !== undefined) patch['DatLyThuyet'] = p.theoryPassed ? 'Đạt' : 'Chưa đạt';
+  if (p.sahinhDone !== undefined) patch['DaHocSaHinh'] = p.sahinhDone ? 'Đã học' : 'Chưa học';
+  if (p.cabinHours !== undefined) patch['GioCabin'] = num_(p.cabinHours);
+  if (p.cabinSessions !== undefined) patch['BuoiCabin'] = num_(p.cabinSessions);
   if (p.homeTeacherId !== undefined) {
     const t = tab_('GiaoVien').objs.find(o => num_(o['ID']) === num_(p.homeTeacherId));
     if (t) patch['GVChinh'] = str_(t['HoTen']);
@@ -925,11 +977,23 @@ function apiDeleteSchedule(p) {
 }
 function apiAddPayment(p) {
   const st = bystId_(num_(p.studentId));
+  if (!st) return { ok: false, error: 'Không tìm thấy học viên' };
+  const amount = num_(p.amount);
+  const kind = p.kind || 'Học phí';
+  if (kind === 'Học phí') {
+    if (amount <= 0) return { ok: false, error: 'Số tiền thu học phí phải lớn hơn 0' };
+    // Chặn thu VƯỢT số còn nợ (lỗi gõ thừa số 0 kinh điển: 20tr thành 200tr) — HV Mua LL
+    // tiền không qua trung tâm nên không áp dụng.
+    if (!st.muaLL) {
+      const debt = st.tuitionPayable - st.tuitionPaid;
+      if (amount > debt) return { ok: false, error: 'Thu vượt số còn nợ: học viên còn nợ ' + debt.toLocaleString('vi-VN') + 'đ, không thể thu ' + amount.toLocaleString('vi-VN') + 'đ. Kiểm tra lại số tiền (có thừa số 0?) hoặc học phí của học viên.' };
+    }
+  }
   const nid = nextId_('ThanhToan');
-  appendObj_('ThanhToan', { ID: nid, IDHocVien: num_(p.studentId), MaHV: st ? st.code : '', HoTen: st ? st.name : '',
-    MaKhoa: st ? st.courseCode : '', Ngay: p.date || today_(), SoTien: num_(p.amount),
-    Loai: p.kind || 'Học phí', PhuongThuc: p.method || 'Tiền mặt', GhiChu: p.note || '', KmTru: 0 });
-  logHistory_('addPayment', st ? st.code : '', 'Thu ' + (p.kind || 'Học phí') + ' ' + num_(p.amount) + 'đ');
+  appendObj_('ThanhToan', { ID: nid, IDHocVien: num_(p.studentId), MaHV: st.code, HoTen: st.name,
+    MaKhoa: st.courseCode, Ngay: p.date || today_(), SoTien: amount,
+    Loai: kind, PhuongThuc: p.method || 'Tiền mặt', GhiChu: p.note || '', KmTru: 0 });
+  logHistory_('addPayment', st.code, 'Thu ' + kind + ' ' + amount + 'đ');
   return { ok: true, id: nid };
 }
 function apiSaveTeacher(p) {
@@ -1223,14 +1287,24 @@ function setCfg_(key, value) {
   else t.sheet.appendRow([key, value]);
   invalidateDerived_();
 }
-function apiGetCenterInfo() {
-  return {
+function logoVer_() {
+  // Dấu phiên bản logo (dài + băm thưa) để client chỉ tải lại 84KB logo khi nó đổi.
+  const lg = String(cfg_('Logo', '') || ''), lm = String(cfg_('LogoMark', '') || '');
+  let h = 0; const s = lg + '|' + lm;
+  for (let i = 0; i < s.length; i += 89) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return lg.length + '.' + lm.length + '.' + h.toString(36);
+}
+function apiGetCenterInfo(p) {
+  const base = {
     name: String(cfg_('TenTrungTam', '') || ''),
     address: String(cfg_('DiaChi', '') || ''),
     phone: String(cfg_('SDT', '') || ''),
-    logo: String(cfg_('Logo', '') || ''),
-    logoMark: String(cfg_('LogoMark', '') || ''),
+    logoVer: logoVer_(),
   };
+  if (p && (p.nologo === 1 || p.nologo === '1' || p.nologo === true)) return base;
+  base.logo = String(cfg_('Logo', '') || '');
+  base.logoMark = String(cfg_('LogoMark', '') || '');
+  return base;
 }
 function apiSaveCenterInfo(p) {
   const name = String(p.name || '').trim();
@@ -1270,8 +1344,10 @@ function apiSavePrices(p) {
   return { ok: true };
 }
 function apiCheckCccd(p) {
-  const cccd = String(p.cccd || '');
-  const found = tab_('HocVien').objs.find(o => str_(o['CCCD']) === cccd);
+  // So khớp bỏ số 0 đầu ở cả 2 phía: dữ liệu cũ có thể đã lưu CCCD dạng số (mất số 0 đầu).
+  const norm = v => { const x = String(v === null || v === undefined ? '' : v).trim(); return /^\d+$/.test(x) ? x.replace(/^0+/, '') : x; };
+  const cccd = norm(p.cccd || '');
+  const found = cccd ? tab_('HocVien').objs.find(o => norm(o['CCCD']) === cccd) : null;
   if (found) return { found: true, student: { id: num_(found['ID']), code: str_(found['MaHV']), name: str_(found['HoTen']), courseCode: str_(found['MaKhoa']), status: str_(found['TrangThai']) } };
   return { found: false };
 }
