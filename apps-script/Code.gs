@@ -52,7 +52,10 @@ function cfg_(key, def) {
     return def;
   });
 }
-function today_() { return String(cfg_('NgayHienTai', '2026-10-27')).slice(0, 10); }
+/* "Hom nay" = NGAY THAT theo gio Viet Nam. Truoc day neo theo CauHinh NgayHienTai (27/10/2026) de khop
+   du lieu mau; tu khi chay du lieu that, moc neo dung yen lam app ket o thang 10 — bo neo (user chot 01/11/2026).
+   Cot CauHinh NgayHienTai khong con duoc doc nua. */
+function today_() { return Utilities.formatDate(new Date(), 'Asia/Ho_Chi_Minh', 'yyyy-MM-dd'); }
 function num_(v) { const n = Number(v); return isNaN(n) ? 0 : n; }
 function str_(v) { return v === null || v === undefined ? '' : String(v); }
 function dstr_(v) {
@@ -808,7 +811,7 @@ function apiNotifications() {
     .map(s => ({ code: s.code, name: s.name, courseCode: s.courseCode, homeTeacherName: s.homeTeacherName }));
   /* Nhắc việc theo yêu cầu chị Hồng (28/10): khóa sắp bế giảng ≤3 ngày + HV sắp xuống DAT ≤2 ngày,
      kèm cờ thiếu DAT/cabin cho từng HV — ngày lấy theo khóa (NgayBeGiang / NgayBatDauDAT), HV thuộc khóa nào tính theo khóa đó.
-     LƯU Ý: riêng phần nhắc này tính theo NGÀY THẬT (Asia/Ho_Chi_Minh), không theo mốc neo NgayHienTai của dữ liệu —
+     LƯU Ý: phần nhắc này tính theo NGÀY THẬT (Asia/Ho_Chi_Minh), khớp với today_() —
      vì bế giảng/xuống DAT là việc ngoài đời, mốc neo đứng yên sẽ làm nhắc không bao giờ kích hoạt. */
   const realToday_ = Utilities.formatDate(new Date(), 'Asia/Ho_Chi_Minh', 'yyyy-MM-dd');
   const daysTo_ = (ds) => Math.round((new Date(ds) - new Date(realToday_)) / 86400000);
