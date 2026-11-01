@@ -1,3 +1,4 @@
+// PWA shell — ban xuat ban 01/11/2026 (kem fix ngay that + nap truoc thang).
 // Service worker PWA Hồng Phúc — chỉ lo "vỏ app": khi mất mạng vẫn mở được app
 // bằng bản HTML gần nhất. Dữ liệu luôn đi qua API (script.google.com) — tuyệt đối
 // không chặn hay lưu đệm các request đó.
