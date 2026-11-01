@@ -816,6 +816,7 @@ const VIEWS = [
   { id: 'today', label: 'Lịch hôm nay', icon: 'M5 5h14v14H5zM5 9h14M8 3v4M16 3v4' },
   { id: 'students', label: 'Học viên', icon: 'M16 19v-1a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v1M9 10a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM22 19v-1a4 4 0 0 0-3-3.9M16 3.1a3.5 3.5 0 0 1 0 6.8' },
   { id: 'dat', label: 'Lịch DAT & Sa hình', icon: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM3.5 9.5L9 11M20.5 9.5L15 11M12 15v6' },
+  { id: 'progress', label: 'Tiến độ khóa học', icon: 'M22 12h-4l-3 9L9 3l-3 9H2' },
   { id: 'admissions', label: 'Tuyển sinh', icon: 'M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 1 6 0M9 13l2 2 4-4' },
   { id: 'tuition', label: 'Học phí & biên lai', icon: 'M3 7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM16 13h3M3 10h18' },
   { id: 'fleet', label: 'GV · Xe · TT liên kết', icon: 'M5 16l1.5-5A2 2 0 0 1 8.4 9.5h7.2a2 2 0 0 1 1.9 1.5L19 16M5 16h14M5 16v4M19 16v4M7.5 13h.01M16.5 13h.01' },
@@ -1305,29 +1306,6 @@ function svRenderMain(id) {
   else if (st.mode === 'half') { const [y, m] = st.monthCursor.split('-'); head = `<b style="font-size:16px">Tháng ${Number(m)}/${y} · ${st.half === 1 ? 'Ngày 1–15' : `Ngày 15–${lastDayOf(st.monthCursor)}`}</b>`; }
   else { const [y, m] = st.monthCursor.split('-'); head = `<b style="font-size:16px">Tháng ${Number(m)}/${y}</b>`; }
   head += `<span style="margin-left:8px;font-size:14px;color:var(--dim)">${filtered.length} thẻ buổi hiển thị${hasFilter ? ' (đang lọc)' : ''}${fStudent ? ` · Chỉ HV: ${esc(fStudent.name)} (${esc(fStudent.courseCode)})` : ''}</span>`;
-  let spHtml = '';
-  if (window._DASH_SP && window._DASH_SP.total > 0) {
-    const sp = window._DASH_SP;
-    const pct = Math.round((sp.scheduled / sp.total) * 1000) / 10;
-    spHtml = `<div style="border-radius:12px;background:var(--surface-alt);padding:12px;margin-top:12px">
-      <p style="margin:0;font-size:14px"><b>${sp.scheduled} buổi đã xếp</b> / ${sp.total} buổi tổng khóa · Chưa xếp <b>${sp.remaining}</b> · Trung bình <b>${String(sp.avgPerDay).replace('.', ',')} buổi/ngày</b><span style="color:var(--dim)"> · Khung lịch ${fmtDate(sp.from)} – ${fmtDate(sp.to)} (${sp.days} ngày có lịch)</span></p>
-      <div class="bar bar-lg" style="margin-top:8px" role="progressbar" aria-valuenow="${sp.scheduled}" aria-valuemin="0" aria-valuemax="${sp.total}" aria-label="Tiến độ xếp lịch cả khóa"><i style="width:${pct}%;background:#00B050"></i></div>
-      <p class="note-dim" style="margin:4px 0 0">Tiến độ xếp lịch ${sp.scheduled}/${sp.total} (${String(pct).replace('.', ',')}%)</p>
-      <div class="row-wrap" style="margin-top:8px;font-size:12px;font-weight:500">
-        <span class="tagchip" style="background:#DCFCE7;color:#007A38">${sp.regular} buổi lý thuyết</span>
-        <span class="tagchip" style="background:#B2EBF2;color:#006064">${sp.datSpecial} buổi DAT đã xếp</span>
-        <span class="tagchip" style="background:#FFE0B2;color:#B45309">${sp.sahinh} buổi sa hình &amp; ôn thi</span>
-        ${sp.off > 0 ? `<span class="tagchip" style="background:#FDECEA;color:#C62828">${sp.off} buổi nghỉ (ghi chú trên lưới lịch)</span>` : ''}
-      </div>
-    </div>`;
-  }
-  let cabinHtml = '';
-  if ((st.data.cabinByCourse || []).length) {
-    cabinHtml = `<div style="border-radius:12px;background:var(--surface-alt);padding:12px;margin-top:12px">
-      <p style="margin:0 0 8px;font-size:14px"><b>Tiến độ cabin theo khóa</b> <span style="font-weight:400;color:var(--dim)">— buổi cabin xếp theo nhóm 5 HV tại Phòng cabin (GĐ1 + đầu GĐ2), tính bằng giờ: mỗi HV cần đủ 3h/3h mới đạt tiêu chí cabin khi xét điều kiện thi</span></p>
-      <div class="row-wrap">${st.data.cabinByCourse.map(c => `<span class="tagchip" style="background:#ECEFF1;color:#37474F;font-weight:600">${esc(c.courseCode)}: ${c.done3h}/${c.students} HV đủ 3h (${c.pct}%) · TB ${String(c.avgHours).replace('.', ',')}h/HV</span>`).join('')}</div>
-    </div>`;
-  }
   let body = '';
   if (st.mode === 'week') {
     const days = Array.from({ length: 7 }, (_, i) => addDays(st.weekStart, i));
@@ -1342,7 +1320,7 @@ function svRenderMain(id) {
     const days = Array.from({ length: last }, (_, k) => addDays(first, k));
     body = SwipeStrip(days, byDate, markersByDate, fStudent ? fStudent.id : null);
   }
-  host.innerHTML = `<p style="margin:0 0 4px">${head}</p><div id="${id}-filters" class="row-wrap" style="margin:12px 0"></div>${TypeLegend()}<div style="margin-top:12px">${body}</div><div style="display:flex;justify-content:flex-end;margin-top:12px">${importExportHtml('schedules', 'lich.csv', 'impmsg-schedules')}</div>${spHtml}${cabinHtml}`;
+  host.innerHTML = `<p style="margin:0 0 4px">${head}</p><div id="${id}-filters" class="row-wrap" style="margin:12px 0"></div>${TypeLegend()}<div style="margin-top:12px">${body}</div><div style="display:flex;justify-content:flex-end;margin-top:12px">${importExportHtml('schedules', 'lich.csv', 'impmsg-schedules')}</div>`;
   svRenderFilters(id);
   fitCardNames_(host);
   if (st._scrollDay) {
@@ -3444,6 +3422,26 @@ RENDERERS.reports = async (main) => {
     </div>
   </div>`;
 };
+/* ================= TIẾN ĐỘ KHÓA HỌC (Progress) ================= */
+RENDERERS.progress = async (main) => {
+  main.innerHTML = Loading();
+  const ym = TODAY.slice(0, 7);
+  const [dash, range] = await Promise.all([
+    callSWR('getdashboard', {}, () => { if (state.view === 'progress' && !modalOpen_()) go('progress', undefined, { keepScroll: true }); }),
+    call('listschedulesrange', { from: ym + '-01', to: ym + '-31' }),
+  ]);
+  const sp = (dash && dash.sessionsProgress) || null;
+  if (sp) window._DASH_SP = sp;
+  const cabin = (range && range.cabinByCourse) || [];
+  main.innerHTML = `<div class="stack">
+    ${sp && sp.total > 0
+      ? Section('Tiến độ xếp lịch cả khóa', `Theo lịch đã xếp trong app: ${fmtDate(sp.from)} – ${fmtDate(sp.to)} · ${sp.days} ngày có lịch`, sessionsProgressHtml(sp))
+      : Section('Tiến độ xếp lịch cả khóa', '', '<p style="font-size:14px;color:var(--dim);margin:0">Chưa có dữ liệu tiến độ xếp lịch.</p>')}
+    ${Section('Tiến độ cabin theo khóa', 'Buổi cabin xếp theo nhóm 5 HV tại Phòng cabin, tính bằng giờ — mỗi học viên cần đủ 3h/3h mới đạt tiêu chí cabin khi xét điều kiện thi.', cabin.length
+      ? `<div class="row-wrap">${cabin.map(c => `<span class="tagchip" style="background:#ECEFF1;color:#37474F;font-weight:600">${esc(c.courseCode)}: ${c.done3h}/${c.students} HV đủ 3h (${c.pct}%) · TB ${String(c.avgHours).replace('.', ',')}h/HV</span>`).join('')}</div>`
+      : '<p style="font-size:14px;color:var(--dim);margin:0">Chưa có dữ liệu cabin.</p>')}
+  </div>`;
+};
 function sessionsProgressHtml(sp) {
   const total = sp.total || 0, sched = sp.scheduled || 0;
   const pct = total > 0 ? Math.round(sched / total * 100) : 0;
@@ -3713,7 +3711,7 @@ RENDERERS.guide = (main) => {
       ${guideStep('3', 'Mỗi loại thông báo (lịch học ngày mai, lịch thi, báo đậu, báo có bằng, nhắc DAT, nhắc cabin, nhắc khám sức khỏe) có sẵn <b>mẫu tin Zalo OA</b> — bấm nút là gửi và hệ thống ghi vào “Nhật ký thông báo đã gửi”.')}
       ${guideNote('Cảnh báo là dữ kiện sống: xử lý xong việc (ví dụ xếp thêm buổi DAT cho học viên âm km) thì lần mở lại trang, cảnh báo tương ứng sẽ tự biến mất hoặc giảm mức độ.')}`)}</section>
     <section class="panel" id="hd-dien-thoai">${Section('12 · Dùng trên điện thoại', '', `
-      ${guideStep('1', 'Trên điện thoại, menu chuyển thành <b>thanh điều hướng dưới cùng</b> với 5 mục: Tổng quan · Lịch học · Học viên · DAT &amp; Sa hình · Tất cả mục (mở danh sách đầy đủ 11 mục).')}
+      ${guideStep('1', 'Trên điện thoại, menu chuyển thành <b>thanh điều hướng dưới cùng</b> với 5 mục: Tổng quan · Lịch học · Học viên · DAT &amp; Sa hình · Tất cả mục (mở danh sách đầy đủ 12 mục).')}
       ${guideStep('2', 'Các bảng dữ liệu tự chuyển thành <b>dạng thẻ</b> trên màn hình nhỏ — không cần kéo ngang. Ô nhập liệu đủ lớn (48px) để chạm chính xác.')}
       ${guideStep('3', 'Có thể “Thêm vào màn hình chính” (Add to Home Screen) từ trình duyệt để mở Portal như 1 ứng dụng.')}
       ${guideNote('Khi xếp lịch ngoài sân bãi, nên dùng chế độ Theo tháng ở mục Lịch DAT & Sa hình: nhìn cả tháng là biết ngày nào, xe nào còn trống.')}`)}</section>
