@@ -75,8 +75,10 @@ main{flex:1;min-width:0;padding:12px 12px 96px}
 .drawer-panel{position:absolute;top:0;left:0;height:100%;width:280px;display:flex;flex-direction:column;gap:4px;overflow-y:auto;padding:12px;border-radius:0}
 .bottomnav{position:fixed;right:0;bottom:0;left:0;z-index:40;border-radius:20px 20px 0 0;padding-bottom:env(safe-area-inset-bottom)}
 @media(min-width:768px){.bottomnav{display:none}}
-.bottomnav .grid5{display:grid;grid-template-columns:repeat(5,1fr);padding:4px}
+.bottomnav .grid6{display:grid;grid-template-columns:repeat(6,1fr);padding:4px}
 .navbtn.compact{flex-direction:column;gap:2px;padding:6px 2px;font-size:11px;min-height:48px;align-items:center;text-align:center;line-height:1.15;justify-content:center}
+.navbtn.icononly{min-height:54px;padding:8px 2px}
+.navbtn.icononly svg{width:25px;height:25px}
 
 /* ---------- Chung ---------- */
 .stack{display:flex;flex-direction:column;gap:16px}
@@ -378,12 +380,19 @@ const CACHEABLE_ACTIONS = new Set(['liststudents', 'listcenters', 'listexamround
 const READ_CACHE = new Map();
 const INFLIGHT = new Map(); // gộp các request trùng action+params đang bay — tránh gọi API 2-3 lần giống hệt nhau
 const RANGE_CACHE = new Map(); // cache listschedulesrange theo khóa from|to (ScheduleViews)
+const RANGE_INFLIGHT = new Map(); // gộp các callRange_ trùng khóa đang bay (prefetch + mở mục cùng lúc)
 async function callRange_(from, to) {
   const rkey = from + '|' + to;
   if (RANGE_CACHE.has(rkey)) return RANGE_CACHE.get(rkey);
-  const rr = await call('listschedulesrange', { from, to });
-  RANGE_CACHE.set(rkey, rr);
-  return rr;
+  if (RANGE_INFLIGHT.has(rkey)) return RANGE_INFLIGHT.get(rkey);
+  const p = (async () => {
+    const rr = await call('listschedulesrange', { from, to });
+    RANGE_CACHE.set(rkey, rr);
+    return rr;
+  })();
+  RANGE_INFLIGHT.set(rkey, p);
+  p.catch(() => {}).then(() => { if (RANGE_INFLIGHT.get(rkey) === p) RANGE_INFLIGHT.delete(rkey); });
+  return p;
 }
 function readCacheKey(action, params) {
   const entries = Object.entries(params || {})
@@ -395,6 +404,7 @@ function clearReadCache() {
   READ_CACHE.clear();
   INFLIGHT.clear();
   RANGE_CACHE.clear();
+  RANGE_INFLIGHT.clear();
   LK = null;   // cache getlookups riêng (khai báo ở khối dưới, gán lúc chạy)
   CONF = null; // cache listconflicts riêng
   lsClearSWR(); // cả bản lưu localStorage (khai báo ở khối SWR phía dưới)
@@ -509,25 +519,35 @@ async function callSWR(action, params, onFresh) {
   }
   return net;
 }
-// ---------- Prefetch nền (v13: gọn — chỉ nạp song song 4 dữ liệu nặng/hay dùng) ----------
+// ---------- Prefetch nền (01/11: nạp sẵn dữ liệu của 5 mục trên thanh chọn nhanh) ----------
 // Sau khi dashboard render xong lần đầu (và chỉ 1 lần/phiên), nạp sẵn vào
-// cache client: DAT (getdatsummary), Kỳ thi (listexams), cảnh báo trùng lịch
-// và lịch TUẦN hiện tại. Chạy song song lúc trình duyệt rảnh
-// (requestIdleCallback, dự phòng setTimeout 1500ms), lỗi thì bỏ qua lặng lẽ.
-// Các mục còn lại (báo cáo, tuyển sinh, thông báo, học phí...) KHÔNG nạp nền
-// nữa: từ backend v13 cache theo nhóm nên mở mục nào cũng chỉ tốn 1 call đã
-// được hâm nóng phía server — nạp nền tràn lan chỉ tranh lượt chạy của
-// Apps Script với thao tác thật của người dùng.
+// cache client đúng dữ liệu 5 mục ở thanh dưới (Tổng quan · Học viên · Lịch
+// DAT & Sa hình · Tiến độ · Kỳ thi) để chạm vào là hiện ngay như Facebook:
+// Học viên (liststudents trang 1 + listcenters + lookups), DAT (getdatsummary
+// + khoảng lịch tháng), Tiến độ (khoảng lịch tháng dương lịch), Kỳ thi
+// (listexams + listexamrounds), cảnh báo trùng lịch và lịch TUẦN hiện tại.
+// Chạy song song lúc trình duyệt rảnh (requestIdleCallback, dự phòng
+// setTimeout 1500ms), lỗi thì bỏ qua lặng lẽ. Các mục NGOÀI thanh chọn nhanh
+// (báo cáo, tuyển sinh, thông báo, học phí...) vẫn không nạp nền: backend v13
+// cache theo nhóm nên mở mục nào cũng chỉ tốn 1 call đã hâm nóng phía server.
 let PREFETCH_DONE = false;
 function prefetchWarm_() {
   if (PREFETCH_DONE) return;
   PREFETCH_DONE = true;
   const run = () => {
+    const monthMon = mondayOf(monthStartOf(TODAY));
+    const ym = TODAY.slice(0, 7);
     const jobs = [
       call('getdatsummary', {}),
       call('listexams', {}),
+      call('listexamrounds', {}),
+      call('liststudents', { search: '', courseCode: '', centerName: '', status: '', onlyEligible: false, page: 1, pageSize: STU.pageSize }),
+      call('listcenters', {}),
+      getLookups(),
       getConflicts(),
-      callRange_(mondayOf(TODAY), addDays(mondayOf(TODAY), 6))
+      callRange_(mondayOf(TODAY), addDays(mondayOf(TODAY), 6)),
+      callRange_(monthMon, addDays(monthMon, 41)),
+      callRange_(ym + '-01', ym + '-31')
     ];
     jobs.forEach(p => { Promise.resolve(p).catch(() => {}); });
   };
@@ -827,9 +847,9 @@ const VIEWS = [
   { id: 'guide', label: 'Hướng dẫn Portal', icon: 'M4 19.5A2.5 2.5 0 0 1 6.5 17H20M4 19.5A2.5 2.5 0 0 0 6.5 22H20V2H6.5A2.5 2.5 0 0 0 4 4.5z' },
 ];
 function navIcon(d) { return `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d}"/></svg>`; }
-function navBtn(v, compact) {
+function navBtn(v, compact, iconOnly) {
   const on = state.view === v.id;
-  return `<button type="button" class="navbtn ${compact ? 'compact' : ''} ${on ? 'btn-green-grad active' : ''}" aria-label="${esc(v.label)}" ${on ? 'aria-current="page"' : ''} onclick="go('${v.id}')">${navIcon(v.icon)}<span>${esc(v.label)}</span></button>`;
+  return `<button type="button" class="navbtn ${compact ? 'compact' : ''} ${iconOnly ? 'icononly' : ''} ${on ? 'btn-green-grad active' : ''}" aria-label="${esc(v.label)}" ${on ? 'aria-current="page"' : ''} onclick="go('${v.id}')">${navIcon(v.icon)}${iconOnly ? '' : `<span>${esc(v.label)}</span>`}</button>`;
 }
 let SHELL_BUILT = false;
 function renderShell() {
@@ -862,9 +882,9 @@ function renderShell() {
     <main id="view"><p class="loading">Đang tải dữ liệu…</p></main>
   </div>
   <nav class="glass-nav bottomnav" aria-label="Điều hướng nhanh">
-    <div class="grid5">
-      ${VIEWS.slice(0, 4).map(v => navBtn(v, true)).join('')}
-      <button type="button" class="navbtn compact" aria-label="Mở tất cả mục" onclick="openDrawer()"><span style="font-size:22px;line-height:1">☰</span><span>Tất cả mục</span></button>
+    <div class="grid6">
+      ${['dashboard', 'students', 'dat', 'progress', 'exams'].map(id => navBtn(VIEWS.find(v => v.id === id), true, true)).join('')}
+      <button type="button" class="navbtn compact icononly" aria-label="Mở tất cả mục" onclick="openDrawer()"><span style="font-size:24px;line-height:1">☰</span></button>
     </div>
   </nav>`;
   SHELL_BUILT = true;
@@ -3428,7 +3448,7 @@ RENDERERS.progress = async (main) => {
   const ym = TODAY.slice(0, 7);
   const [dash, range] = await Promise.all([
     callSWR('getdashboard', {}, () => { if (state.view === 'progress' && !modalOpen_()) go('progress', undefined, { keepScroll: true }); }),
-    call('listschedulesrange', { from: ym + '-01', to: ym + '-31' }),
+    callRange_(ym + '-01', ym + '-31'),
   ]);
   const sp = (dash && dash.sessionsProgress) || null;
   if (sp) window._DASH_SP = sp;
@@ -3642,7 +3662,7 @@ RENDERERS.guide = (main) => {
       <div class="row-wrap">${chapters.map(([id, label]) => `<a href="#${id}" class="chip" style="background:#E8F5E9;color:#007A38;font-weight:600;text-decoration:none" onclick="event.preventDefault();var el=document.getElementById('${id}');if(el)el.scrollIntoView({behavior:'smooth',block:'start'})">${label}</a>`).join('')}</div>`)}
     <section class="panel" id="hd-bat-dau">${Section('1 · Bắt đầu sử dụng', '', `
       ${guideStep('1', '<b>Mở Portal</b> bằng trình duyệt (Chrome/Edge) trên máy tính hoặc điện thoại. Màn hình đầu tiên là mục <b>Tổng quan</b>.')}
-      ${guideStep('2', 'Menu chính nằm ở <b>cột trái</b> trên máy tính, hoặc thanh <b>điều hướng dưới cùng</b> trên điện thoại (Tổng quan · Lịch · Học viên · DAT · Tất cả mục).')}
+      ${guideStep('2', 'Menu chính nằm ở <b>cột trái</b> trên máy tính, hoặc thanh <b>điều hướng dưới cùng</b> trên điện thoại (6 nút chỉ hình, không chữ: Tổng quan · Học viên · Lịch DAT &amp; Sa hình · Tiến độ khóa học · Kỳ thi sát hạch · Tất cả mục).')}
       ${guideStep('3', 'Mọi danh sách (học viên, lịch học, lần thu…) đều có ô <b>tìm kiếm</b> và bộ lọc ở đầu trang. Gõ vài chữ là danh sách tự lọc.')}
       ${guideNote('Dữ liệu được lưu tự động sau mỗi thao tác bấm “Lưu”. Không cần bấm lưu thủ công ở các màn hình tổng hợp.')}`)}</section>
     <section class="panel" id="hd-quy-trinh">${Section('2 · Quy trình làm việc hằng ngày', '', `
@@ -3711,7 +3731,7 @@ RENDERERS.guide = (main) => {
       ${guideStep('3', 'Mỗi loại thông báo (lịch học ngày mai, lịch thi, báo đậu, báo có bằng, nhắc DAT, nhắc cabin, nhắc khám sức khỏe) có sẵn <b>mẫu tin Zalo OA</b> — bấm nút là gửi và hệ thống ghi vào “Nhật ký thông báo đã gửi”.')}
       ${guideNote('Cảnh báo là dữ kiện sống: xử lý xong việc (ví dụ xếp thêm buổi DAT cho học viên âm km) thì lần mở lại trang, cảnh báo tương ứng sẽ tự biến mất hoặc giảm mức độ.')}`)}</section>
     <section class="panel" id="hd-dien-thoai">${Section('12 · Dùng trên điện thoại', '', `
-      ${guideStep('1', 'Trên điện thoại, menu chuyển thành <b>thanh điều hướng dưới cùng</b> với 5 mục: Tổng quan · Lịch học · Học viên · DAT &amp; Sa hình · Tất cả mục (mở danh sách đầy đủ 12 mục).')}
+      ${guideStep('1', 'Trên điện thoại, menu chuyển thành <b>thanh điều hướng dưới cùng</b> với 6 nút chỉ hình (không chữ): Tổng quan · Học viên · Lịch DAT &amp; Sa hình · Tiến độ khóa học · Kỳ thi sát hạch · Tất cả mục (mở danh sách đầy đủ 12 mục). Chạm vào nút nào là dữ liệu hiện ngay vì app đã nạp sẵn nền 5 mục này.')}
       ${guideStep('2', 'Các bảng dữ liệu tự chuyển thành <b>dạng thẻ</b> trên màn hình nhỏ — không cần kéo ngang. Ô nhập liệu đủ lớn (48px) để chạm chính xác.')}
       ${guideStep('3', 'Có thể “Thêm vào màn hình chính” (Add to Home Screen) từ trình duyệt để mở Portal như 1 ứng dụng.')}
       ${guideNote('Khi xếp lịch ngoài sân bãi, nên dùng chế độ Theo tháng ở mục Lịch DAT & Sa hình: nhìn cả tháng là biết ngày nào, xe nào còn trống.')}`)}</section>
