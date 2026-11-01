@@ -349,7 +349,7 @@ const API_URL = (() => {
   if (q) { try { localStorage.setItem('hp_api_url', q); } catch (e) {} return q; }
   try { return localStorage.getItem('hp_api_url') || DEFAULT_API_URL; } catch (e) { return DEFAULT_API_URL; }
 })();
-const TODAY = '2026-10-27';
+const TODAY = (() => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); })(); // Ngay that cua thiet bi — truoc day neo cung 27/10/2026 nen app ket o thang 10 (user chot 01/11/2026)
 const MONTH_LABEL = 'tháng ' + Number(TODAY.slice(5, 7));
 
 // ---------- API ----------
@@ -1125,10 +1125,15 @@ function svRegister(id, defaultMode) {
   if (!SVI[id]) SVI[id] = { mode: defaultMode || 'week', half: 1, _scrollDay: true, weekStart: mondayOf(TODAY), monthCursor: monthStartOf(TODAY), selectedDate: TODAY, fTeacher: '', fPlate: '', fCenter: '', fType: '', fStudentId: '', studentSearch: '', data: null, centers: [] };
   return SVI[id];
 }
+function svRangeFor_(cursor) { const from = mondayOf(cursor); return { from, to: addDays(from, 41) }; }
+function svPrefetchAdjacent_(id) {
+  const st = SVI[id]; if (!st || st.mode === 'week') return;
+  [-1, 1].forEach(d => { const r = svRangeFor_(addMonths(st.monthCursor, d)); callRange_(r.from, r.to).catch(() => {}); });
+}
 async function svLoad(id) {
   const st = SVI[id];
-  const from = st.mode === 'week' ? st.weekStart : mondayOf(st.monthCursor);
-  const to = st.mode === 'week' ? addDays(st.weekStart, 6) : addDays(mondayOf(st.monthCursor), 41);
+  const from = st.mode === 'week' ? st.weekStart : svRangeFor_(st.monthCursor).from;
+  const to = st.mode === 'week' ? addDays(st.weekStart, 6) : svRangeFor_(st.monthCursor).to;
   const rkey = from + '|' + to;
   const rangePromise = callRange_(from, to);
   const [r, lk, ct] = await Promise.all([rangePromise, getLookups(), call('listcenters', {})]);
@@ -1162,7 +1167,7 @@ function ScheduleViewsHtml(id) {
     <div id="${id}-main">${Loading()}</div>
   </div>`;
 }
-async function svInit(id) { const st = svRegister(id); const seq = (st._rseq = (st._rseq || 0) + 1); try { await svLoad(id); if (st._rseq !== seq) return; svRenderMain(id); svRenderNav(id); svRenderFilters(id); } catch (e) { if (st._rseq === seq) { const h = document.getElementById(id + '-main'); if (h) h.innerHTML = LoadError(e.message); } } }
+async function svInit(id) { const st = svRegister(id); const seq = (st._rseq = (st._rseq || 0) + 1); try { await svLoad(id); if (st._rseq !== seq) return; svRenderMain(id); svRenderNav(id); svRenderFilters(id); svPrefetchAdjacent_(id); } catch (e) { if (st._rseq === seq) { const h = document.getElementById(id + '-main'); if (h) h.innerHTML = LoadError(e.message); } } }
 function svRenderNav(id) {
   const st = SVI[id];
   const el = document.getElementById(id + '-nav');
@@ -1176,7 +1181,7 @@ function svRenderNav(id) {
 function lastDayOf(mc) { return Number(addDays(addMonths(mc, 1), -1).slice(8, 10)); }
 function svHalf(id, h) { const st = SVI[id]; st.half = h; st._scrollDay = true; st.selectedDate = h === 1 ? st.monthCursor : addDays(st.monthCursor, 14); svRenderNav(id); svRenderMain(id); }
 async function svNav(id, d) { const st = SVI[id]; st._scrollDay = true; st.weekStart = d === 0 ? mondayOf(TODAY) : addDays(st.weekStart, d); const seq = (st._rseq = (st._rseq || 0) + 1); document.getElementById(id + '-main').innerHTML = Loading(); try { await svLoad(id); if (st._rseq !== seq) return; svRenderMain(id); } catch (e) { if (st._rseq === seq) { const h = document.getElementById(id + '-main'); if (h) h.innerHTML = LoadError(e.message); } } }
-async function svNavM(id, d) { const st = SVI[id]; st._scrollDay = true; st.monthCursor = d === 0 ? monthStartOf(TODAY) : addMonths(st.monthCursor, d); const seq = (st._rseq = (st._rseq || 0) + 1); document.getElementById(id + '-main').innerHTML = Loading(); try { await svLoad(id); if (st._rseq !== seq) return; svRenderMain(id); svRenderNav(id); } catch (e) { if (st._rseq === seq) { const h = document.getElementById(id + '-main'); if (h) h.innerHTML = LoadError(e.message); } } }
+async function svNavM(id, d) { const st = SVI[id]; st._scrollDay = true; st.monthCursor = d === 0 ? monthStartOf(TODAY) : addMonths(st.monthCursor, d); const seq = (st._rseq = (st._rseq || 0) + 1); document.getElementById(id + '-main').innerHTML = Loading(); try { await svLoad(id); if (st._rseq !== seq) return; svRenderMain(id); svRenderNav(id); svPrefetchAdjacent_(id); } catch (e) { if (st._rseq === seq) { const h = document.getElementById(id + '-main'); if (h) h.innerHTML = LoadError(e.message); } } }
 function svFilter(id) {
   const st = SVI[id];
   st.fTeacher = document.getElementById(id + '-fT').value;
@@ -1430,8 +1435,9 @@ function paintDashboard_(main, d) {
   }
   const maxHeat = Math.max(...(d.heatmap || []).map(h => h.sessions), 1);
   const heatByDate = {}; (d.heatmap || []).forEach(h => { heatByDate[h.date] = h.sessions; });
-  const firstDow = (new Date(utcMs('2026-10-01')).getUTCDay() + 6) % 7;
-  const octDays = Array.from({ length: 31 }, (_, i) => `2026-10-${String(i + 1).padStart(2, '0')}`);
+  const heatStart = monthStartOf(TODAY);
+  const firstDow = (new Date(utcMs(heatStart)).getUTCDay() + 6) % 7;
+  const octDays = Array.from({ length: lastDayOf(heatStart) }, (_, i) => `${heatStart.slice(0, 8)}${String(i + 1).padStart(2, '0')}`);
   const gantt = (d.gantt || []).map(g => {
     const g2End = g.openDate ? addDays(g.openDate, 84) : g.closeDate;
     const segs = (g.ltStart && g.thStart) ? `
@@ -2178,7 +2184,7 @@ function datExport() {
   downloadFile('tong-hop-dat.csv', toCsv(rows, headers), 'text/csv;charset=utf-8');
 }
 /* --- Form xếp lịch mới: kiểm tra trùng phía client trước khi ghi --- */
-const DC = { date: '2026-10-28', slot: '08-10h', type: 'DAT', km: 40 };
+const DC = { date: TODAY, slot: '08-10h', type: 'DAT', km: 40 };
 async function datCreateLoad() {
   const host = document.getElementById('datcreate');
   if (!host) return;
@@ -2535,7 +2541,7 @@ async function admEnroll(id) {
 </script>
 <script>
 /* ================= HỌC PHÍ & BIÊN LAI (Tuition) ================= */
-const TUI = { month: '2026-10', page: 1, selected: [] };
+const TUI = { month: TODAY.slice(0, 7), page: 1, selected: [] };
 function receiptHtmlFor(students) {
   const one = (s) => s.muaLL ? `
   <div class="receipt">
