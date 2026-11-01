@@ -1,0 +1,17 @@
+{
+  "name": "Hồng Phúc — Quản lý đào tạo lái xe",
+  "short_name": "Hồng Phúc",
+  "description": "Ứng dụng quản lý trung tâm đào tạo lái xe Hồng Phúc",
+  "lang": "vi",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#007A38",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

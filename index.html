@@ -3,6 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#007A38">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Hồng Phúc">
 <meta name="format-detection" content="telephone=no">
 <title>Quản lý Trung tâm Đào tạo Lái xe Hồng Phúc</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -3725,6 +3732,9 @@ go('dashboard');
     try { localStorage.setItem('hp_logo_cache', JSON.stringify({ ver: full.logoVer, logo: full.logo || '', logoMark: full.logoMark || '' })); } catch (e) {}
   } catch (e) {}
 })();
+</script>
+<script>
+if ('serviceWorker' in navigator) { window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); }); }
 </script>
 </body>
 </html>
