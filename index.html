@@ -2693,18 +2693,21 @@ async function savePrices_() {
     refresh();
   } catch (e) { toast('Lỗi lưu bảng giá: ' + e.message); }
 }
-function dotsFromPayments_(payments) {
+function dotsFullFromPayments_(payments) {
   const set = new Set();
+  const methods = {};
   [...(payments || [])].sort((a, b) => (a.id || 0) - (b.id || 0)).forEach(pay => {
     if (!pay) return;
     const mm = /^(?:Đợt|Lần)\s*(\d)/.exec(String(pay.note || '').trim());
     if (!mm) return;
     const n = Number(mm[1]);
     if (n < 1 || n > 3) return;
-    if (pay.kind === 'Hoàn phí') set.delete(n); else set.add(n);
+    if (pay.kind === 'Hoàn phí') { set.delete(n); delete methods[n]; }
+    else { set.add(n); methods[n] = pay.method === 'Chuyển khoản' ? 'CK' : pay.method === 'Tiền mặt' ? 'TM' : ''; }
   });
-  return [...set].sort((a, b) => a - b);
+  return { dots: [...set].sort((a, b) => a - b), methods };
 }
+function dotsFromPayments_(payments) { return dotsFullFromPayments_(payments).dots; }
 async function buildDots_() {
   const months = [];
   let y = 2026, m = 7;
@@ -2714,25 +2717,27 @@ async function buildDots_() {
   const byStu = {};
   parts.forEach(r => ((r && r.payments) || []).forEach(pay => { (byStu[pay.studentId] = byStu[pay.studentId] || []).push(pay); }));
   const out = {};
-  Object.keys(byStu).forEach(k => { out[k] = dotsFromPayments_(byStu[k]); });
+  const mOut = {};
+  Object.keys(byStu).forEach(k => { const f = dotsFullFromPayments_(byStu[k]); out[k] = f.dots; mOut[k] = f.methods; });
+  window._DOTM = mOut;
   return out;
 }
 function dotText_(dots) { return [1, 2, 3].map(n => `${(dots || []).includes(n) ? '☑' : '☐'} Đợt ${n}`).join(' · '); }
 function dotMark_(on) { return on ? '<span class="dot-on">☑</span>' : '<span class="dot-off">☐</span>'; }
-async function dotWrite_(studentId, n, on) {
-  if (on) await write('addpayment', { studentId, amount: 0, date: TODAY, kind: 'Tick đợt', method: '', note: `Đợt ${n} — ĐÃ ĐÓNG (tick trong app ${fmtDate(TODAY)})` });
+async function dotWrite_(studentId, n, on, method) {
+  if (on) await write('addpayment', { studentId, amount: 0, date: TODAY, kind: 'Tick đợt', method: method || '', note: `Đợt ${n} — ĐÃ ĐÓNG (tick trong app ${fmtDate(TODAY)})` });
   else await write('addpayment', { studentId, amount: 0, date: TODAY, kind: 'Hoàn phí', method: '', note: `Đợt ${n} — BỎ TICK (trong app ${fmtDate(TODAY)})` });
 }
-async function toggleDot_(studentId, n, on) {
+async function toggleDot_(studentId, n, on, method) {
   try {
-    await dotWrite_(studentId, n, on);
+    await dotWrite_(studentId, n, on, method);
     toast(on ? `Đã tick Đợt ${n} — đã đóng` : `Đã bỏ tick Đợt ${n}`);
     refresh();
   } catch (e) { toast('Lỗi tick đợt: ' + e.message); }
 }
-async function toggleDotDetail_(studentId, n, on) {
+async function toggleDotDetail_(studentId, n, on, method) {
   try {
-    await dotWrite_(studentId, n, on);
+    await dotWrite_(studentId, n, on, method);
     toast(on ? `Đã tick Đợt ${n} — đã đóng` : `Đã bỏ tick Đợt ${n}`);
     openStudentDetail(studentId);
   } catch (e) { toast('Lỗi tick đợt: ' + e.message); }
@@ -2743,13 +2748,23 @@ function askDot_(studentId, n, on, detail) {
   const fn = detail ? 'toggleDotDetail_' : 'toggleDot_';
   const cancel = detail ? `closeModal();openStudentDetail(${studentId})` : 'closeModal()';
   if (on) {
-    openModal('Xác nhận đóng học phí', `<p style="font-size:15px;margin:0">Đồng ý đóng học phí <b>Đợt ${n}</b> cho học viên <b>${esc(nm)}</b> không?</p><p style="font-size:13px;color:var(--dim);margin:8px 0 0">Tick xong, ô đợt này sẽ bị khóa lại để tránh tick nhầm.</p><div class="row-wrap" style="margin-top:16px;justify-content:flex-end"><button type="button" class="btn" onclick="${cancel}">Hủy</button><button type="button" class="btn btn-green" style="font-weight:700" onclick="closeModal();${fn}(${studentId},${n},true)">Đồng ý — đóng Đợt ${n}</button></div>`);
+    window._DOTM_SEL = 'CK';
+    openModal('Xác nhận đóng học phí', `<p style="font-size:15px;margin:0">Đồng ý đóng học phí <b>Đợt ${n}</b> cho học viên <b>${esc(nm)}</b> không?</p><div class="row-wrap" style="margin-top:12px;align-items:center"><span style="font-size:14px;font-weight:600">Hình thức:</span>${[['CK', 'CK — Chuyển khoản'], ['TM', 'TM — Tiền mặt'], ['-', '— Không ghi']].map(([v, l]) => `<button type="button" class="btn dot-mbtn" data-m="${v}" style="min-height:40px;${v === 'CK' ? 'background:#007A38;color:#fff;border-color:#007A38;font-weight:700' : ''}" onclick="dotMethodSel_(this)">${l}</button>`).join('')}</div><p style="font-size:13px;color:var(--dim);margin:10px 0 0">Tick xong, ô đợt này sẽ bị khóa lại để tránh tick nhầm.</p><div class="row-wrap" style="margin-top:16px;justify-content:flex-end"><button type="button" class="btn" onclick="${cancel}">Hủy</button><button type="button" class="btn btn-green" style="font-weight:700" onclick="confirmDot_(${studentId},${n},${detail ? 'true' : 'false'})">Đồng ý — đóng Đợt ${n}</button></div>`);
   } else {
     openModal('Ô đợt đã khóa', `<p style="font-size:15px;margin:0">Đợt ${n} của học viên <b>${esc(nm)}</b> đã đóng và đang <b>khóa</b>.</p><p style="font-size:15px;margin:8px 0 0">Chỉ bỏ tick khi tick nhầm. Có chắc chắn bỏ tick Đợt ${n} không?</p><div class="row-wrap" style="margin-top:16px;justify-content:flex-end"><button type="button" class="btn" onclick="${cancel}">Giữ nguyên</button><button type="button" class="btn btn-amber" style="font-weight:700" onclick="closeModal();${fn}(${studentId},${n},false)">Bỏ tick Đợt ${n}</button></div>`);
   }
 }
+function dotMethodSel_(btn) {
+  window._DOTM_SEL = btn.getAttribute('data-m');
+  document.querySelectorAll('.dot-mbtn').forEach(b => { const on = b === btn; b.style.background = on ? '#007A38' : ''; b.style.color = on ? '#fff' : ''; b.style.borderColor = on ? '#007A38' : ''; b.style.fontWeight = on ? '700' : ''; });
+}
+function confirmDot_(studentId, n, detail) {
+  const m = window._DOTM_SEL === 'CK' ? 'Chuyển khoản' : window._DOTM_SEL === 'TM' ? 'Tiền mặt' : '';
+  closeModal();
+  (detail ? toggleDotDetail_ : toggleDot_)(studentId, n, true, m);
+}
 function dotBtns_(studentId, dots, detail) {
-  return [1, 2, 3].map(n => { const on = (dots || []).includes(n); return `<button type="button" class="dot-btn" style="font-size:13.5px;padding:3px 2px" onclick="askDot_(${studentId},${n},${on ? 'false' : 'true'},${detail ? 'true' : 'false'})" title="${on ? `Đợt ${n} đã đóng — đang khóa, bấm để hỏi bỏ tick` : `Bấm để tick Đợt ${n} — sẽ hỏi xác nhận trước`}" aria-label="Tick Đợt ${n}">${on ? '☑' : '☐'} Đợt ${n}${on ? ' <span style="font-size:10px">🔒</span>' : ''}</button>`; }).join(' ');
+  return [1, 2, 3].map(n => { const on = (dots || []).includes(n); return `<button type="button" class="dot-btn" style="font-size:13.5px;padding:3px 2px" onclick="askDot_(${studentId},${n},${on ? 'false' : 'true'},${detail ? 'true' : 'false'})" title="${on ? `Đợt ${n} đã đóng — đang khóa, bấm để hỏi bỏ tick` : `Bấm để tick Đợt ${n} — sẽ hỏi xác nhận trước`}" aria-label="Tick Đợt ${n}">${on ? '☑' : '☐'} Đợt ${n}${on && (window._DOTM || {})[studentId] && (window._DOTM || {})[studentId][n] ? ` <span style="font-size:11px;color:var(--dim)">(${(window._DOTM || {})[studentId][n]})</span>` : ''}${on ? ' <span style="font-size:10px">🔒</span>' : ''}</button>`; }).join(' ');
 }
 function dotFilter_(v) {
   const kw = normText((v || '').trim());
@@ -2792,7 +2807,7 @@ RENDERERS.tuition = async (main) => {
     ${Section('Đóng học phí theo đợt', 'Trung tâm thu học phí làm 3 đợt — bảng này tick đợt đã đóng theo danh sách của trung tâm, không hiện số tiền', `
       <input class="input" placeholder="Tìm học viên…" aria-label="Tìm học viên trong bảng đóng đợt" oninput="dotFilter_(this.value)" style="margin-bottom:12px;max-width:340px">
       <div class="d-only tbl-wrap"><table class="tbl"><thead><tr><th>Học viên</th><th>Khóa</th><th style="text-align:center">Đợt 1</th><th style="text-align:center">Đợt 2</th><th style="text-align:center">Đợt 3</th><th>Trạng thái</th></tr></thead><tbody>
-        ${trackerRows.map(x => { const ds = dots[x.id] || []; return `<tr data-dotname="${esc(normText(x.name + ' ' + x.code))}"><td><b>${esc(x.name)}</b> <span style="color:var(--dim)">(${esc(x.code)})</span>${x.muaLL ? ' <span class="chip" style="background:#FFF3E0;color:#E65100">Mua LL</span>' : ''}</td><td>${esc(x.courseCode)}</td>${[1, 2, 3].map(n => `<td style="text-align:center"><button type="button" class="dot-btn" onclick="askDot_(${x.id},${n},${ds.includes(n) ? 'false' : 'true'},false)" title="${ds.includes(n) ? `Đợt ${n} đã đóng — đang khóa, bấm để hỏi bỏ tick` : `Bấm để tick Đợt ${n} — sẽ hỏi xác nhận trước`}" aria-label="Tick Đợt ${n}">${dotMark_(ds.includes(n))}${ds.includes(n) ? ' <span style="font-size:10px">🔒</span>' : ''}</button></td>`).join('')}<td>${ds.length >= 3 ? '<span class="chip" style="background:#E8F5E9;color:#007A38;font-weight:700">Đủ 3 đợt</span>' : `<span style="color:var(--dim)">Thiếu đợt ${[1, 2, 3].filter(n => !ds.includes(n)).join(', ')}</span>`}</td></tr>`; }).join('')}
+        ${trackerRows.map(x => { const ds = dots[x.id] || []; return `<tr data-dotname="${esc(normText(x.name + ' ' + x.code))}"><td><b>${esc(x.name)}</b> <span style="color:var(--dim)">(${esc(x.code)})</span>${x.muaLL ? ' <span class="chip" style="background:#FFF3E0;color:#E65100">Mua LL</span>' : ''}</td><td>${esc(x.courseCode)}</td>${[1, 2, 3].map(n => `<td style="text-align:center"><button type="button" class="dot-btn" onclick="askDot_(${x.id},${n},${ds.includes(n) ? 'false' : 'true'},false)" title="${ds.includes(n) ? `Đợt ${n} đã đóng — đang khóa, bấm để hỏi bỏ tick` : `Bấm để tick Đợt ${n} — sẽ hỏi xác nhận trước`}" aria-label="Tick Đợt ${n}">${dotMark_(ds.includes(n))}${ds.includes(n) ? ' <span style="font-size:10px">🔒</span>' : ''}</button>${ds.includes(n) && (window._DOTM || {})[x.id] && (window._DOTM || {})[x.id][n] ? `<span style="display:block;font-size:11px;color:var(--dim)">${(window._DOTM || {})[x.id][n]}</span>` : ''}</td>`).join('')}<td>${ds.length >= 3 ? '<span class="chip" style="background:#E8F5E9;color:#007A38;font-weight:700">Đủ 3 đợt</span>' : `<span style="color:var(--dim)">Thiếu đợt ${[1, 2, 3].filter(n => !ds.includes(n)).join(', ')}</span>`}</td></tr>`; }).join('')}
       </tbody></table></div>
       <div class="m-only mlist">${trackerRows.map(x => { const ds = dots[x.id] || []; return `<article class="mcard" data-dotname="${esc(normText(x.name + ' ' + x.code))}"><div style="display:flex;justify-content:space-between;gap:8px"><p style="margin:0;font-weight:700">${esc(x.name)}${x.muaLL ? ' <span class="chip" style="background:#FFF3E0;color:#E65100">Mua LL</span>' : ''}</p><span style="font-size:12px;color:var(--dim)">${esc(x.courseCode)}</span></div><p style="margin:6px 0 0;font-size:14.5px">${[1, 2, 3].map(n => `<button type="button" class="dot-btn" style="font-size:14.5px;padding:4px 2px" onclick="askDot_(${x.id},${n},${ds.includes(n) ? 'false' : 'true'},false)" aria-label="Tick Đợt ${n}">${ds.includes(n) ? '☑' : '☐'} Đợt ${n}${ds.includes(n) ? ' <span style="font-size:10px">🔒</span>' : ''}</button>`).join(' · ')}</p><p style="margin:2px 0 0;font-size:12.5px;color:var(--dim)">${ds.length >= 3 ? 'Đủ 3 đợt' : 'Thiếu đợt ' + [1, 2, 3].filter(n => !ds.includes(n)).join(', ')}</p></article>`; }).join('')}</div>
     `)}
