@@ -404,7 +404,7 @@ async function apiPost(action, params) {
 // Các action ít đổi được cache trong bộ nhớ theo khóa action + tham số đã sắp xếp.
 // Ghi thành công qua write() sẽ xóa toàn bộ cache đọc để tránh dữ liệu cũ.
 // Cần bỏ qua cache: gọi call(action, params, { force: true }) hoặc refresh(true).
-const CACHEABLE_ACTIONS = new Set(['liststudents', 'listcenters', 'listexamrounds', 'getfleet', 'getdatsummary', 'listexams', 'listpayments', 'getreports', 'getgovreports', 'listnotifications', 'listadmissions', 'listfuellogs', 'listschedules', 'getcenterinfo', 'getprices']);
+const CACHEABLE_ACTIONS = new Set(['liststudents', 'listcenters', 'listexamrounds', 'getfleet', 'getdatsummary', 'listexams', 'listpayments', 'getdots', 'getreports', 'getgovreports', 'listnotifications', 'listadmissions', 'listfuellogs', 'listschedules', 'getcenterinfo', 'getprices']);
 const READ_CACHE = new Map();
 const INFLIGHT = new Map(); // gộp các request trùng action+params đang bay — tránh gọi API 2-3 lần giống hệt nhau
 const RANGE_CACHE = new Map(); // cache listschedulesrange theo khóa from|to (ScheduleViews)
@@ -463,7 +463,7 @@ const WB_EXAM = { r: ['listexams', 'listexamrounds', 'getdashboard', 'getreports
 const WRITE_INVALIDATES = {
   createschedule: WB_SCHED, updateschedule: WB_SCHED, deleteschedule: WB_SCHED,
   savestudent: WB_STUD, setstudentstatus: WB_STUD, transferstudentcourse: WB_STUD, enrolladmission: WB_STUD,
-  addpayment: { r: ['listpayments', 'liststudents', 'getdashboard', 'getreports', 'getgovreports'] },
+  addpayment: { r: ['listpayments', 'getdots', 'liststudents', 'getdashboard', 'getreports', 'getgovreports'] },
   saveteacher: { r: ['listschedules', 'getdatsummary'], range: 1, lk: 1 },
   savevehicle: { r: ['getfleet', 'listschedules'], range: 1, lk: 1 },
   savecenter: { r: ['listcenters', 'liststudents', 'listschedules'], range: 1, lk: 1 },
@@ -576,10 +576,10 @@ async function callSWR(action, params, onFresh) {
 // neu muc dang mo dung action do thi ve lai (giu vi tri cuon). Dang mo modal
 // hoac dang go trong o nhap thi bo qua — lan mo muc sau se thay ban moi.
 const VIEW_FRESH_ACTIONS = {
-  students: ['liststudents', 'listcenters', 'getlookups'],
+  students: ['liststudents', 'listcenters', 'getlookups', 'getdots'],
   dat: ['getdatsummary', 'listschedulesrange', 'listcenters'],
   progress: ['listschedulesrange'],
-  tuition: ['listpayments', 'liststudents', 'getprices'],
+  tuition: ['listpayments', 'liststudents', 'getprices', 'getdots'],
   exams: ['listexams', 'listexamrounds', 'getdatsummary'],
   fleet: ['getfleet', 'listfuellogs'],
   reports: ['getreports', 'getgovreports'],
@@ -2723,18 +2723,14 @@ function dotsFullFromPayments_(payments) {
 }
 function dotsFromPayments_(payments) { return dotsFullFromPayments_(payments).dots; }
 async function buildDots_() {
-  const months = [];
-  let y = 2026, m = 7;
-  const endY = Number(TODAY.slice(0, 4)), endM = Number(TODAY.slice(5, 7));
-  while (y < endY || (y === endY && m <= endM)) { months.push(y + '-' + String(m).padStart(2, '0')); m++; if (m > 12) { m = 1; y++; } }
-  const parts = await Promise.all(months.map(mo => call('listpayments', { month: mo }).catch(() => null)));
-  const byStu = {};
-  parts.forEach(r => ((r && r.payments) || []).forEach(pay => { (byStu[pay.studentId] = byStu[pay.studentId] || []).push(pay); }));
-  const out = {};
-  const mOut = {};
-  Object.keys(byStu).forEach(k => { const f = dotsFullFromPayments_(byStu[k]); out[k] = f.dots; mOut[k] = f.methods; });
-  window._DOTM = mOut;
-  return out;
+  // 1 call getdots ở backend (gập toàn bộ ThanhToan phía server) thay cho
+  // quét listpayments từng tháng như trước — nhanh hơn nhiều, không phình theo thời gian.
+  try {
+    const r = await call('getdots', {});
+    window._DOTS = (r && r.dots) || {};
+    window._DOTM = (r && r.methods) || {};
+  } catch (e) { window._DOTS = {}; window._DOTM = {}; }
+  return window._DOTS;
 }
 const isTickKind_ = (k) => /^(Tick đợt|Bỏ tick đợt)/.test(k || '');
 function dotText_(dots) { return [1, 2, 3].map(n => `${(dots || []).includes(n) ? '☑' : '☐'} Đợt ${n}`).join(' · '); }
@@ -3382,6 +3378,7 @@ RENDERERS.exams = async (main) => {
     ${ExamRoundsHtml(roundsData)}
     ${GraduationHtml()}
   </div>`;
+  setTimeout(() => { if (state.view === 'exams') gradLoad(); }, 0);
 };
 function ExamRoundsHtml(data) {
   const rounds = data.rounds || [];
@@ -3488,7 +3485,7 @@ async function gradLoad() {
     host.innerHTML = rows.length === 0
       ? '<p style="padding:16px 0;text-align:center;font-size:14px;color:var(--dim);margin:0">Khóa này chưa có học viên.</p>'
       : `<div class="stack-sm">${rows.map(s => `<div class="card-pad stack-sm" style="background:var(--surface-alt)">
-          <div class="row-wrap"><b>${esc(s.name)}</b> <span style="font-size:13.5px;color:var(--dim)">(${esc(s.code)} · ${esc(s.courseCode)} · Hạng ${esc(s.licenseClass)})</span> ${StatusChip(s)}</div>
+          <div class="row-wrap"><b>${esc(s.name)}</b> <span style="font-size:13.5px;color:var(--dim)">(${esc(s.code)} · ${esc(s.courseCode)} · Hạng ${esc(s.licenseClass)})</span> ${StatusChip(s.status)}</div>
           <div class="row-wrap" style="font-size:14px">
             <label>Ngày thi TN <input type="date" value="${esc(s.gradExamDate || '')}" class="input input-sm" style="max-width:150px" data-grad="${s.id}" data-f="examDate"></label>
             <label>Kết quả TN <select class="select select-sm" style="max-width:130px" data-grad="${s.id}" data-f="result" onchange="gradSaveSel(${s.id})">${['Chưa thi', 'Đậu', 'Rớt', 'Vắng'].map(o => `<option ${o === (s.gradResult || 'Chưa thi') ? 'selected' : ''}>${o}</option>`).join('')}</select></label>
