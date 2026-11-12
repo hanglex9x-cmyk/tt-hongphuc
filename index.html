@@ -309,8 +309,11 @@ table.tbl-plain td{border-bottom:1px solid rgba(220,232,223,.6);padding:10px 8px
 .docpill:disabled{opacity:.5}
 
 /* ---------- Kỳ thi ---------- */
-.big-stat{border:2px solid;border-radius:16px;padding:16px}
-.big-stat .vl{font-size:36px;font-weight:800;line-height:1;margin:0}
+.big5{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.big5 .big-stat:last-child{grid-column:1 / -1}
+.big-stat{background:#fff;border:1px solid #DCE8DF;box-shadow:0 2px 10px rgba(0,60,30,.06);border-radius:16px;padding:14px 16px}
+.big-stat .lb{font-size:12.5px;font-weight:500;color:var(--dim);margin:0}
+.big-stat .vl{font-size:36px;font-weight:800;line-height:1;margin:6px 0 0}
 .reg-row{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px}
 
 /* ---------- Báo cáo ---------- */
@@ -3208,11 +3211,11 @@ RENDERERS.exams = async (main) => {
         ${zaloBtn('Lịch thi', 'Báo lịch thi cho HV đủ điều kiện', 'Tất cả học viên đủ điều kiện thi', `${CENTER.name} trân trọng thông báo tới quý học viên đủ điều kiện thi: kỳ thi sát hạch lái xe sẽ diễn ra ngày ${d.nextExamDate ? fmtDate(d.nextExamDate) : ''}. Quý học viên vui lòng tập trung tại trung tâm lúc 6h30, mang theo CCCD bản gốc. Mọi chi tiết liên hệ: ${CENTER.phone}.`)}
       </div>`)}
     <div class="big5">
-      <div class="big-stat" style="background:#E8F5E9"><p class="lb">Đủ điều kiện thi</p><p class="vl" style="font-size:28px;color:#007A38">${d.eligibleTotal} HV</p></div>
-      <div class="big-stat" style="background:#E8F5E9"><p class="lb">Đã thi &amp; đậu</p><p class="vl" style="font-size:28px;color:#007A38">${passedComputed} HV</p></div>
-      <div class="big-stat" style="background:#FFF8E1"><p class="lb">Đã đậu — chưa có bằng</p><p class="vl" style="font-size:28px;color:#B45309">${d.passedNoLicense} HV</p></div>
-      <div class="big-stat" style="background:#E3F2FD"><p class="lb">Đã có bằng</p><p class="vl" style="font-size:28px;color:#1E3A8A">${d.licensedCount} HV</p></div>
-      <div class="big-stat" style="background:#E8F5E9"><p class="lb">Tỷ lệ đậu</p><p class="vl" style="font-size:28px;color:#007A38">${d.passRate}%</p></div>
+      <div class="big-stat"><p class="lb">Đủ điều kiện thi</p><p class="vl" style="font-size:28px;color:#007A38">${d.eligibleTotal} HV</p></div>
+      <div class="big-stat"><p class="lb">Đã thi &amp; đậu</p><p class="vl" style="font-size:28px;color:#007A38">${passedComputed} HV</p></div>
+      <div class="big-stat"><p class="lb">Đã đậu — chưa có bằng</p><p class="vl" style="font-size:28px;color:#B45309">${d.passedNoLicense} HV</p></div>
+      <div class="big-stat"><p class="lb">Đã có bằng</p><p class="vl" style="font-size:28px;color:#1E3A8A">${d.licensedCount} HV</p></div>
+      <div class="big-stat"><p class="lb">Tỷ lệ đậu</p><p class="vl" style="font-size:28px;color:#007A38">${d.passRate}%</p></div>
     </div>
     ${Section('Danh sách học viên theo 5 điều kiện & kết quả thi', 'Chuyển qua lại 2 danh sách: HV đủ điều kiện thi và toàn bộ kết quả thi đã ghi nhận', `
       <div class="row-wrap" style="margin-bottom:12px">
