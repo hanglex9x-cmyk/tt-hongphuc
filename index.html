@@ -360,7 +360,7 @@ function apiGet(action, params) {
     const qs = new URLSearchParams({ action, callback: cb });
     Object.entries(params || {}).forEach(([k, v]) => { if (v !== undefined && v !== null && v !== '') qs.set(k, typeof v === 'object' ? JSON.stringify(v) : String(v)); });
     const sc = document.createElement('script');
-    const timer = setTimeout(() => { cleanup(); reject(new Error('Quá thời gian chờ API')); }, 60000);
+    const timer = setTimeout(() => { cleanup(); reject(new Error('Quá thời gian chờ API')); }, 30000);
     function cleanup() { clearTimeout(timer); try { delete window[cb]; } catch (e) {} sc.remove(); }
     window[cb] = (data) => { cleanup(); resolve(data); };
     sc.onerror = () => { cleanup(); reject(new Error('Không gọi được API')); };
@@ -383,7 +383,7 @@ async function apiPost(action, params) {
 // Các action ít đổi được cache trong bộ nhớ theo khóa action + tham số đã sắp xếp.
 // Ghi thành công qua write() sẽ xóa toàn bộ cache đọc để tránh dữ liệu cũ.
 // Cần bỏ qua cache: gọi call(action, params, { force: true }) hoặc refresh(true).
-const CACHEABLE_ACTIONS = new Set(['liststudents', 'listcenters', 'listexamrounds', 'getfleet', 'getdatsummary', 'listexams', 'listpayments', 'getreports', 'getgovreports', 'listnotifications', 'listadmissions', 'listfuellogs', 'listschedules', 'getcenterinfo']);
+const CACHEABLE_ACTIONS = new Set(['liststudents', 'listcenters', 'listexamrounds', 'getfleet', 'getdatsummary', 'listexams', 'listpayments', 'getreports', 'getgovreports', 'listnotifications', 'listadmissions', 'listfuellogs', 'listschedules', 'getcenterinfo', 'getprices']);
 const READ_CACHE = new Map();
 const INFLIGHT = new Map(); // gộp các request trùng action+params đang bay — tránh gọi API 2-3 lần giống hệt nhau
 const RANGE_CACHE = new Map(); // cache listschedulesrange theo khóa from|to (ScheduleViews)
@@ -392,13 +392,18 @@ async function callRange_(from, to) {
   const rkey = from + '|' + to;
   if (RANGE_CACHE.has(rkey)) return RANGE_CACHE.get(rkey);
   if (RANGE_INFLIGHT.has(rkey)) return RANGE_INFLIGHT.get(rkey);
+  const sKey = swrKey('listschedulesrange', { from, to });
+  const stored = lsGetSWR(sKey);
   const p = (async () => {
     const rr = await call('listschedulesrange', { from, to });
     RANGE_CACHE.set(rkey, rr);
+    lsSetSWR(sKey, rr);
+    if (stored && JSON.stringify(rr) !== JSON.stringify(stored)) notifyFresh_('listschedulesrange');
     return rr;
   })();
   RANGE_INFLIGHT.set(rkey, p);
   p.catch(() => {}).then(() => { if (RANGE_INFLIGHT.get(rkey) === p) RANGE_INFLIGHT.delete(rkey); });
+  if (stored) { RANGE_CACHE.set(rkey, stored); return stored; }
   return p;
 }
 function readCacheKey(action, params) {
@@ -451,13 +456,13 @@ const WRITE_INVALIDATES = {
   removeroundregistration: { r: ['listexams', 'liststudents', 'getdashboard'] },
   updatelicensestatus: { r: ['liststudents', 'getdashboard', 'getreports', 'listexams'] },
   sendnotification: { r: ['listnotifications'] },
-  saveprices: { r: [] },
+  saveprices: { r: ['getprices'] },
 };
 function invalidateForWrite_(action) {
   const spec = WRITE_INVALIDATES[action];
   if (!spec) { clearReadCache(); return; }
   bustReads_(spec.r);
-  if (spec.range) { RANGE_CACHE.clear(); CONF = null; }
+  if (spec.range) { RANGE_CACHE.clear(); CONF = null; try { const ks = []; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith('hp_swr_') && k.includes('listschedulesrange')) ks.push(k); } ks.forEach(k => localStorage.removeItem(k)); } catch (e) {} }
   if (spec.lk) LK = null;
   if (spec.ds) { try { DS.data = null; } catch (e) {} window._DASH_SP = null; window._DASH = null; }
 }
@@ -466,17 +471,36 @@ async function call(action, params, opts) {
   const key = cacheable ? readCacheKey(action, params) : null;
   if (cacheable && READ_CACHE.has(key)) return READ_CACHE.get(key);
   if (cacheable && INFLIGHT.has(key)) return INFLIGHT.get(key);
-  const p = (async () => {
+  if (!cacheable) {
     const r = await apiGet(action, params);
     if (r && r.ok === false) throw new Error(r.error || 'Lỗi không xác định');
-    if (cacheable) READ_CACHE.set(key, r);
     return r;
-  })();
-  if (cacheable) {
+  }
+  const fetchFresh = () => {
+    const p = (async () => {
+      const r = await apiGet(action, params);
+      if (r && r.ok === false) throw new Error(r.error || 'Lỗi không xác định');
+      READ_CACHE.set(key, r);
+      return r;
+    })();
     INFLIGHT.set(key, p);
     p.catch(() => {}).then(() => { if (INFLIGHT.get(key) === p) INFLIGHT.delete(key); });
+    return p;
+  };
+  // SWR (12/11): co ban luu tren may thi tra NGAY de ve man hinh tuc thi, dong
+  // thoi goi API o nen; du lieu moi khac ban da hien thi notifyFresh_ ve lai.
+  const sKey = swrKey(action, params);
+  const stored = lsGetSWR(sKey);
+  if (stored !== null && stored !== undefined) {
+    fetchFresh().then(fresh => {
+      lsSetSWR(sKey, fresh);
+      if (JSON.stringify(fresh) !== JSON.stringify(stored)) notifyFresh_(action);
+    }).catch(() => {});
+    return stored;
   }
-  return p;
+  const r = await fetchFresh();
+  lsSetSWR(sKey, r);
+  return r;
 }
 async function write(action, params) {
   const r = await apiPost(action, params);
@@ -526,6 +550,36 @@ async function callSWR(action, params, onFresh) {
   }
   return net;
 }
+// ---------- Dong bo nen xong thi ve lai muc dang mo ----------
+// call()/callRange_ thay du lieu moi khac ban vua hien thi se goi notifyFresh_;
+// neu muc dang mo dung action do thi ve lai (giu vi tri cuon). Dang mo modal
+// hoac dang go trong o nhap thi bo qua — lan mo muc sau se thay ban moi.
+const VIEW_FRESH_ACTIONS = {
+  students: ['liststudents', 'listcenters', 'getlookups'],
+  dat: ['getdatsummary', 'listschedulesrange', 'listcenters'],
+  progress: ['listschedulesrange'],
+  tuition: ['listpayments', 'liststudents', 'getprices'],
+  exams: ['listexams', 'listexamrounds', 'getdatsummary'],
+  fleet: ['getfleet', 'listfuellogs'],
+  reports: ['getreports', 'getgovreports'],
+  admissions: ['listadmissions'],
+  alerts: ['listnotifications'],
+};
+let freshTimer_ = null;
+function notifyFresh_(action) {
+  const acts = VIEW_FRESH_ACTIONS[state.view];
+  if (!acts || !acts.includes(action)) return;
+  if (modalOpen_()) return;
+  const ae = document.activeElement;
+  const vw = document.getElementById('view');
+  if (ae && vw && vw.contains(ae) && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) return;
+  if (freshTimer_) return;
+  freshTimer_ = setTimeout(() => {
+    freshTimer_ = null;
+    const a2 = VIEW_FRESH_ACTIONS[state.view];
+    if (!modalOpen_() && a2 && a2.includes(action)) go(state.view, undefined, { keepScroll: true });
+  }, 300);
+}
 // ---------- Prefetch nền (01/11: nạp sẵn dữ liệu của 5 mục trên thanh chọn nhanh) ----------
 // Sau khi dashboard render xong lần đầu (và chỉ 1 lần/phiên), nạp sẵn vào
 // cache client đúng dữ liệu 5 mục ở thanh dưới (Tổng quan · Học viên · Lịch
@@ -557,6 +611,16 @@ function prefetchWarm_() {
       callRange_(ym + '-01', ym + '-31')
     ];
     jobs.forEach(p => { Promise.resolve(p).catch(() => {}); });
+    // Dot 2 (12/11): nap nen not cac muc con lai, lech pha de khong tranh tai
+    // voi dot 1 — nho lop SWR moi, cac muc nay o lan mo app sau cung hien ngay.
+    setTimeout(() => {
+      [call('listpayments', {}), call('listadmissions', {}), call('listnotifications', {}), call('getprices', {})]
+        .forEach(p => { Promise.resolve(p).catch(() => {}); });
+    }, 2500);
+    setTimeout(() => {
+      [call('getreports', {}), call('getgovreports', {}), call('getfleet', {}), call('listfuellogs', {})]
+        .forEach(p => { Promise.resolve(p).catch(() => {}); });
+    }, 5000);
   };
   if (typeof requestIdleCallback === 'function') requestIdleCallback(() => { run(); }, { timeout: 3000 });
   else setTimeout(run, 1500);
