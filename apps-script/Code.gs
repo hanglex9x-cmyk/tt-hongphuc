@@ -545,6 +545,23 @@ function apiListPayments(p) {
     totalDebtAll: core.reduce((a, s) => a + s.tuitionPayable, 0) - core.reduce((a, s) => a + s.tuitionPaid, 0)
   };
 }
+function apiGetBootstrap(p) {
+  // Gop toan bo du lieu khoi dong thanh 1 lan goi: frontend chi goi action nay
+  // khi mo app (may moi / het cache), cac muc dung lai payload da do vao cache.
+  p = p || {};
+  const month = String(p.month || '').slice(0, 7) || Utilities.formatDate(new Date(), 'Asia/Ho_Chi_Minh', 'yyyy-MM');
+  return {
+    dashboard: apiGetDashboard(),
+    students: apiListStudents({ page: 1, pageSize: 10, onlyEligible: false }),
+    students20: apiListStudents({ page: 1, pageSize: 20 }),
+    students200: apiListStudents({ page: 1, pageSize: 200 }),
+    payments: apiListPayments({ month: month }),
+    dots: apiGetDots(),
+    lookups: apiGetLookups(),
+    prices: apiGetPrices(),
+    centers: apiListCenters()
+  };
+}
 function apiGetDots() {
   // Gom tick 3 đợt cho MỌI học viên trong 1 lần đọc ThanhToan (thay cho việc
   // frontend quét listpayments từng tháng). Ngữ nghĩa fold KHỚP parser frontend:
@@ -1393,6 +1410,7 @@ function apiCheckCccd(p) {
 // ---------- Router ----------
 const READ_ACTIONS = {
   getdashboard: apiGetDashboard, getdatsummary: apiGetDatSummary,
+  getbootstrap: apiGetBootstrap,
   liststudents: apiListStudents, getstudent: apiGetStudent,
   listschedules: apiListSchedules, listschedulesrange: apiListSchedulesRange,
   listconflicts: apiListConflicts, listpayments: apiListPayments, getdots: apiGetDots,
@@ -1534,7 +1552,7 @@ function route_(action, params) {
   if (READ_ACTIONS[a]) {
     const p = params || {};
     const key = readCacheKey_(a, p);
-    const keyOk = key.length <= 240; // giới hạn khóa CacheService: 250 ký tự
+    const keyOk = key.length <= 240 && a !== 'getbootstrap'; // bootstrap khong cache server: luon tinh moi de khong bao gio lech sau ghi // giới hạn khóa CacheService: 250 ký tự
     if (keyOk) {
       const hit = cacheGet_(key);
       if (hit) { try { return JSON.parse(hit); } catch (e) { /* JSON hỏng thì tính mới */ } }
