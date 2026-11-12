@@ -180,6 +180,7 @@ table.tbl-plain td{border-bottom:1px solid rgba(220,232,223,.6);padding:10px 8px
 .alert-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px;border-radius:12px;border-left:4px solid #ccc;padding:8px 12px;font-size:14px;width:100%;text-align:left;background:none;border-top:none;border-right:none;border-bottom:none;font-family:inherit;color:var(--text)}
 .gantt-track{position:relative;height:32px;border-radius:8px;background:var(--surface-alt)}
 .gantt-seg{position:absolute;top:4px;height:24px;display:flex;align-items:center;overflow:hidden;border-radius:6px;padding:0 8px;font-size:11px;font-weight:600;white-space:nowrap}
+.gantt-seg.seg-mini{font-size:10px;padding:0 5px}
 .heat-head{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center;font-size:11px;font-weight:600;color:var(--dim)}
 .heat-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:4px}
 .heat-cell{display:flex;min-height:44px;flex-direction:column;align-items:center;justify-content:center;border-radius:8px;font-size:14px;font-weight:600;border:none;background:var(--surface-alt);color:var(--dim)}
@@ -1519,18 +1520,21 @@ function paintDashboard_(main, d) {
   const firstDow = (new Date(utcMs(heatStart)).getUTCDay() + 6) % 7;
   const octDays = Array.from({ length: lastDayOf(heatStart) }, (_, i) => `${heatStart.slice(0, 8)}${String(i + 1).padStart(2, '0')}`);
   const gantt = (d.gantt || []).map(g => {
-    const g2Raw = g.openDate ? addDays(g.openDate, 84) : g.closeDate;
-    const g2End = (g.closeDate && g2Raw && g2Raw > g.closeDate) ? g.closeDate : g2Raw;
+    const g2End = g.openDate ? addDays(g.openDate, 84) : g.closeDate;
     const pLtS = ganttPct(g.ltStart), pLtE = ganttPct(g.ltEnd || g.thStart);
     const pThS = ganttPct(g.thStart), pG2E = ganttPct(g2End), pClose = ganttPct(g.closeDate);
     const segW = (a, b) => Math.max(0, Math.min(Math.max(6, Math.min(b, 100) - a), 100 - a));
-    const g3W = Math.max(0, pClose - pG2E);
-    const g3L = g3W >= 6 ? pG2E : Math.max(pThS, pClose - 3.5);
+    const g3Natural = pClose - pG2E;
+    const g3Cap = g3Natural < 8;
+    const g3L = g3Cap ? Math.min(pG2E, 92) : pG2E;
+    const g3W = g3Cap ? Math.min(8, 100 - g3L) : g3Natural;
+    const mini = w => w < 10 ? ' seg-mini' : '';
+    const wLt = segW(pLtS, pLtE), wTh = segW(pThS, pG2E);
     const segs = (g.ltStart && g.thStart) ? `
       <div class="gantt-track">
-        <div class="gantt-seg" style="left:${pLtS}%;width:${segW(pLtS, pLtE)}%;background:${BRAND.green};color:#fff">Lý thuyết</div>
-        <div class="gantt-seg" style="left:${pThS}%;width:${segW(pThS, pG2E)}%;background:${BRAND.amber};color:#111827">DAT + Sa hình</div>
-        <div class="gantt-seg" style="left:${g3L}%;width:${pClose - g3L}%;background:${BRAND.navy};color:#fff">Ôn + Thi</div>
+        <div class="gantt-seg${mini(wLt)}" style="left:${pLtS}%;width:${wLt}%;background:${BRAND.green};color:#fff">Lý thuyết</div>
+        <div class="gantt-seg${mini(wTh)}" style="left:${pThS}%;width:${wTh}%;background:${BRAND.amber};color:#111827">DAT + Sa hình</div>
+        <div class="gantt-seg${mini(g3W)}" style="left:${g3L}%;width:${g3W}%;background:${BRAND.navy};color:#fff">Ôn + Thi</div>
       </div>` : '<p style="border-radius:8px;background:var(--surface-alt);padding:8px 12px;font-size:12px;color:var(--dim);margin:0">Chưa có dữ liệu giai đoạn học (lý thuyết/thực hành) cho khóa này.</p>';
     return `<div><div style="display:flex;align-items:baseline;justify-content:space-between;font-size:14px;margin-bottom:4px;gap:8px;flex-wrap:wrap"><b>${esc(g.code)} — Hạng ${esc(g.licenseClass)}</b><span style="color:var(--dim)">${g.studentCount} HV · KG ${g.openDate ? fmtDate(g.openDate) : '—'} · Hạn ${g.closeDate ? fmtDate(g.closeDate) : '—'}</span></div>${segs}</div>`;
   }).join('');
