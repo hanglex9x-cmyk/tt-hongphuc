@@ -3577,6 +3577,13 @@ RENDERERS.alerts = async (main) => {
   const docCount = d.vehicleDocAlerts ? d.vehicleDocAlerts.count : docRows.length;
   const svcRows = (d.vehicleServiceAlerts && d.vehicleServiceAlerts.rows) || [];
   const svcCount = d.vehicleServiceAlerts ? d.vehicleServiceAlerts.count : svcRows.length;
+  const alertList_ = (rows, rowHtml, emptyMsg) => {
+    if (!rows.length) return `<p style="font-size:14px;color:var(--dim);margin:0">${emptyMsg}</p>`;
+    const head = rows.slice(0, 5).map(rowHtml).join('');
+    if (rows.length <= 5) return head;
+    const uid = 'almore' + Math.random().toString(36).slice(2, 8);
+    return `${head}<div id="${uid}" class="stack-sm" style="display:none;margin-top:8px">${rows.slice(5).map(rowHtml).join('')}</div><button type="button" class="btn" style="margin-top:8px" onclick="var m=document.getElementById('${uid}');var open=m.style.display!=='none';m.style.display=open?'none':'';this.textContent=open?'+ Xem thêm ${rows.length - 5}':'− Thu gọn'">+ Xem thêm ${rows.length - 5}</button>`;
+  };
   main.innerHTML = `<div class="stack">
     ${Section('Cảnh báo tự động', 'Hệ thống tự quét mỗi lần mở app: lịch trùng, DAT chưa đủ / sắp hết hạn, mốc km, xe quá giờ, bằng đã có mà chưa báo', `
       <div class="stack-sm">
@@ -3595,13 +3602,13 @@ RENDERERS.alerts = async (main) => {
       </div>
 `)}
     ${Section(`Chưa học cabin — ${cabinCount} HV`, 'HV chưa có buổi Cabin nào trong lịch — nhắc học đủ 3h cabin trước khi thi tốt nghiệp', `
-      ${cabinRows.map(a => `<div class="alert-row" style="background:#FFF8E1;color:#8D6E00"><span style="flex:1"><b>${esc(a.name)}</b> · ${esc(a.code)} · ${esc(a.courseCode)} · GV phụ trách: ${esc(a.homeTeacherName || '—')}</span></div>`).join('') || '<p style="font-size:14px;color:var(--dim);margin:0">Không có HV nào chưa học cabin.</p>'}`)}
+      ${alertList_(cabinRows, a => `<div class="alert-row" style="background:#FFF8E1;color:#8D6E00"><span style="flex:1"><b>${esc(a.name)}</b> · ${esc(a.code)} · ${esc(a.courseCode)} · GV phụ trách: ${esc(a.homeTeacherName || '—')}</span></div>`, 'Không có HV nào chưa học cabin.')}`)}
     ${Section(`Giấy khám sức khỏe sắp hết hạn / đã hết hạn — ${healthCount} HV`, 'Giấy khám SK có hạn 12 tháng — quá hạn là hồ sơ thi không hợp lệ, phải khám lại trước đợt thi', `
-      ${healthRows.map(a => { const dl = daysBetween(TODAY, a.healthExpiry); return `<div class="alert-row" style="background:#FFF8E1;color:#8D6E00"><span style="flex:1"><b>${esc(a.name)}</b> · ${esc(a.code)} · Hết hạn ${fmtDate(a.healthExpiry)} (${dl < 0 ? `đã quá ${-dl} ngày` : `còn ${dl} ngày`})</span><span class="chip" style="background:#fff;color:#8D6E00;font-weight:700">${healthState(dl)}</span></div>`; }).join('') || '<p style="font-size:14px;color:var(--dim);margin:0">Không có giấy khám SK nào sắp hết hạn.</p>'}`)}
+      ${alertList_(healthRows, a => { const dl = daysBetween(TODAY, a.healthExpiry); return `<div class="alert-row" style="background:#FFF8E1;color:#8D6E00"><span style="flex:1"><b>${esc(a.name)}</b> · ${esc(a.code)} · Hết hạn ${fmtDate(a.healthExpiry)} (${dl < 0 ? `đã quá ${-dl} ngày` : `còn ${dl} ngày`})</span><span class="chip" style="background:#fff;color:#8D6E00;font-weight:700">${healthState(dl)}</span></div>`; }, 'Không có giấy khám SK nào sắp hết hạn.')}`)}
     ${Section(`Giấy tờ xe sắp hết hạn — ${docCount} mục`, 'Đăng kiểm, bảo hiểm TNDS và phù hiệu xe tập lái — quá hạn là xe không được ra sân/đường trường', `
-      ${docRows.map(a => `<div class="alert-row" style="background:#FDECEA;color:#E53935"><span style="flex:1"><b>${esc(a.plate)}</b> · ${esc(a.docLabel)} hết hạn ${fmtDate(a.expiryDate)} (${a.daysLeft < 0 ? `đã quá ${-a.daysLeft} ngày` : `còn ${a.daysLeft} ngày`})</span><span class="chip" style="background:#fff;color:#E53935;font-weight:700">${esc(a.state || 'Sắp hết hạn')}</span></div>`).join('') || '<p style="font-size:14px;color:var(--dim);margin:0">Không có giấy tờ xe nào sắp hết hạn.</p>'}`)}
+      ${alertList_(docRows, a => `<div class="alert-row" style="background:#FDECEA;color:#E53935"><span style="flex:1"><b>${esc(a.plate)}</b> · ${esc(a.docLabel)} hết hạn ${fmtDate(a.expiryDate)} (${a.daysLeft < 0 ? `đã quá ${-a.daysLeft} ngày` : `còn ${a.daysLeft} ngày`})</span><span class="chip" style="background:#fff;color:#E53935;font-weight:700">${esc(a.state || 'Sắp hết hạn')}</span></div>`, 'Không có giấy tờ xe nào sắp hết hạn.')}`)}
     ${Section(`Xe tới hạn bảo dưỡng theo km — ${svcCount} xe`, 'Bảo dưỡng mỗi 5.000 km theo km đồng hồ — xe gần tới hạn nên xếp lịch bảo dưỡng sớm', `
-      ${svcRows.map(a => `<div class="alert-row" style="background:#FFF8E1;color:#8D6E00"><span style="flex:1"><b>${esc(a.plate)}</b> · Km đồng hồ ${fmtKm(a.odometerKm)} km · Còn <b>${fmtKm(a.remainingKm)} km</b> tới bảo dưỡng</span></div>`).join('') || '<p style="font-size:14px;color:var(--dim);margin:0">Không có xe nào sắp tới hạn bảo dưỡng.</p>'}`)}
+      ${alertList_(svcRows, a => `<div class="alert-row" style="background:#FFF8E1;color:#8D6E00"><span style="flex:1"><b>${esc(a.plate)}</b> · Km đồng hồ ${fmtKm(a.odometerKm)} km · Còn <b>${fmtKm(a.remainingKm)} km</b> tới bảo dưỡng</span></div>`, 'Không có xe nào sắp tới hạn bảo dưỡng.')}`)}
     ${Section('Gửi thông báo Zalo OA', 'Bấm nút là gửi ngay qua Zalo OA của trung tâm tới đúng nhóm học viên', `
       <div class="row-wrap">
         ${zaloBtn('Lịch học', 'Báo lịch học ngày mai', 'Tất cả học viên có lịch ngày mai', `${CENTER.name} kính gửi quý học viên lịch học ngày mai (${fmtDate(addDays(TODAY, 1))}): vui lòng xem chi tiết buổi học, giờ học và giáo viên phụ trách trong app học viên. Học viên có mặt trước giờ học 10 phút, mang theo thẻ học viên. Mọi thay đổi vui lòng báo trước 1 buổi học.`)}
