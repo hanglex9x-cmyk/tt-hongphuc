@@ -1406,22 +1406,26 @@ function barChartSvg(data, series, height) {
   height = height || 240;
   if (!data.length) return '';
   const W = 720, H = height, padL = 44, padB = 26, padT = 14;
-  const max = Math.max(1, ...data.flatMap(d => series.map(s => Math.abs(Number(d[s.key]) || 0))));
+  const allVals = data.flatMap(d => series.map(s => Number(d[s.key]) || 0));
+  const max = Math.max(1, ...allVals), min = Math.min(0, ...allVals);
   const iw = W - padL - 8, ih = H - padB - padT;
   const groupW = iw / data.length;
   const bw = Math.min(26, (groupW - 14) / series.length);
+  const range = max - min || 1;
+  const yOf = (v) => padT + ih * (max - v) / range;
+  const y0 = yOf(0);
   let g = '';
   for (let i = 0; i <= 4; i++) {
-    const v = max * i / 4, y = padT + ih - ih * i / 4;
+    const v = min + range * i / 4, y = yOf(v);
     g += `<line x1="${padL}" y1="${y}" x2="${W - 8}" y2="${y}" stroke="#e5e7eb" stroke-dasharray="3 3"/><text x="${padL - 6}" y="${y + 4}" font-size="11" fill="#4B6656" text-anchor="end">${Math.round(v)}</text>`;
   }
+  g += `<line x1="${padL}" y1="${y0}" x2="${W - 8}" y2="${y0}" stroke="#9CA3AF" stroke-width="1.2"/>`;
   data.forEach((d, di) => {
     series.forEach((s, si) => {
       const v = Number(d[s.key]) || 0;
-      const h = Math.max(0, ih * v / max), hNeg = Math.max(0, ih * (-v) / max);
       const x = padL + di * groupW + (groupW - bw * series.length) / 2 + si * bw;
-      const y = v >= 0 ? padT + ih - h : padT + ih;
-      const hh = v >= 0 ? h : hNeg;
+      const y = v >= 0 ? yOf(v) : y0;
+      const hh = Math.abs(yOf(v) - y0);
       if (hh > 0) g += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw}" height="${hh.toFixed(1)}" rx="3" fill="${s.color}"><title>${esc(d.month || d.label || '')} · ${esc(s.name)}: ${v}tr</title></rect>`;
     });
     g += `<text x="${(padL + di * groupW + groupW / 2).toFixed(1)}" y="${H - 8}" font-size="11" fill="#4B6656" text-anchor="middle">${esc(d.month || d.label || '')}</text>`;
@@ -1908,7 +1912,7 @@ function renderStudentDetail_(s, q) {
       ${exam.note ? `<p style="margin-top:6px;font-size:14px;color:var(--dim)">Ghi chú: ${esc(exam.note)}</p>` : ''}
       ${exam.theory === 'Đậu' && exam.sahinh === 'Đậu' && exam.road === 'Đậu' ? `<p style="margin-top:6px;font-size:14px">Bằng lái hạng <b>${esc(s.licenseClass)}</b> · Ngày thi đậu: <b>${fmtDate(exam.examDate)}</b> · ${s.hasLicense ? `Trạng thái bằng: <b style="color:#00893D">Đã có bằng</b> — ngày có bằng: <b>${fmtDate(s.licenseDate)}</b>` : 'Trạng thái bằng: <b>Chưa có bằng</b> <span style="color:var(--dim)">(bằng chưa về trung tâm — cập nhật ở module Kỳ thi sát hạch)</span>'}</p>` : ''}
     </div>` : '';
-    const paysList = q ? (q.payments || []) : null;
+    const paysList = q ? (q.payments || []).filter(p => !isTickKind_(p.kind)) : null;
     const payLi = p => `<li class="reg-row" style="padding:5px 0;border-bottom:1px solid var(--border);font-size:13px"><span>${fmtDate(p.date)} · ${esc(p.note || '')} · ${esc(p.method || '')}${p.kmDeducted > 0 ? ` · Đã trừ ${p.kmDeducted}KM` : ''}${p.kind && p.kind !== 'Học phí' ? `<span class="chip" style="background:#FFF8E1;color:#B45309;margin-left:4px">${esc(p.kind)}</span>` : ''}</span></li>`;
     const tuitionRows = s.muaLL ? '<p class="reg-row" style="margin:0"><span style="color:var(--dim)">Học viên Mua LL — GV tự thu học phí, không qua trung tâm nên trung tâm không tính học phí cho học viên này.</span></p>' : `<p class="reg-row" style="margin:0"><span style="color:var(--dim)">Đóng học phí theo đợt</span><span style="font-size:14.5px">${dotBtns_(s.id, myDots, true)}</span></p>
           <p class="reg-row" style="margin:0"><span style="color:var(--dim)">Tiến độ đóng</span><b>${myDots.length}/3 đợt${myDots.length >= 3 ? ' — Đã đóng đủ' : ''}</b></p>`;
@@ -2704,7 +2708,7 @@ function dotsFullFromPayments_(payments) {
     if (mAdd || mOff) {
       const n = Number((mAdd || mOff)[1]);
       if (n < 1 || n > 3) return;
-      if (mAdd) { set.add(n); methods[n] = pay.method === 'Chuyển khoản' ? 'CK' : pay.method === 'Tiền mặt' ? 'TM' : ''; }
+      if (mAdd) { set.add(n); methods[n] = pay.method === 'Chuyển khoản' ? 'CK' : pay.method === 'Tiền mặt' ? 'TM' : pay.method === 'LL' ? 'LL' : ''; }
       else { set.delete(n); delete methods[n]; }
       return;
     }
@@ -2713,7 +2717,7 @@ function dotsFullFromPayments_(payments) {
     const n = Number(mm[1]);
     if (n < 1 || n > 3) return;
     if (kind === 'Hoàn phí') { set.delete(n); delete methods[n]; }
-    else if (kind === 'Học phí' || kind === 'Tick đợt') { set.add(n); methods[n] = pay.method === 'Chuyển khoản' ? 'CK' : pay.method === 'Tiền mặt' ? 'TM' : ''; }
+    else if (kind === 'Học phí' || kind === 'Tick đợt') { set.add(n); methods[n] = pay.method === 'Chuyển khoản' ? 'CK' : pay.method === 'Tiền mặt' ? 'TM' : pay.method === 'LL' ? 'LL' : ''; }
   });
   return { dots: [...set].sort((a, b) => a - b), methods };
 }
@@ -2732,6 +2736,7 @@ async function buildDots_() {
   window._DOTM = mOut;
   return out;
 }
+const isTickKind_ = (k) => /^(Tick đợt|Bỏ tick đợt)/.test(k || '');
 function dotText_(dots) { return [1, 2, 3].map(n => `${(dots || []).includes(n) ? '☑' : '☐'} Đợt ${n}`).join(' · '); }
 function dotMark_(on) { return on ? '<span class="dot-on">☑</span>' : '<span class="dot-off">☐</span>'; }
 async function dotWrite_(studentId, n, on, method) {
@@ -2798,6 +2803,7 @@ RENDERERS.tuition = async (main) => {
   const cntFull = trackerRows.filter(x => (dots[x.id] || []).length >= 3).length;
   const PRICES = Object.assign({ 'B1': 18000000, 'B2': 20000000, 'C1': 25000000, 'C': 24000000, 'Nâng dấu': 13000000 }, pricesR.prices || {});
   window._TUI_PAYS = pays;
+  const histPays = (pays.payments || []).filter(p => !isTickKind_(p.kind));
   window._TUI_STUS = stuQ.students || [];
   const feesMonth = (pays.payments || []).filter(p => p.kind && p.kind !== 'Học phí' && p.amount > 0).reduce((a, p) => a + p.amount, 0);
   const feeCards = [
@@ -2832,7 +2838,7 @@ RENDERERS.tuition = async (main) => {
         <div class="stat-card"><p class="lb">Đủ cả 3 đợt</p><p class="vl" style="font-size:20px;color:${BRAND.navy}">${cntFull} HV</p></div>
       </div>
       <div class="d-only tbl-wrap"><table class="tbl"><thead><tr><th>Ngày thu</th><th>Học viên</th><th>Ghi chú lần thu</th><th>Phương thức</th><th>KM đã chạy (trừ)</th><th></th></tr></thead><tbody>
-        ${(pays.payments || []).slice(0, 40).map((p, i) => `<tr class="${i % 2 ? 'alt' : ''}">
+        ${histPays.slice(0, 40).map((p, i) => `<tr class="${i % 2 ? 'alt' : ''}">
           <td>${fmtDate(p.date)}</td>
           <td><b>${esc(p.studentName)}</b> <span style="color:var(--dim)">(${esc(p.studentCode)} · ${esc(p.courseCode)})</span></td>
           <td>${esc(p.note || '')}${p.kind && p.kind !== 'Học phí' ? `<span class="chip" style="background:#FFF8E1;color:#B45309;margin-left:4px">${esc(p.kind)}</span>` : ''}</td>
@@ -2840,9 +2846,9 @@ RENDERERS.tuition = async (main) => {
           <td>${p.kmDeducted > 0 ? `-${p.kmDeducted}KM` : '—'}</td>
           <td><button type="button" class="btn btn-sm" onclick="printPaymentReceipt(${p.id})">In biên lai</button></td>
         </tr>`).join('')}
-        ${(pays.payments || []).length === 0 ? '<tr><td colspan="6" style="padding:24px;text-align:center;color:var(--dim)">Tháng này chưa có lần thu nào.</td></tr>' : ''}
+        ${histPays.length === 0 ? '<tr><td colspan="6" style="padding:24px;text-align:center;color:var(--dim)">Tháng này chưa có lần thu nào.</td></tr>' : ''}
       </tbody></table></div>
-      <div class="m-only mlist">${(pays.payments || []).slice(0, 40).map(p => `<article class="mcard">
+      <div class="m-only mlist">${histPays.slice(0, 40).map(p => `<article class="mcard">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px"><div style="min-width:0"><p style="margin:0;font-weight:700">${esc(p.studentName)}</p><p style="margin:0;font-size:12px;color:var(--dim)">${esc(p.studentCode)} · ${esc(p.courseCode)} · ${fmtDate(p.date)}</p></div></div>
         <p style="margin-top:4px;font-size:14px;color:var(--dim)">${esc(p.note || '')} · ${esc(p.method || '')}${p.kmDeducted > 0 ? ` · Đã trừ ${p.kmDeducted}KM` : ''}${p.kind && p.kind !== 'Học phí' ? ` · ${esc(p.kind)}` : ''}</p>
         <button type="button" class="btn btn-sm" style="margin-top:6px" onclick="printPaymentReceipt(${p.id})">In biên lai</button>
