@@ -1750,7 +1750,7 @@ function beGiangState(closeDate) {
 function stuRowHtml_(s, i) {
   const pct = s.datKmTotal > 0 ? Math.min(100, Math.round((s.datKmDone / s.datKmTotal) * 100)) : 0;
   const myDots_ = (window._DOTS && window._DOTS[s.id]) || [];
-  const tuitionCell = s.muaLL ? '<span style="color:#E65100;font-weight:600">Mua LL</span><span style="display:block;font-size:12px;color:var(--dim)">GV tự thu — không qua trung tâm</span>' : `<span style="font-size:14px">${dotBtns_(s.id, myDots_, 'toggleDot_')}</span><span style="display:block;font-size:12px;color:var(--dim)">Đã đóng ${myDots_.length}/3 đợt</span>`;
+  const tuitionCell = s.muaLL ? '<span style="color:#E65100;font-weight:600">Mua LL</span><span style="display:block;font-size:12px;color:var(--dim)">GV tự thu — không qua trung tâm</span>' : `<span style="font-size:14px">${dotBtns_(s.id, myDots_, false)}</span><span style="display:block;font-size:12px;color:var(--dim)">Đã đóng ${myDots_.length}/3 đợt</span>`;
   return `<tr class="${i % 2 ? 'alt' : ''}">
       <td><b>${esc(s.name)}</b>${s.muaLL ? ' <span class="chip" style="background:#FFF3E0;color:#E65100">Mua LL</span>' : ''}<span style="display:block;font-size:12px;color:var(--dim)">${esc(s.code)} · MHV ${esc(s.maHv || '—')} · ${esc(s.phone || '')}</span></td>
       <td><b>${esc(s.courseCode)}</b> · ${esc(s.licenseClass)}<span style="display:block;font-size:12px;white-space:nowrap;color:var(--dim)">KG ${fmtDate(s.openDate)} · Hạn ${fmtDate(s.closeDate)}</span></td>
@@ -1765,7 +1765,7 @@ function stuRowHtml_(s, i) {
 }
 function stuCardHtml_(s) {
   const pct = s.datKmTotal > 0 ? Math.min(100, Math.round((s.datKmDone / s.datKmTotal) * 100)) : 0;
-  const tuitionLine = s.muaLL ? '<p style="margin-top:6px;font-size:13px;color:#E65100;font-weight:600">Mua LL — GV tự thu học phí, không qua trung tâm</p>' : `<p style="margin-top:6px;font-size:13px">Học phí: ${dotBtns_(s.id, (window._DOTS && window._DOTS[s.id]) || [], 'toggleDot_')} <span style="color:var(--dim)">(${((window._DOTS && window._DOTS[s.id]) || []).length}/3 đợt)</span></p>`;
+  const tuitionLine = s.muaLL ? '<p style="margin-top:6px;font-size:13px;color:#E65100;font-weight:600">Mua LL — GV tự thu học phí, không qua trung tâm</p>' : `<p style="margin-top:6px;font-size:13px">Học phí: ${dotBtns_(s.id, (window._DOTS && window._DOTS[s.id]) || [], false)} <span style="color:var(--dim)">(${((window._DOTS && window._DOTS[s.id]) || []).length}/3 đợt)</span></p>`;
   return `<article class="mcard">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:2px">
         <div style="min-width:0"><p style="margin:0;font-size:16px;font-weight:700">${esc(s.name)}${s.muaLL ? ' <span class="chip" style="background:#FFF3E0;color:#E65100">Mua LL</span>' : ''}</p><p style="margin:0;font-size:12px;color:var(--dim)">${esc(s.code)} · MHV ${esc(s.maHv || '—')} · ${esc(s.phone || '—')}</p></div>
@@ -1910,7 +1910,7 @@ function renderStudentDetail_(s, q) {
     </div>` : '';
     const paysList = q ? (q.payments || []) : null;
     const payLi = p => `<li class="reg-row" style="padding:5px 0;border-bottom:1px solid var(--border);font-size:13px"><span>${fmtDate(p.date)} · ${esc(p.note || '')} · ${esc(p.method || '')}${p.kmDeducted > 0 ? ` · Đã trừ ${p.kmDeducted}KM` : ''}${p.kind && p.kind !== 'Học phí' ? `<span class="chip" style="background:#FFF8E1;color:#B45309;margin-left:4px">${esc(p.kind)}</span>` : ''}</span></li>`;
-    const tuitionRows = s.muaLL ? '<p class="reg-row" style="margin:0"><span style="color:var(--dim)">Học viên Mua LL — GV tự thu học phí, không qua trung tâm nên trung tâm không tính học phí cho học viên này.</span></p>' : `<p class="reg-row" style="margin:0"><span style="color:var(--dim)">Đóng học phí theo đợt</span><span style="font-size:14.5px">${dotBtns_(s.id, myDots, 'toggleDotDetail_')}</span></p>
+    const tuitionRows = s.muaLL ? '<p class="reg-row" style="margin:0"><span style="color:var(--dim)">Học viên Mua LL — GV tự thu học phí, không qua trung tâm nên trung tâm không tính học phí cho học viên này.</span></p>' : `<p class="reg-row" style="margin:0"><span style="color:var(--dim)">Đóng học phí theo đợt</span><span style="font-size:14.5px">${dotBtns_(s.id, myDots, true)}</span></p>
           <p class="reg-row" style="margin:0"><span style="color:var(--dim)">Tiến độ đóng</span><b>${myDots.length}/3 đợt${myDots.length >= 3 ? ' — Đã đóng đủ' : ''}</b></p>`;
     openModal(`${s.name} — ${s.code}`, `<div class="stack stu-detail">
       <div class="detail-grid">
@@ -2737,8 +2737,19 @@ async function toggleDotDetail_(studentId, n, on) {
     openStudentDetail(studentId);
   } catch (e) { toast('Lỗi tick đợt: ' + e.message); }
 }
-function dotBtns_(studentId, dots, fn) {
-  return [1, 2, 3].map(n => `<button type="button" class="dot-btn" style="font-size:13.5px;padding:3px 2px" onclick="${fn}(${studentId},${n},${(dots || []).includes(n) ? 'false' : 'true'})" title="${(dots || []).includes(n) ? `Bấm để bỏ tick Đợt ${n}` : `Bấm để tick Đợt ${n} — đã đóng`}" aria-label="Tick Đợt ${n}">${(dots || []).includes(n) ? '☑' : '☐'} Đợt ${n}</button>`).join(' ');
+function askDot_(studentId, n, on, detail) {
+  const st = ((typeof LK !== 'undefined' && LK && LK.students) || []).find(x => x.id === studentId) || (window._STU_ROWS || []).find(x => x.id === studentId) || (window._TRACKER || []).find(x => x.id === studentId);
+  const nm = st ? st.name : 'học viên này';
+  const fn = detail ? 'toggleDotDetail_' : 'toggleDot_';
+  const cancel = detail ? `closeModal();openStudentDetail(${studentId})` : 'closeModal()';
+  if (on) {
+    openModal('Xác nhận đóng học phí', `<p style="font-size:15px;margin:0">Đồng ý đóng học phí <b>Đợt ${n}</b> cho học viên <b>${esc(nm)}</b> không?</p><p style="font-size:13px;color:var(--dim);margin:8px 0 0">Tick xong, ô đợt này sẽ bị khóa lại để tránh tick nhầm.</p><div class="row-wrap" style="margin-top:16px;justify-content:flex-end"><button type="button" class="btn" onclick="${cancel}">Hủy</button><button type="button" class="btn btn-green" style="font-weight:700" onclick="closeModal();${fn}(${studentId},${n},true)">Đồng ý — đóng Đợt ${n}</button></div>`);
+  } else {
+    openModal('Ô đợt đã khóa', `<p style="font-size:15px;margin:0">Đợt ${n} của học viên <b>${esc(nm)}</b> đã đóng và đang <b>khóa</b>.</p><p style="font-size:15px;margin:8px 0 0">Chỉ bỏ tick khi tick nhầm. Có chắc chắn bỏ tick Đợt ${n} không?</p><div class="row-wrap" style="margin-top:16px;justify-content:flex-end"><button type="button" class="btn" onclick="${cancel}">Giữ nguyên</button><button type="button" class="btn btn-amber" style="font-weight:700" onclick="closeModal();${fn}(${studentId},${n},false)">Bỏ tick Đợt ${n}</button></div>`);
+  }
+}
+function dotBtns_(studentId, dots, detail) {
+  return [1, 2, 3].map(n => { const on = (dots || []).includes(n); return `<button type="button" class="dot-btn" style="font-size:13.5px;padding:3px 2px" onclick="askDot_(${studentId},${n},${on ? 'false' : 'true'},${detail ? 'true' : 'false'})" title="${on ? `Đợt ${n} đã đóng — đang khóa, bấm để hỏi bỏ tick` : `Bấm để tick Đợt ${n} — sẽ hỏi xác nhận trước`}" aria-label="Tick Đợt ${n}">${on ? '☑' : '☐'} Đợt ${n}${on ? ' <span style="font-size:10px">🔒</span>' : ''}</button>`; }).join(' ');
 }
 function dotFilter_(v) {
   const kw = normText((v || '').trim());
@@ -2754,6 +2765,7 @@ RENDERERS.tuition = async (main) => {
     buildDots_().catch(() => ({})),
   ]);
   window._DOTS = dots;
+  window._TRACKER = (stuAll.students || []);
   const trackerRows = [...(stuAll.students || [])].sort((a, b) => String(a.courseCode).localeCompare(String(b.courseCode)) || String(a.name).localeCompare(String(b.name), 'vi'));
   const cntDot = n => trackerRows.filter(x => (dots[x.id] || []).includes(n)).length;
   const cntFull = trackerRows.filter(x => (dots[x.id] || []).length >= 3).length;
@@ -2780,9 +2792,9 @@ RENDERERS.tuition = async (main) => {
     ${Section('Đóng học phí theo đợt', 'Trung tâm thu học phí làm 3 đợt — bảng này tick đợt đã đóng theo danh sách của trung tâm, không hiện số tiền', `
       <input class="input" placeholder="Tìm học viên…" aria-label="Tìm học viên trong bảng đóng đợt" oninput="dotFilter_(this.value)" style="margin-bottom:12px;max-width:340px">
       <div class="d-only tbl-wrap"><table class="tbl"><thead><tr><th>Học viên</th><th>Khóa</th><th style="text-align:center">Đợt 1</th><th style="text-align:center">Đợt 2</th><th style="text-align:center">Đợt 3</th><th>Trạng thái</th></tr></thead><tbody>
-        ${trackerRows.map(x => { const ds = dots[x.id] || []; return `<tr data-dotname="${esc(normText(x.name + ' ' + x.code))}"><td><b>${esc(x.name)}</b> <span style="color:var(--dim)">(${esc(x.code)})</span>${x.muaLL ? ' <span class="chip" style="background:#FFF3E0;color:#E65100">Mua LL</span>' : ''}</td><td>${esc(x.courseCode)}</td>${[1, 2, 3].map(n => `<td style="text-align:center"><button type="button" class="dot-btn" onclick="toggleDot_(${x.id},${n},${ds.includes(n) ? 'false' : 'true'})" title="${ds.includes(n) ? `Bấm để bỏ tick Đợt ${n}` : `Bấm để tick Đợt ${n} — đã đóng`}" aria-label="Tick Đợt ${n}">${dotMark_(ds.includes(n))}</button></td>`).join('')}<td>${ds.length >= 3 ? '<span class="chip" style="background:#E8F5E9;color:#007A38;font-weight:700">Đủ 3 đợt</span>' : `<span style="color:var(--dim)">Thiếu đợt ${[1, 2, 3].filter(n => !ds.includes(n)).join(', ')}</span>`}</td></tr>`; }).join('')}
+        ${trackerRows.map(x => { const ds = dots[x.id] || []; return `<tr data-dotname="${esc(normText(x.name + ' ' + x.code))}"><td><b>${esc(x.name)}</b> <span style="color:var(--dim)">(${esc(x.code)})</span>${x.muaLL ? ' <span class="chip" style="background:#FFF3E0;color:#E65100">Mua LL</span>' : ''}</td><td>${esc(x.courseCode)}</td>${[1, 2, 3].map(n => `<td style="text-align:center"><button type="button" class="dot-btn" onclick="askDot_(${x.id},${n},${ds.includes(n) ? 'false' : 'true'},false)" title="${ds.includes(n) ? `Đợt ${n} đã đóng — đang khóa, bấm để hỏi bỏ tick` : `Bấm để tick Đợt ${n} — sẽ hỏi xác nhận trước`}" aria-label="Tick Đợt ${n}">${dotMark_(ds.includes(n))}${ds.includes(n) ? ' <span style="font-size:10px">🔒</span>' : ''}</button></td>`).join('')}<td>${ds.length >= 3 ? '<span class="chip" style="background:#E8F5E9;color:#007A38;font-weight:700">Đủ 3 đợt</span>' : `<span style="color:var(--dim)">Thiếu đợt ${[1, 2, 3].filter(n => !ds.includes(n)).join(', ')}</span>`}</td></tr>`; }).join('')}
       </tbody></table></div>
-      <div class="m-only mlist">${trackerRows.map(x => { const ds = dots[x.id] || []; return `<article class="mcard" data-dotname="${esc(normText(x.name + ' ' + x.code))}"><div style="display:flex;justify-content:space-between;gap:8px"><p style="margin:0;font-weight:700">${esc(x.name)}${x.muaLL ? ' <span class="chip" style="background:#FFF3E0;color:#E65100">Mua LL</span>' : ''}</p><span style="font-size:12px;color:var(--dim)">${esc(x.courseCode)}</span></div><p style="margin:6px 0 0;font-size:14.5px">${[1, 2, 3].map(n => `<button type="button" class="dot-btn" style="font-size:14.5px;padding:4px 2px" onclick="toggleDot_(${x.id},${n},${ds.includes(n) ? 'false' : 'true'})" aria-label="Tick Đợt ${n}">${ds.includes(n) ? '☑' : '☐'} Đợt ${n}</button>`).join(' · ')}</p><p style="margin:2px 0 0;font-size:12.5px;color:var(--dim)">${ds.length >= 3 ? 'Đủ 3 đợt' : 'Thiếu đợt ' + [1, 2, 3].filter(n => !ds.includes(n)).join(', ')}</p></article>`; }).join('')}</div>
+      <div class="m-only mlist">${trackerRows.map(x => { const ds = dots[x.id] || []; return `<article class="mcard" data-dotname="${esc(normText(x.name + ' ' + x.code))}"><div style="display:flex;justify-content:space-between;gap:8px"><p style="margin:0;font-weight:700">${esc(x.name)}${x.muaLL ? ' <span class="chip" style="background:#FFF3E0;color:#E65100">Mua LL</span>' : ''}</p><span style="font-size:12px;color:var(--dim)">${esc(x.courseCode)}</span></div><p style="margin:6px 0 0;font-size:14.5px">${[1, 2, 3].map(n => `<button type="button" class="dot-btn" style="font-size:14.5px;padding:4px 2px" onclick="askDot_(${x.id},${n},${ds.includes(n) ? 'false' : 'true'},false)" aria-label="Tick Đợt ${n}">${ds.includes(n) ? '☑' : '☐'} Đợt ${n}${ds.includes(n) ? ' <span style="font-size:10px">🔒</span>' : ''}</button>`).join(' · ')}</p><p style="margin:2px 0 0;font-size:12.5px;color:var(--dim)">${ds.length >= 3 ? 'Đủ 3 đợt' : 'Thiếu đợt ' + [1, 2, 3].filter(n => !ds.includes(n)).join(', ')}</p></article>`; }).join('')}</div>
     `)}
     ${Section('Thu học phí theo tháng', 'Thu nhiều lần, mỗi lần có ghi chú riêng; cột KM đã chạy tương ứng cột trừ km (-225KM…) trong file cũ', `
       <div class="stat-grid" style="margin-bottom:12px">
