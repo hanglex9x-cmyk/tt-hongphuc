@@ -550,16 +550,18 @@ function apiGetBootstrap(p) {
   // khi mo app (may moi / het cache), cac muc dung lai payload da do vao cache.
   p = p || {};
   const month = String(p.month || '').slice(0, 7) || Utilities.formatDate(new Date(), 'Asia/Ho_Chi_Minh', 'yyyy-MM');
+  // Di qua route_() de dung lai cache phan hoi theo nhom cua tung action:
+  // thanh phan nao da co ban cache am thi lay ngay, chua co thi tinh + luu.
   return {
-    dashboard: apiGetDashboard(),
-    students: apiListStudents({ page: 1, pageSize: 10, onlyEligible: false }),
-    students20: apiListStudents({ page: 1, pageSize: 20 }),
-    students200: apiListStudents({ page: 1, pageSize: 200 }),
-    payments: apiListPayments({ month: month }),
-    dots: apiGetDots(),
-    lookups: apiGetLookups(),
-    prices: apiGetPrices(),
-    centers: apiListCenters()
+    dashboard: route_('getdashboard', {}),
+    students: route_('liststudents', { page: 1, pageSize: 10, onlyEligible: false }),
+    students20: route_('liststudents', { page: 1, pageSize: 20 }),
+    students200: route_('liststudents', { page: 1, pageSize: 200 }),
+    payments: route_('listpayments', { month: month }),
+    dots: route_('getdots', {}),
+    lookups: route_('getlookups', {}),
+    prices: route_('getprices', {}),
+    centers: route_('listcenters', {})
   };
 }
 function apiGetDots() {
