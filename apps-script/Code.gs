@@ -545,6 +545,41 @@ function apiListPayments(p) {
     totalDebtAll: core.reduce((a, s) => a + s.tuitionPayable, 0) - core.reduce((a, s) => a + s.tuitionPaid, 0)
   };
 }
+function apiGetDots() {
+  // Gom tick 3 đợt cho MỌI học viên trong 1 lần đọc ThanhToan (thay cho việc
+  // frontend quét listpayments từng tháng). Ngữ nghĩa fold KHỚP parser frontend:
+  // ưu tiên Loai 'Tick đợt N'/'Bỏ tick đợt N'; phiếu cũ đọc GhiChu 'Đợt/Lần N'
+  // (Hoàn phí = gỡ tick, Học phí/Tick đợt = thêm). Gập theo ID tăng dần.
+  const rows = tab_('ThanhToan').objs.map(x => ({ id: num_(x['ID']), studentId: num_(x['IDHocVien']), kind: str_(x['Loai']), method: str_(x['PhuongThuc']), note: str_(x['GhiChu']) }))
+    .sort((a, b) => a.id - b.id);
+  const byStu = {};
+  rows.forEach(pay => {
+    if (!pay.studentId) return;
+    const e = byStu[pay.studentId] || (byStu[pay.studentId] = { set: {}, methods: {} });
+    const label = pay.method === 'Chuyển khoản' ? 'CK' : pay.method === 'Tiền mặt' ? 'TM' : pay.method === 'LL' ? 'LL' : '';
+    const mAdd = /^Tick đợt\s*(\d)$/.exec(pay.kind);
+    const mOff = /^Bỏ tick đợt\s*(\d)$/.exec(pay.kind);
+    if (mAdd || mOff) {
+      const n = Number((mAdd || mOff)[1]);
+      if (n < 1 || n > 3) return;
+      if (mAdd) { e.set[n] = 1; e.methods[n] = label; } else { delete e.set[n]; delete e.methods[n]; }
+      return;
+    }
+    const mm = /^(?:Đợt|Lần)\s*(\d)/.exec(String(pay.note || '').trim());
+    if (!mm) return;
+    const n = Number(mm[1]);
+    if (n < 1 || n > 3) return;
+    if (pay.kind === 'Hoàn phí') { delete e.set[n]; delete e.methods[n]; }
+    else if (pay.kind === 'Học phí' || pay.kind === 'Tick đợt') { e.set[n] = 1; e.methods[n] = label; }
+  });
+  const dots = {}, methods = {};
+  Object.keys(byStu).forEach(sid => {
+    const e = byStu[sid];
+    const arr = [1, 2, 3].filter(n => e.set[n]);
+    if (arr.length) { dots[sid] = arr; methods[sid] = e.methods; }
+  });
+  return { dots, methods };
+}
 function studentsById_() {
   // Map ID -> học viên, dựng 1 lần / request. Giữ bản ghi ĐẦU tiên khi trùng ID,
   // khớp đúng ngữ nghĩa Array.find() của bystId_() trước đây.
@@ -1360,7 +1395,7 @@ const READ_ACTIONS = {
   getdashboard: apiGetDashboard, getdatsummary: apiGetDatSummary,
   liststudents: apiListStudents, getstudent: apiGetStudent,
   listschedules: apiListSchedules, listschedulesrange: apiListSchedulesRange,
-  listconflicts: apiListConflicts, listpayments: apiListPayments,
+  listconflicts: apiListConflicts, listpayments: apiListPayments, getdots: apiGetDots,
   listcenters: apiListCenters, getfleet: apiGetFleet, listfuellogs: apiListFuelLogs,
   listadmissions: apiListAdmissions, listexamrounds: apiListExamRounds,
   listexams: apiListExams, getreports: apiGetReports, getgovreports: apiGetGovReports,
@@ -1412,7 +1447,7 @@ const READ_GROUP = {
   listschedules: 'sched', listschedulesrange: 'sched', listconflicts: 'sched',
   getdatsummary: 'dat', getfleet: 'fleet', listfuellogs: 'fleet',
   listexams: 'exams', listexamrounds: 'exams', listadmissions: 'admissions',
-  listpayments: 'tuition', getprices: 'tuition', listcenters: 'centers',
+  listpayments: 'tuition', getdots: 'tuition', getprices: 'tuition', listcenters: 'centers',
   listnotifications: 'alerts', getcenterinfo: 'config', getlookups: 'lookups'
 };
 const ALL_GROUPS = ['dash', 'reports', 'students', 'sched', 'dat', 'fleet', 'exams', 'admissions', 'tuition', 'centers', 'alerts', 'config', 'lookups'];
