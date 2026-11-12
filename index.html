@@ -328,6 +328,8 @@ ul.disc{list-style:disc;padding-left:20px;margin:0;display:flex;flex-direction:c
 @media print{ .header-glass,aside.sidebar,.bottomnav,.drawer-wrap{display:none!important} main{padding:0} }
 .gstep{display:flex;gap:10px;align-items:flex-start;margin:0 0 10px}
 .dot-on{color:#007A38;font-size:18px;line-height:1.1}
+.dot-btn{background:none;border:none;cursor:pointer;padding:6px;line-height:1;border-radius:8px;font-family:inherit}
+.dot-btn:hover{background:var(--surface-alt)}
 .dot-off{color:#B0BEC5;font-size:18px;line-height:1.1}
 .gstep>span{flex:0 0 auto;width:24px;height:24px;border-radius:50%;background:#E8F5E9;color:#007A38;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;margin-top:1px}
 .gstep>p{margin:0;flex:1;min-width:0}
@@ -2693,10 +2695,13 @@ async function savePrices_() {
 }
 function dotsFromPayments_(payments) {
   const set = new Set();
-  (payments || []).forEach(pay => {
-    if (!pay || pay.kind === 'Hoàn phí') return;
+  [...(payments || [])].sort((a, b) => (a.id || 0) - (b.id || 0)).forEach(pay => {
+    if (!pay) return;
     const mm = /^(?:Đợt|Lần)\s*(\d)/.exec(String(pay.note || '').trim());
-    if (mm) { const n = Number(mm[1]); if (n >= 1 && n <= 3) set.add(n); }
+    if (!mm) return;
+    const n = Number(mm[1]);
+    if (n < 1 || n > 3) return;
+    if (pay.kind === 'Hoàn phí') set.delete(n); else set.add(n);
   });
   return [...set].sort((a, b) => a - b);
 }
@@ -2706,14 +2711,22 @@ async function buildDots_() {
   const endY = Number(TODAY.slice(0, 4)), endM = Number(TODAY.slice(5, 7));
   while (y < endY || (y === endY && m <= endM)) { months.push(y + '-' + String(m).padStart(2, '0')); m++; if (m > 12) { m = 1; y++; } }
   const parts = await Promise.all(months.map(mo => call('listpayments', { month: mo }).catch(() => null)));
-  const map = {};
-  parts.forEach(r => ((r && r.payments) || []).forEach(pay => { dotsFromPayments_([pay]).forEach(n => { (map[pay.studentId] = map[pay.studentId] || new Set()).add(n); }); }));
+  const byStu = {};
+  parts.forEach(r => ((r && r.payments) || []).forEach(pay => { (byStu[pay.studentId] = byStu[pay.studentId] || []).push(pay); }));
   const out = {};
-  Object.keys(map).forEach(k => { out[k] = [...map[k]].sort((a, b) => a - b); });
+  Object.keys(byStu).forEach(k => { out[k] = dotsFromPayments_(byStu[k]); });
   return out;
 }
 function dotText_(dots) { return [1, 2, 3].map(n => `${(dots || []).includes(n) ? '☑' : '☐'} Đợt ${n}`).join(' · '); }
 function dotMark_(on) { return on ? '<span class="dot-on">☑</span>' : '<span class="dot-off">☐</span>'; }
+async function toggleDot_(studentId, n, on) {
+  try {
+    if (on) await write('addpayment', { studentId, amount: 0, date: TODAY, kind: 'Tick đợt', method: '', note: `Đợt ${n} — ĐÃ ĐÓNG (tick trong app ${fmtDate(TODAY)})` });
+    else await write('addpayment', { studentId, amount: 0, date: TODAY, kind: 'Hoàn phí', method: '', note: `Đợt ${n} — BỎ TICK (trong app ${fmtDate(TODAY)})` });
+    toast(on ? `Đã tick Đợt ${n} — đã đóng` : `Đã bỏ tick Đợt ${n}`);
+    refresh();
+  } catch (e) { toast('Lỗi tick đợt: ' + e.message); }
+}
 function dotFilter_(v) {
   const kw = normText((v || '').trim());
   document.querySelectorAll('[data-dotname]').forEach(el => { el.style.display = !kw || el.getAttribute('data-dotname').includes(kw) ? '' : 'none'; });
@@ -2754,9 +2767,9 @@ RENDERERS.tuition = async (main) => {
     ${Section('Đóng học phí theo đợt', 'Trung tâm thu học phí làm 3 đợt — bảng này tick đợt đã đóng theo danh sách của trung tâm, không hiện số tiền', `
       <input class="input" placeholder="Tìm học viên…" aria-label="Tìm học viên trong bảng đóng đợt" oninput="dotFilter_(this.value)" style="margin-bottom:12px;max-width:340px">
       <div class="d-only tbl-wrap"><table class="tbl"><thead><tr><th>Học viên</th><th>Khóa</th><th style="text-align:center">Đợt 1</th><th style="text-align:center">Đợt 2</th><th style="text-align:center">Đợt 3</th><th>Trạng thái</th></tr></thead><tbody>
-        ${trackerRows.map(x => { const ds = dots[x.id] || []; return `<tr data-dotname="${esc(normText(x.name + ' ' + x.code))}"><td><b>${esc(x.name)}</b> <span style="color:var(--dim)">(${esc(x.code)})</span>${x.muaLL ? ' <span class="chip" style="background:#FFF3E0;color:#E65100">Mua LL</span>' : ''}</td><td>${esc(x.courseCode)}</td>${[1, 2, 3].map(n => `<td style="text-align:center">${dotMark_(ds.includes(n))}</td>`).join('')}<td>${ds.length >= 3 ? '<span class="chip" style="background:#E8F5E9;color:#007A38;font-weight:700">Đủ 3 đợt</span>' : `<span style="color:var(--dim)">Thiếu đợt ${[1, 2, 3].filter(n => !ds.includes(n)).join(', ')}</span>`}</td></tr>`; }).join('')}
+        ${trackerRows.map(x => { const ds = dots[x.id] || []; return `<tr data-dotname="${esc(normText(x.name + ' ' + x.code))}"><td><b>${esc(x.name)}</b> <span style="color:var(--dim)">(${esc(x.code)})</span>${x.muaLL ? ' <span class="chip" style="background:#FFF3E0;color:#E65100">Mua LL</span>' : ''}</td><td>${esc(x.courseCode)}</td>${[1, 2, 3].map(n => `<td style="text-align:center"><button type="button" class="dot-btn" onclick="toggleDot_(${x.id},${n},${ds.includes(n) ? 'false' : 'true'})" title="${ds.includes(n) ? `Bấm để bỏ tick Đợt ${n}` : `Bấm để tick Đợt ${n} — đã đóng`}" aria-label="Tick Đợt ${n}">${dotMark_(ds.includes(n))}</button></td>`).join('')}<td>${ds.length >= 3 ? '<span class="chip" style="background:#E8F5E9;color:#007A38;font-weight:700">Đủ 3 đợt</span>' : `<span style="color:var(--dim)">Thiếu đợt ${[1, 2, 3].filter(n => !ds.includes(n)).join(', ')}</span>`}</td></tr>`; }).join('')}
       </tbody></table></div>
-      <div class="m-only mlist">${trackerRows.map(x => { const ds = dots[x.id] || []; return `<article class="mcard" data-dotname="${esc(normText(x.name + ' ' + x.code))}"><div style="display:flex;justify-content:space-between;gap:8px"><p style="margin:0;font-weight:700">${esc(x.name)}${x.muaLL ? ' <span class="chip" style="background:#FFF3E0;color:#E65100">Mua LL</span>' : ''}</p><span style="font-size:12px;color:var(--dim)">${esc(x.courseCode)}</span></div><p style="margin:6px 0 0;font-size:14.5px">${dotText_(ds)}</p><p style="margin:2px 0 0;font-size:12.5px;color:var(--dim)">${ds.length >= 3 ? 'Đủ 3 đợt' : 'Thiếu đợt ' + [1, 2, 3].filter(n => !ds.includes(n)).join(', ')}</p></article>`; }).join('')}</div>
+      <div class="m-only mlist">${trackerRows.map(x => { const ds = dots[x.id] || []; return `<article class="mcard" data-dotname="${esc(normText(x.name + ' ' + x.code))}"><div style="display:flex;justify-content:space-between;gap:8px"><p style="margin:0;font-weight:700">${esc(x.name)}${x.muaLL ? ' <span class="chip" style="background:#FFF3E0;color:#E65100">Mua LL</span>' : ''}</p><span style="font-size:12px;color:var(--dim)">${esc(x.courseCode)}</span></div><p style="margin:6px 0 0;font-size:14.5px">${[1, 2, 3].map(n => `<button type="button" class="dot-btn" style="font-size:14.5px;padding:4px 2px" onclick="toggleDot_(${x.id},${n},${ds.includes(n) ? 'false' : 'true'})" aria-label="Tick Đợt ${n}">${ds.includes(n) ? '☑' : '☐'} Đợt ${n}</button>`).join(' · ')}</p><p style="margin:2px 0 0;font-size:12.5px;color:var(--dim)">${ds.length >= 3 ? 'Đủ 3 đợt' : 'Thiếu đợt ' + [1, 2, 3].filter(n => !ds.includes(n)).join(', ')}</p></article>`; }).join('')}</div>
     `)}
     ${Section('Thu học phí theo tháng', 'Thu nhiều lần, mỗi lần có ghi chú riêng; cột KM đã chạy tương ứng cột trừ km (-225KM…) trong file cũ', `
       <div class="stat-grid" style="margin-bottom:12px">
