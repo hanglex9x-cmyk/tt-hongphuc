@@ -2834,10 +2834,10 @@ RENDERERS.tuition = async (main) => {
         <p style="margin-top:4px;font-size:14px;color:var(--dim)">${esc(p.note || '')} · ${esc(p.method || '')}${p.kmDeducted > 0 ? ` · Đã trừ ${p.kmDeducted}KM` : ''}${p.kind && p.kind !== 'Học phí' ? ` · ${esc(p.kind)}` : ''}</p>
         <button type="button" class="btn btn-sm" style="margin-top:6px" onclick="printPaymentReceipt(${p.id})">In biên lai</button>
       </article>`).join('') || '<p style="padding:16px 0;text-align:center;font-size:14px;color:var(--dim);margin:0">Tháng này chưa có lần thu nào.</p>'}</div>
-    `, `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px">
-        <label class="row-wrap" style="font-size:14px;flex-wrap:nowrap">Tháng <span style="display:inline-block;flex:0 0 225px"><input aria-label="Chọn tháng xem học phí" type="month" class="input input-sm" style="min-width:185px;width:100%" value="${TUI.month}" onchange="TUI.month=this.value;refresh()"></span></label>
+    `, `<div class="row-wrap" style="justify-content:flex-end;align-items:center;gap:8px">
+        <label style="display:flex;align-items:center;gap:6px;font-size:14px;white-space:nowrap">Tháng <input aria-label="Chọn tháng xem học phí" type="month" class="input input-sm" style="width:185px" value="${TUI.month}" onchange="TUI.month=this.value;refresh()"></label>
         ${importExportHtml('payments', 'hoc-phi.csv', 'impmsg-payments')}
-        <button type="button" class="btn" onclick="printGovList()">In danh sách mẫu Sở</button>
+        <button type="button" class="btn" style="white-space:nowrap" onclick="printGovList()">In danh sách mẫu Sở</button>
       </div>`)}
     ${Section('Ghi thu / hoàn phí / lệ phí cho học viên', 'Học phí: chặn thu vượt số còn nợ, là 1 trong 5 điều kiện thi. Hoàn phí ghi số dương — hệ thống tự lưu âm và trừ vào đã thu. Lệ phí sát hạch / phí thi lại là thu hộ nộp Sở, tách khỏi học phí trong báo cáo thu.', `
       <div class="form-grid" style="grid-template-columns:1fr 1fr">
