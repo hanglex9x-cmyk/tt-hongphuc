@@ -357,6 +357,7 @@ ul.disc{list-style:disc;padding-left:20px;margin:0;display:flex;flex-direction:c
 
 // ---------- Cấu hình API (GIỮ NGUYÊN) ----------
 const DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycbxFG7h7a-FiI2UBB8bdr9UfyUZ936Vb0SKkBeikLorRDg8TECPxHGONSzkt9HrHVZuMQg/exec';
+const ORIGIN_API_URL = 'https://script.google.com/macros/s/AKfycbxFG7h7a-FiI2UBB8bdr9UfyUZ936Vb0SKkBeikLorRDg8TECPxHGONSzkt9HrHVZuMQg/exec'; // duong truc tiep Google — dung lam du phong khi lop dem (Worker) loi
 /* Khóa zoom mobile kiểu app: chặn pinch-zoom + double-tap zoom (iOS bỏ qua user-scalable=no) */
 document.addEventListener('gesturestart', e => e.preventDefault());
 document.addEventListener('gesturechange', e => e.preventDefault());
@@ -375,25 +376,44 @@ const MONTH_LABEL = 'tháng ' + Number(TODAY.slice(5, 7));
 
 // ---------- API ----------
 let cbSeq = 0;
-function apiGet(action, params) {
+function jsonp_(base, action, params, timeoutMs) {
   return new Promise((resolve, reject) => {
     const cb = '__hpcb' + (++cbSeq);
     const qs = new URLSearchParams({ action, callback: cb });
     Object.entries(params || {}).forEach(([k, v]) => { if (v !== undefined && v !== null && v !== '') qs.set(k, typeof v === 'object' ? JSON.stringify(v) : String(v)); });
     const sc = document.createElement('script');
-    const timer = setTimeout(() => { cleanup(); reject(new Error('Quá thời gian chờ API')); }, 30000);
+    const timer = setTimeout(() => { cleanup(); reject(new Error('Quá thời gian chờ API')); }, timeoutMs);
     function cleanup() { clearTimeout(timer); try { delete window[cb]; } catch (e) {} sc.remove(); }
     window[cb] = (data) => { cleanup(); resolve(data); };
     sc.onerror = () => { cleanup(); reject(new Error('Không gọi được API')); };
-    sc.src = API_URL + '?' + qs.toString();
+    sc.src = base + '?' + qs.toString();
     document.head.appendChild(sc);
   });
 }
+function apiGet(action, params) {
+  // Qua lop dem (Worker) thi timeout ngan 12s: loi la thu lai ngay qua duong
+  // truc tiep Google (ORIGIN) de app khong dung yen vi ha tang dem.
+  if (API_URL === ORIGIN_API_URL) return jsonp_(API_URL, action, params, 30000);
+  return jsonp_(API_URL, action, params, 12000).catch(() => jsonp_(ORIGIN_API_URL, action, params, 30000));
+}
 async function apiPost(action, params) {
+  const t0 = Date.now();
+  try {
+    return await apiPostTo_(API_URL, action, params);
+  } catch (e) {
+    // Chi thu lai qua duong truc tiep khi loi mang XAY RA NHANH (<3s, request
+    // gan nhu chac chan chua toi server) va dang dung lop dem — tranh ghi trung.
+    if (API_URL !== ORIGIN_API_URL && Date.now() - t0 < 3000 && e && e.name !== 'AbortError') {
+      return await apiPostTo_(ORIGIN_API_URL, action, params);
+    }
+    throw e;
+  }
+}
+async function apiPostTo_(base, action, params) {
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), 30000);
   try {
-    const res = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action, params: params || {} }), signal: ctl.signal });
+    const res = await fetch(base, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action, params: params || {} }), signal: ctl.signal });
     return await res.json();
   } catch (e) {
     if (e && e.name === 'AbortError') throw new Error('Quá thời gian chờ khi lưu (30 giây) — kiểm tra mạng rồi thử lại');
@@ -404,7 +424,7 @@ async function apiPost(action, params) {
 // Các action ít đổi được cache trong bộ nhớ theo khóa action + tham số đã sắp xếp.
 // Ghi thành công qua write() sẽ xóa toàn bộ cache đọc để tránh dữ liệu cũ.
 // Cần bỏ qua cache: gọi call(action, params, { force: true }) hoặc refresh(true).
-const CACHEABLE_ACTIONS = new Set(['liststudents', 'listcenters', 'listexamrounds', 'getfleet', 'getdatsummary', 'listexams', 'listpayments', 'getdots', 'getreports', 'getgovreports', 'listnotifications', 'listadmissions', 'listfuellogs', 'listschedules', 'getcenterinfo', 'getprices']);
+const CACHEABLE_ACTIONS = new Set(['liststudents', 'listcenters', 'listexamrounds', 'getfleet', 'getdatsummary', 'listexams', 'listpayments', 'getdots', 'getreports', 'getgovreports', 'listnotifications', 'listadmissions', 'listfuellogs', 'listschedules', 'getcenterinfo', 'getprices', 'getbootstrap']);
 const READ_CACHE = new Map();
 const INFLIGHT = new Map(); // gộp các request trùng action+params đang bay — tránh gọi API 2-3 lần giống hệt nhau
 const RANGE_CACHE = new Map(); // cache listschedulesrange theo khóa from|to (ScheduleViews)
@@ -2722,6 +2742,26 @@ function dotsFullFromPayments_(payments) {
   return { dots: [...set].sort((a, b) => a - b), methods };
 }
 function dotsFromPayments_(payments) { return dotsFullFromPayments_(payments).dots; }
+function primeFromBootstrap_(b) {
+  // Do payload cua getbootstrap vao dung cac khoa cache ma cac muc su dung,
+  // de mo muc nao cung co ngay du lieu (khong goi API lai).
+  if (!b || typeof b !== 'object') return;
+  const put = (action, params, payload) => {
+    if (payload === null || payload === undefined) return;
+    try { READ_CACHE.set(readCacheKey(action, params), payload); } catch (e) {}
+    lsSetSWR(swrKey(action, params), payload);
+  };
+  put('getdashboard', {}, b.dashboard);
+  put('liststudents', { search: '', courseCode: '', centerName: '', status: '', onlyEligible: false, page: 1, pageSize: STU.pageSize }, b.students);
+  put('liststudents', { page: 1, pageSize: 20 }, b.students20);
+  put('liststudents', { page: 1, pageSize: 200 }, b.students200);
+  put('listpayments', { month: TUI.month }, b.payments);
+  put('getlookups', {}, b.lookups);
+  if (b.lookups) LK = b.lookups;
+  put('getprices', {}, b.prices);
+  put('listcenters', {}, b.centers);
+  if (b.dots) { put('getdots', {}, b.dots); window._DOTS = b.dots.dots || {}; window._DOTM = b.dots.methods || {}; }
+}
 async function buildDots_() {
   // 1 call getdots ở backend (gập toàn bộ ThanhToan phía server) thay cho
   // quét listpayments từng tháng như trước — nhanh hơn nhiều, không phình theo thời gian.
@@ -3913,7 +3953,8 @@ RENDERERS.guide = (main) => {
 
 /* ================= BOOT ================= */
 renderShell();
-go('dashboard');
+const BOOT_P = (async () => { try { const b = await call('getbootstrap', { month: TUI.month }); primeFromBootstrap_(b); return b; } catch (e) { return null; } })();
+(async () => { await Promise.race([BOOT_P, new Promise(r => setTimeout(r, 6000))]); go('dashboard'); })();
 (async () => {
   // Mở app chỉ tải bản NHẸ (không logo); logo 84KB lấy từ bộ nhớ máy khi dấu
   // logoVer khớp, chỉ tải lại bản đầy đủ khi logo trên hệ thống đã đổi.
