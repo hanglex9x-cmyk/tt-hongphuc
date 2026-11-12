@@ -326,6 +326,10 @@ ul.disc{list-style:disc;padding-left:20px;margin:0;display:flex;flex-direction:c
 .guide-imgs figure{margin:0;flex:1 1 210px;max-width:290px}
 .guide-imgs img{width:100%;display:block;border:1px solid var(--border);border-radius:12px}
 .guide-imgs figcaption{margin-top:6px;font-size:12.5px;color:var(--dim);text-align:center}
+.guide-wrap{max-width:880px}
+@media(min-width:1280px){.guide-wrap{max-width:1320px}}
+.gd-text{min-width:0;flex:1 1 auto}
+@media(min-width:1024px){section.panel.gd{display:flex;gap:22px;align-items:flex-start}section.panel.gd .guide-imgs{flex:0 0 320px;flex-direction:column;margin-top:0;position:sticky;top:12px}section.panel.gd .guide-imgs figure{max-width:320px;flex:none;width:100%}}
 </style>
 </head>
 <body>
@@ -1507,12 +1511,18 @@ function paintDashboard_(main, d) {
   const firstDow = (new Date(utcMs(heatStart)).getUTCDay() + 6) % 7;
   const octDays = Array.from({ length: lastDayOf(heatStart) }, (_, i) => `${heatStart.slice(0, 8)}${String(i + 1).padStart(2, '0')}`);
   const gantt = (d.gantt || []).map(g => {
-    const g2End = g.openDate ? addDays(g.openDate, 84) : g.closeDate;
+    const g2Raw = g.openDate ? addDays(g.openDate, 84) : g.closeDate;
+    const g2End = (g.closeDate && g2Raw && g2Raw > g.closeDate) ? g.closeDate : g2Raw;
+    const pLtS = ganttPct(g.ltStart), pLtE = ganttPct(g.ltEnd || g.thStart);
+    const pThS = ganttPct(g.thStart), pG2E = ganttPct(g2End), pClose = ganttPct(g.closeDate);
+    const segW = (a, b) => Math.max(0, Math.min(Math.max(6, Math.min(b, 100) - a), 100 - a));
+    const g3W = Math.max(0, pClose - pG2E);
+    const g3L = g3W >= 6 ? pG2E : Math.max(pThS, pClose - 3.5);
     const segs = (g.ltStart && g.thStart) ? `
       <div class="gantt-track">
-        <div class="gantt-seg" style="left:${ganttPct(g.ltStart)}%;width:${Math.max(6, ganttPct(g.ltEnd || g.thStart) - ganttPct(g.ltStart))}%;background:${BRAND.green};color:#fff">Lý thuyết</div>
-        <div class="gantt-seg" style="left:${ganttPct(g.thStart)}%;width:${Math.max(6, ganttPct(g2End) - ganttPct(g.thStart))}%;background:${BRAND.amber};color:#111827">DAT + Sa hình</div>
-        <div class="gantt-seg" style="left:${ganttPct(g2End)}%;width:${Math.max(6, ganttPct(g.closeDate) - ganttPct(g2End))}%;background:${BRAND.navy};color:#fff">Ôn + Thi</div>
+        <div class="gantt-seg" style="left:${pLtS}%;width:${segW(pLtS, pLtE)}%;background:${BRAND.green};color:#fff">Lý thuyết</div>
+        <div class="gantt-seg" style="left:${pThS}%;width:${segW(pThS, pG2E)}%;background:${BRAND.amber};color:#111827">DAT + Sa hình</div>
+        <div class="gantt-seg" style="left:${g3L}%;width:${pClose - g3L}%;background:${BRAND.navy};color:#fff">Ôn + Thi</div>
       </div>` : '<p style="border-radius:8px;background:var(--surface-alt);padding:8px 12px;font-size:12px;color:var(--dim);margin:0">Chưa có dữ liệu giai đoạn học (lý thuyết/thực hành) cho khóa này.</p>';
     return `<div><div style="display:flex;align-items:baseline;justify-content:space-between;font-size:14px;margin-bottom:4px;gap:8px;flex-wrap:wrap"><b>${esc(g.code)} — Hạng ${esc(g.licenseClass)}</b><span style="color:var(--dim)">${g.studentCount} HV · KG ${g.openDate ? fmtDate(g.openDate) : '—'} · Hạn ${g.closeDate ? fmtDate(g.closeDate) : '—'}</span></div>${segs}</div>`;
   }).join('');
@@ -3693,67 +3703,67 @@ RENDERERS.guide = (main) => {
     ['hd-cau-hinh', '13 · Cấu hình trung tâm'],
     ['hd-hoi-dap', '14 · Hỏi đáp nhanh'],
   ];
-  main.innerHTML = `<div class="stack" style="max-width:880px">
+  main.innerHTML = `<div class="stack guide-wrap">
     ${Section('Hướng dẫn sử dụng Portal quản lý đào tạo lái xe', 'Tài liệu hướng dẫn cho quản trị viên và nhân viên của ${CENTER.name} (${CENTER.address} · SĐT ${CENTER.phone}). Bấm vào từng chương để nhảy tới nội dung — mọi thao tác đều làm được trên cả máy tính và điện thoại.', `
       <div class="row-wrap">${chapters.map(([id, label]) => `<a href="#${id}" class="chip" style="background:#E8F5E9;color:#007A38;font-weight:600;text-decoration:none" onclick="event.preventDefault();var el=document.getElementById('${id}');if(el)el.scrollIntoView({behavior:'smooth',block:'start'})">${label}</a>`).join('')}</div>`)}
-    <section class="panel" id="hd-bat-dau">${Section('1 · Bắt đầu sử dụng', '', `
+    <section class="panel gd" id="hd-bat-dau">${Section('1 · Bắt đầu sử dụng', '', `
       ${guideStep('1', '<b>Mở Portal</b> bằng trình duyệt (Chrome/Edge) trên máy tính hoặc điện thoại. Màn hình đầu tiên là mục <b>Tổng quan</b>.')}
       ${guideStep('2', 'Menu chính nằm ở <b>cột trái</b> trên máy tính, hoặc thanh <b>điều hướng dưới cùng</b> trên điện thoại (6 nút chỉ hình, không chữ: Tổng quan · Học viên · Lịch DAT &amp; Sa hình · Tiến độ khóa học · Kỳ thi sát hạch · Tất cả mục).')}
       ${guideStep('3', 'Mọi danh sách (học viên, lịch học, lần thu…) đều có ô <b>tìm kiếm</b> và bộ lọc ở đầu trang. Gõ vài chữ là danh sách tự lọc.')}
       ${guideNote('Dữ liệu được lưu tự động sau mỗi thao tác bấm “Lưu”. Không cần bấm lưu thủ công ở các màn hình tổng hợp.')}`)}</section>
-    <section class="panel" id="hd-quy-trinh">${Section('2 · Quy trình làm việc hằng ngày', '', `
+    <section class="panel gd" id="hd-quy-trinh">${Section('2 · Quy trình làm việc hằng ngày', '', `
       ${guideStep('1', '<b>Buổi sáng:</b> mở mục <b>Cảnh báo &amp; Zalo</b> để xem các việc cần xử lý: lịch trùng, học viên âm km DAT, bằng đã có mà chưa báo.')}
       ${guideStep('2', '<b>Xếp lịch:</b> vào <b>Lịch DAT &amp; Sa hình</b> → dùng form “Xếp lịch mới” hoặc mở Lịch Tuần/Tháng để kiểm tra ngày còn trống.')}
       ${guideStep('3', '<b>Thu tiền:</b> vào <b>Học phí &amp; biên lai</b> → chọn học viên ở form “Ghi thu cho học viên” mỗi khi có người đóng tiền.')}
       ${guideStep('4', '<b>Cuối ngày:</b> kiểm tra <b>Lịch hôm nay</b> — các buổi đã qua giờ sẽ tự chuyển trạng thái; buổi nào học viên vắng nhớ ghi nhận ở mục DAT.')}`)}</section>
-    <section class="panel" id="hd-tong-quan">${Section('3 · Màn hình Tổng quan', '', `
+    <section class="panel gd" id="hd-tong-quan">${Section('3 · Màn hình Tổng quan', '', `
       <p class="gtext">Tổng quan hiển thị 5 chỉ số chính: tổng học viên, lịch học hôm nay, tỷ lệ đậu sát hạch, xe đang sử dụng và doanh thu tháng hiện tại.</p>
       ${guideStep('1', '<b>Thanh tiến độ xếp lịch:</b> cho biết đã xếp bao nhiêu buổi trên tổng số buổi của cả khóa, số buổi DAT đặc biệt/Sa hình/học thường và ước tính ngày xếp xong.')}
       ${guideStep('2', '<b>Bản đồ nhiệt lịch tháng:</b> ô ngày càng đậm là ngày càng nhiều buổi học. Bấm vào 1 ngày để xem chi tiết các buổi của ngày đó.')}
       ${guideStep('3', '<b>Biểu đồ Gantt các khóa:</b> mỗi khóa có 3 giai đoạn — GĐ1 Lý thuyết, GĐ2 Thực hành (DAT + sa hình), GĐ3 Ôn thi &amp; thi tốt nghiệp. Thanh màu chỉ tiến độ theo thời gian khóa học.')}
       ${guideStep('4', '<b>Danh sách học viên đã có bằng:</b> hiện ở cuối trang — dùng nút “Xem kỳ thi” để qua mục Kỳ thi sát hạch và báo Zalo cho học viên đến nhận bằng.')}
       ${guideNote('Số liệu ở Tổng quan luôn lấy trực tiếp từ dữ liệu thật (học viên, lịch, lần thu) — sửa ở mục nào là Tổng quan tự cập nhật theo.')}`)}<div class="guide-imgs"><figure><img src="guide/g01-tong-quan.jpg" alt="Màn hình Tổng quan thật của Portal" loading="lazy" decoding="async"><figcaption>Màn hình Tổng quan thật của Portal</figcaption></figure></div></section>
-    <section class="panel" id="hd-lich">${Section('4 · Lịch hôm nay & xếp lịch', '', `
+    <section class="panel gd" id="hd-lich">${Section('4 · Lịch hôm nay & xếp lịch', '', `
       ${guideStep('1', 'Mục <b>Lịch hôm nay</b> liệt kê mọi buổi học trong ngày theo 4 cột: Giờ học · Học viên · Giáo viên phụ trách · Phương tiện — đúng mẫu bảng lịch của trung tâm.')}
       ${guideStep('2', 'Dùng ô chọn ngày để xem lịch của <b>bất kỳ ngày nào</b>; chuyển qua lại giữa 2 chế độ Hôm nay / Theo tháng.')}
       ${guideStep('3', 'Mỗi thẻ buổi học hiện tên học viên rút gọn (2 từ cuối), dòng chi tiết <b>Khóa – biển số · số km · trung tâm liên kết</b> (ví dụ “K41 - 51A-12345 · 80 km”) và tem màu theo loại buổi: <b>DAT</b> (xanh ngọc), <b>Sa hình</b> (cam), <b>Lý thuyết</b> (xanh lá), <b>Cabin</b> (xám xanh), <b>Bổ túc</b>, <b>Thi tốt nghiệp</b> (xanh navy), <b>Nghỉ</b> (đỏ).')}
       ${guideStep('4', '<b>Lọc lịch:</b> theo giáo viên, theo xe (biển số), theo trung tâm liên kết, theo loại buổi, hoặc gõ tên học viên — các bộ lọc dùng chung cho cả chế độ Tuần và Tháng.')}
       ${guideNote('Khi có lịch trùng (cùng xe, cùng giáo viên hoặc cùng học viên trong 1 khung giờ), hệ thống hiện banner đỏ ở đầu trang và viền đỏ quanh thẻ buổi bị trùng. Hãy sửa ngay bằng cách đổi khung giờ hoặc đổi xe/giáo viên.')}`)}<div class="guide-imgs"><figure><img src="guide/g03-lich-thang.jpg" alt="Lịch DAT & Sa hình theo tháng" loading="lazy" decoding="async"><figcaption>Lịch DAT & Sa hình theo tháng</figcaption></figure><figure><img src="guide/g04-xep-lich.jpg" alt="Form xếp lịch mới cho học viên" loading="lazy" decoding="async"><figcaption>Form xếp lịch mới cho học viên</figcaption></figure></div></section>
-    <section class="panel" id="hd-hoc-vien">${Section('5 · Quản lý học viên', '', `
+    <section class="panel gd" id="hd-hoc-vien">${Section('5 · Quản lý học viên', '', `
       ${guideStep('1', '<b>Danh sách học viên:</b> lọc theo khóa, trung tâm liên kết hoặc trạng thái (Đang học / Đủ điều kiện thi). Cột “Cabin” cho biết học viên đã học bao nhiêu giờ cabin trên 3 giờ yêu cầu.')}
       ${guideStep('2', '<b>Thêm học viên:</b> bấm “+ Thêm học viên”, điền họ tên, ngày sinh, CCCD, số điện thoại, hạng bằng và chọn khóa. Có thể chụp/tải ảnh CCCD để hệ thống tự đọc thông tin (OCR) rồi kiểm tra lại trước khi lưu.')}
       ${guideStep('3', '<b>Hồ sơ chi tiết:</b> bấm vào tên học viên để xem tiến độ DAT (thanh km + mốc âm/dương), 5 điều kiện thi, lịch sử đóng học phí và kết quả thi.')}
       ${guideStep('4', '<b>Chuyển trạng thái:</b> trong hồ sơ chi tiết có nút Bảo lưu / Nghỉ học / Hoàn phí. Hoàn phí sẽ hỏi số tiền hoàn và tự ghi 1 phiếu thu âm vào học phí.')}
       ${guideStep('5', '<b>Chuyển khóa:</b> dùng khi học viên xin dời sang khóa sau — chọn khóa đích trong hồ sơ chi tiết, tiến độ DAT và học phí được giữ nguyên.')}
       ${guideNote('Mã học viên (HP001, HP002…) được cấp tự động khi thêm mới, không sửa tay được để tránh trùng hồ sơ nộp Sở.')}`)}<div class="guide-imgs"><figure><img src="guide/g05-hoc-vien.jpg" alt="Danh sách học viên" loading="lazy" decoding="async"><figcaption>Danh sách học viên</figcaption></figure><figure><img src="guide/g06-ho-so-hv.jpg" alt="Hồ sơ chi tiết của một học viên" loading="lazy" decoding="async"><figcaption>Hồ sơ chi tiết của một học viên</figcaption></figure></div></section>
-    <section class="panel" id="hd-dat">${Section('6 · DAT & Sa hình', '', `
+    <section class="panel gd" id="hd-dat">${Section('6 · DAT & Sa hình', '', `
       <p class="gtext">Chuẩn số km DAT theo hạng bằng: <b>B1: 710 km · B2: 810 km · C1: 825 km · C: 825 km</b>. Mốc km âm/dương được tính theo tiến độ lý thuyết của khóa: học viên chạy ít hơn mốc là <b>âm km</b> (chip vàng), chạy nhiều hơn là <b>dương km</b> (chip xanh ngọc).</p>
       ${guideStep('1', 'Bảng <b>Tổng hợp DAT</b> cho biết từng học viên: km đã chạy / tổng km, % hoàn thành, trạng thái (Đạt chuẩn / Đúng tiến độ / Chậm tiến độ / Chưa chạy), giờ đã học và tốc độ trung bình.')}
       ${guideStep('2', '<b>Xếp buổi DAT mới:</b> chọn học viên, ngày, khung giờ, giáo viên và xe. Nếu xe/giáo viên/học viên đã có lịch trùng khung giờ, hệ thống <b>chặn và báo lỗi</b> kèm gợi ý xe và giáo viên còn trống.')}
       ${guideStep('3', 'Sau khi xếp, buổi học hiện lên Lịch theo tháng. Hết buổi, giáo viên nhập <b>km thực tế</b> và điểm danh (Có mặt / Vắng) ngay trên thẻ buổi.')}
       ${guideNote('Ba trường hợp mẫu đang có sẵn trong dữ liệu để trung tâm kiểm chứng tính năng quét trùng: trùng xe ngày 09/11, trùng học viên ngày 10/11 và trùng giáo viên ngày 11/11 — banner cảnh báo ở đầu trang sẽ chỉ rõ.')}`)}<div class="guide-imgs"><figure><img src="guide/g07-tong-hop-dat.jpg" alt="Bảng tổng hợp DAT theo học viên" loading="lazy" decoding="async"><figcaption>Bảng tổng hợp DAT theo học viên</figcaption></figure><figure><img src="guide/g02-tien-do.jpg" alt="Mục Tiến độ khóa học — km DAT và hạn bế giảng" loading="lazy" decoding="async"><figcaption>Mục Tiến độ khóa học — km DAT và hạn bế giảng</figcaption></figure></div></section>
-    <section class="panel" id="hd-tuyen-sinh">${Section('7 · Tuyển sinh & hồ sơ', '', `
+    <section class="panel gd" id="hd-tuyen-sinh">${Section('7 · Tuyển sinh & hồ sơ', '', `
       ${guideStep('1', 'Mục <b>Tuyển sinh</b> quản lý hồ sơ đăng ký mới: mỗi hồ sơ có 5 loại giấy tờ cần nộp — CCCD, Giấy khám sức khỏe, Ảnh 3x4, Đơn đăng ký, Sơ yếu lý lịch.')}
       ${guideStep('2', 'Bấm vào từng <b>nhãn giấy tờ</b> để chuyển trạng thái: Đã nộp (xanh) → Chưa nộp (xám) → Thiếu/sai (đỏ). Hồ sơ đủ 5/5 giấy tờ sẽ hiện nhãn “Đủ giấy tờ”.')}
       ${guideStep('3', 'Hồ sơ có <b>hạn bổ sung</b> (thường là 7 ngày từ lần nộp đầu). Quá hạn mà chưa đủ giấy tờ, hệ thống tự đưa vào nhóm “Quá hạn” và hiện cảnh báo.')}
       ${guideStep('4', 'Nút <b>Nhắc bổ sung</b> gửi tin nhắn mẫu qua Zalo OA liệt kê đúng các giấy tờ còn thiếu của từng người.')}
       ${guideStep('5', 'Khi hồ sơ đủ giấy tờ, bấm <b>Nhập học</b> và chọn khóa — hệ thống tự tạo học viên mới trong mục Học viên với đúng hạng bằng đã đăng ký.')}
       ${guideNote('Giấy khám sức khỏe có hạn 12 tháng. Nếu ngày khám đã quá 11 tháng, nên yêu cầu học viên khám lại trước khi nhập học để hồ sơ thi không bị trả.')}`)}<div class="guide-imgs"><figure><img src="guide/g08-tuyen-sinh.jpg" alt="Mục Tuyển sinh" loading="lazy" decoding="async"><figcaption>Mục Tuyển sinh</figcaption></figure></div></section>
-    <section class="panel" id="hd-hoc-phi">${Section('8 · Học phí & biên lai', '', `
+    <section class="panel gd" id="hd-hoc-phi">${Section('8 · Học phí & biên lai', '', `
       <p class="gtext">Học phí trọn gói theo hạng: <b>B1: 18 triệu · B2: 20 triệu · C1: 25 triệu · C: 24 triệu · Nâng dấu: 13 triệu</b>. Bổ túc tay lái 350.000đ/giờ, thuê xe tập lái 300.000đ/giờ.</p>
       ${guideStep('1', '<b>Ghi thu:</b> chọn học viên, nhập số tiền, ngày thu và ghi chú (ví dụ “Lần 2 — đủ DAT”). Hệ thống chặn thu vượt quá số còn nợ của học viên đó.')}
       ${guideStep('2', 'Mục “Thu học phí theo tháng” liệt kê mọi lần thu trong tháng đã chọn, kèm số km đã chạy tương ứng (cột trừ km như file cũ của trung tâm).')}
       ${guideStep('3', '<b>In biên lai A5 hàng loạt:</b> tích chọn tối đa 20 học viên → xem trước → xuất file in A5 (mỗi học viên 1 trang) để in 1 lần hoặc lưu PDF gửi học viên.')}
       ${guideStep('4', 'Cần <b>giảm học phí</b> cho học viên (diện chính sách, khuyến mãi khai giảng, đóng trọn gói sớm, người quen giới thiệu): mở hồ sơ học viên ở mục Học viên và nhập số tiền giảm + lý do — phải thu, còn nợ và điều kiện thi “học phí đủ” tự cập nhật theo.')}
       ${guideNote('Doanh thu tháng ở Tổng quan và Báo cáo đều tính từ các lần thu thật, không nhập tay. Hoàn phí cũng ghi tại đây với số tiền âm.')}`)}<div class="guide-imgs"><figure><img src="guide/g09-bang-gia.jpg" alt="Bảng giá chuẩn theo hạng bằng" loading="lazy" decoding="async"><figcaption>Bảng giá chuẩn theo hạng bằng</figcaption></figure><figure><img src="guide/g10-ghi-thu.jpg" alt="Form ghi thu học phí" loading="lazy" decoding="async"><figcaption>Form ghi thu học phí</figcaption></figure></div></section>
-    <section class="panel" id="hd-gv-xe">${Section('9 · Giáo viên · Xe · Trung tâm liên kết', '', `
+    <section class="panel gd" id="hd-gv-xe">${Section('9 · Giáo viên · Xe · Trung tâm liên kết', '', `
       ${guideStep('1', '<b>Giáo viên:</b> bảng lương tháng = giờ dạy × đơn giá/giờ. Tên giáo viên hiển thị khắp hệ thống với tiền tố “Gv.” (ví dụ: Gv. Hùng) và mỗi giáo viên có 1 màu nhãn riêng để nhìn lịch là nhận ra ngay.')}
       ${guideStep('2', '<b>Xe tập lái:</b> mỗi xe gắn 1 giáo viên chủ xe và các khóa phụ trách. Hệ thống cảnh báo khi xe chạy quá 56 giờ/tuần, khi giấy tờ xe (đăng kiểm, bảo hiểm, phù hiệu) sắp hết hạn và khi xe tới hạn bảo dưỡng theo km.')}
       ${guideStep('3', '<b>Nhật ký nhiên liệu:</b> mỗi lần đổ xăng ghi ngày, số lít, km đồng hồ và số tiền — hệ thống tự tính định mức lít/100km cho từng xe.')}
       ${guideStep('4', '<b>Trung tâm liên kết:</b> danh sách đối tác gửi học viên (Hóc Môn, Thành Công, Nam Sài Gòn, Á Châu, Phú Giáo) — có thể thêm/bớt/chỉnh sửa. Hoa hồng = doanh thu × % hoa hồng, tổng hoa hồng tháng hiển thị ngay đầu mục.')}
       ${guideStep('5', '<b>Bổ túc &amp; thuê xe:</b> ghi từng lượt học bổ túc/thuê xe của khách lẻ: chọn dịch vụ là đơn giá tự điền (350.000đ hoặc 300.000đ/giờ), thành tiền = số giờ × đơn giá.')}
       ${guideNote('Mã trung tâm ghi trên lưới lịch giấy của trung tâm: HM = Hóc Môn, ACHAU = Á Châu, PGiao/PHGIAO = Phú Giáo. Khi lọc lịch theo trung tâm, chọn đúng tên trong danh sách là hệ thống tự khớp cả mã viết tắt.')}`)}<div class="guide-imgs"><figure><img src="guide/g11-gv-xe.jpg" alt="Mục Giáo viên · Xe · Trung tâm liên kết" loading="lazy" decoding="async"><figcaption>Mục Giáo viên · Xe · Trung tâm liên kết</figcaption></figure></div></section>
-    <section class="panel" id="hd-thi">${Section('10 · Kỳ thi sát hạch', '', `
+    <section class="panel gd" id="hd-thi">${Section('10 · Kỳ thi sát hạch', '', `
       <p class="gtext">Theo Thông tư 108/2026 (hiệu lực 01/07/2026), kỳ thi sát hạch gồm <b>3 phần thi theo thứ tự: Lý thuyết → Sa hình → Đường trường</b>. Đậu phần trước mới được thi phần sau; rớt hoặc vắng phần nào thì các phần sau ghi “Chưa thi”.</p>
       ${guideStep('1', '<b>Điều kiện dự thi (đủ 5/5):</b> đạt bài kiểm tra lý thuyết · học đủ cabin 3h/3h · chạy DAT đủ số km theo hạng · hoàn thành đủ bài sa hình · đóng đủ học phí. Học viên đạt 5/5 tự hiện trong “Danh sách đủ điều kiện thi”.')}
       ${guideStep('2', '<b>Đợt thi:</b> tạo đợt thi (tên đợt, ngày thi, địa điểm), đăng ký học viên đủ điều kiện vào đợt, cập nhật trạng thái hồ sơ (Chưa nộp → Đã nộp Sở → Đã có biên nhận) và xuất danh sách dự thi (SBD, họ tên, ngày sinh, CCCD, hạng) để nộp Sở.')}
@@ -3761,20 +3771,20 @@ RENDERERS.guide = (main) => {
       ${guideStep('4', '<b>Thi tốt nghiệp:</b> chọn khóa để ghi ngày thi tốt nghiệp, kết quả, số chứng chỉ và ngày cấp cho từng học viên — đây là căn cứ để lập hồ sơ dự thi sát hạch.')}
       ${guideStep('5', '<b>Cấp bằng:</b> khi bằng về trung tâm, nhập “Ngày có bằng” và bật trạng thái “Đã có bằng”, rồi bấm nút Zalo trên cùng dòng để báo học viên mang CCCD đến nhận.')}
       ${guideNote('Học viên rớt 1 phần chỉ phải thi lại phần đó ở đợt sau; lệ phí thi lại ghi ở cột ghi chú của kết quả thi để đối chiếu khi thu thêm.')}`)}<div class="guide-imgs"><figure><img src="guide/g12-ky-thi.jpg" alt="Mục Kỳ thi sát hạch" loading="lazy" decoding="async"><figcaption>Mục Kỳ thi sát hạch</figcaption></figure><figure><img src="guide/g13-dot-thi.jpg" alt="Đợt thi và danh sách dự thi" loading="lazy" decoding="async"><figcaption>Đợt thi và danh sách dự thi</figcaption></figure></div></section>
-    <section class="panel" id="hd-bao-cao">${Section('11 · Báo cáo, cảnh báo & Zalo', '', `
+    <section class="panel gd" id="hd-bao-cao">${Section('11 · Báo cáo, cảnh báo & Zalo', '', `
       ${guideStep('1', '<b>Báo cáo &amp; biểu đồ:</b> doanh thu theo khóa, lời lỗ theo tháng, cơ cấu chi phí tháng hiện tại, học viên theo khóa, DAT theo khung giờ và theo xe. Kèm 3 mẫu báo cáo chuẩn Sở GTVT (kết quả đào tạo theo khóa, danh sách nhập học, dự thi/đậu theo đợt) — bấm là xuất file CSV mở bằng Excel.')}
       ${guideStep('2', '<b>Cảnh báo &amp; Zalo:</b> hệ thống tự quét và liệt kê: lịch trùng, mốc DAT âm/sắp hết hạn, học viên chưa học cabin, giấy khám sức khỏe sắp hết hạn, giấy tờ xe sắp hết hạn, xe tới hạn bảo dưỡng.')}
       ${guideStep('3', 'Mỗi loại thông báo (lịch học ngày mai, lịch thi, báo đậu, báo có bằng, nhắc DAT, nhắc cabin, nhắc khám sức khỏe) có sẵn <b>mẫu tin Zalo OA</b> — bấm nút là gửi và hệ thống ghi vào “Nhật ký thông báo đã gửi”.')}
       ${guideNote('Cảnh báo là dữ kiện sống: xử lý xong việc (ví dụ xếp thêm buổi DAT cho học viên âm km) thì lần mở lại trang, cảnh báo tương ứng sẽ tự biến mất hoặc giảm mức độ.')}`)}<div class="guide-imgs"><figure><img src="guide/g14-bao-cao.jpg" alt="Mục Báo cáo & biểu đồ" loading="lazy" decoding="async"><figcaption>Mục Báo cáo & biểu đồ</figcaption></figure><figure><img src="guide/g15-canh-bao.jpg" alt="Mục Cảnh báo & Zalo" loading="lazy" decoding="async"><figcaption>Mục Cảnh báo & Zalo</figcaption></figure></div></section>
-    <section class="panel" id="hd-dien-thoai">${Section('12 · Dùng trên điện thoại', '', `
+    <section class="panel gd" id="hd-dien-thoai">${Section('12 · Dùng trên điện thoại', '', `
       ${guideStep('1', 'Trên điện thoại, menu chuyển thành <b>thanh điều hướng dưới cùng</b> với 6 nút chỉ hình (không chữ): Tổng quan · Học viên · Lịch DAT &amp; Sa hình · Tiến độ khóa học · Kỳ thi sát hạch · Tất cả mục (mở danh sách đầy đủ 12 mục). Chạm vào nút nào là dữ liệu hiện ngay vì app đã nạp sẵn nền 5 mục này.')}
       ${guideStep('2', 'Các bảng dữ liệu tự chuyển thành <b>dạng thẻ</b> trên màn hình nhỏ — không cần kéo ngang. Ô nhập liệu đủ lớn (48px) để chạm chính xác.')}
       ${guideStep('3', 'Có thể “Thêm vào màn hình chính” (Add to Home Screen) từ trình duyệt để mở Portal như 1 ứng dụng.')}
       ${guideNote('Khi xếp lịch ngoài sân bãi, nên dùng chế độ Theo tháng ở mục Lịch DAT & Sa hình: nhìn cả tháng là biết ngày nào, xe nào còn trống.')}`)}</section>
-    <section class="panel" id="hd-cau-hinh">${Section('13 · Cấu hình trung tâm', '', `
+    <section class="panel gd" id="hd-cau-hinh">${Section('13 · Cấu hình trung tâm', '', `
       ${guideStep('1', 'Mở mục <b>Cấu hình trung tâm</b> (trong "Tất cả mục") để sửa <b>tên trung tâm, địa chỉ, số điện thoại</b> — bấm <b>Lưu thông tin</b> là áp dụng ngay cho thanh tiêu đề, biên lai, lịch in và các mẫu tin Zalo.')}
       ${guideStep('2', 'Đổi logo: bấm <b>Đổi logo</b>, chọn ảnh logo của trung tâm — app tự nén ảnh và tự cắt biểu tượng gọn cho thanh tiêu đề, rồi bấm <b>Lưu thông tin</b>.')}`)}<div class="guide-imgs"><figure><img src="guide/g16-cau-hinh.jpg" alt="Mục Cấu hình trung tâm" loading="lazy" decoding="async"><figcaption>Mục Cấu hình trung tâm</figcaption></figure></div></section>
-    <section class="panel" id="hd-hoi-dap">${Section('14 · Hỏi đáp nhanh', '', `
+    <section class="panel gd" id="hd-hoi-dap">${Section('14 · Hỏi đáp nhanh', '', `
       <p class="gtext"><b>Hỏi:</b> Vì sao không xếp được buổi DAT cho học viên?<br><b>Đáp:</b> Thường do trùng xe, trùng giáo viên hoặc học viên đã có buổi khác trong cùng khung giờ. Thông báo lỗi sẽ nói rõ trùng với buổi nào và gợi ý xe/giáo viên còn trống — đổi sang lựa chọn đó là xếp được.</p>
       <p class="gtext"><b>Hỏi:</b> Học viên đã đóng đủ tiền nhưng chưa hiện “đủ điều kiện thi”?<br><b>Đáp:</b> Điều kiện thi gồm 5 tiêu chí — kiểm tra trong hồ sơ học viên xem còn tiêu chí nào chưa đạt (thường là thiếu giờ cabin hoặc thiếu vài km DAT cuối).</p>
       <p class="gtext"><b>Hỏi:</b> Muốn sửa buổi học đã xếp (đổi giờ, đổi xe)?<br><b>Đáp:</b> Mở Lịch theo tháng, bấm vào thẻ buổi học đó để sửa trực tiếp; hệ thống quét trùng lại ngay sau khi lưu. Xóa buổi cũng làm tại đây.</p>
@@ -3782,6 +3792,7 @@ RENDERERS.guide = (main) => {
       <p class="gtext"><b>Hỏi:</b> Cần hỗ trợ thêm?<br><b>Đáp:</b> Liên hệ quản trị Portal của trung tâm hoặc gọi ${CENTER.phone} (giờ hành chính) để được hướng dẫn trực tiếp.</p>`)}
       </section>
   </div>`;
+  main.querySelectorAll('section.gd').forEach(sec => { const imgs = sec.querySelector(':scope > .guide-imgs'); if (!imgs) return; const wrap = document.createElement('div'); wrap.className = 'gd-text'; [...sec.childNodes].forEach(nd => { if (nd !== imgs) wrap.appendChild(nd); }); sec.insertBefore(wrap, imgs); });
 };
 
 /* ================= BOOT ================= */
