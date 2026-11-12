@@ -215,7 +215,7 @@ function studentObj_(o, payMap, kmMap, cabinMap) {
     cabin: cabinHours >= 3,
     dat: kmDone >= target,
     sahinh: str_(o['DaHocSaHinh']) === 'Đã học',
-    tuition: isMLL ? true : (payable - paid) <= 0
+    tuition: isMLL ? true : (payable - paid) <= 0 || hasAllDots_(sid) // dat neu thu du tien HOAC tick du 3 dot (user chot 12/11)
   };
   return {
     id: sid, code: str_(o['MaHV']), maHv: str_(o['MaHVSach']), name: str_(o['HoTen']),
@@ -564,6 +564,8 @@ function apiGetBootstrap(p) {
     centers: route_('listcenters', {})
   };
 }
+function dotsMap_() { return memo_('dotsMap', () => apiGetDots()); }
+function hasAllDots_(sid) { const d = dotsMap_().dots[sid]; return !!(d && d.length === 3); }
 function apiGetDots() {
   // Gom tick 3 đợt cho MỌI học viên trong 1 lần đọc ThanhToan (thay cho việc
   // frontend quét listpayments từng tháng). Ngữ nghĩa fold KHỚP parser frontend:
