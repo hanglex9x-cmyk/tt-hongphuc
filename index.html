@@ -356,7 +356,7 @@ ul.disc{list-style:disc;padding-left:20px;margin:0;display:flex;flex-direction:c
    ===================================================================== */
 
 // ---------- Cấu hình API (GIỮ NGUYÊN) ----------
-const DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycbxFG7h7a-FiI2UBB8bdr9UfyUZ936Vb0SKkBeikLorRDg8TECPxHGONSzkt9HrHVZuMQg/exec';
+const DEFAULT_API_URL = 'https://app.tt-hongphuc.workers.dev'; // lop dem Cloudflare Worker (12/11): doc ~0,15s tu dem bien, ghi xong tu xoa dem; loi thi app tu quay ve ORIGIN_API_URL
 const ORIGIN_API_URL = 'https://script.google.com/macros/s/AKfycbxFG7h7a-FiI2UBB8bdr9UfyUZ936Vb0SKkBeikLorRDg8TECPxHGONSzkt9HrHVZuMQg/exec'; // duong truc tiep Google — dung lam du phong khi lop dem (Worker) loi
 /* Khóa zoom mobile kiểu app: chặn pinch-zoom + double-tap zoom (iOS bỏ qua user-scalable=no) */
 document.addEventListener('gesturestart', e => e.preventDefault());
