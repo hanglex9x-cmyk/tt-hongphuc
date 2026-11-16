@@ -134,6 +134,12 @@ textarea.input{min-height:80px}
 .modtab{min-height:44px;border-radius:12px;padding:8px 16px;font-size:14px;font-weight:700;border:1px solid var(--border);background:#fff;color:var(--text);cursor:pointer;font-family:inherit}
 .modtab.on{border:none;color:#fff;background:linear-gradient(135deg,#00C853 0%,#00B050 45%,#007A38 100%);box-shadow:0 5px 16px rgba(0,150,70,.38),inset 0 1px 0 rgba(255,255,255,.35)}
 .note-dim{font-size:12px;color:var(--dim)}
+.stu-pick{display:block}
+.stu-pick-list{margin-top:6px;border:1.5px solid #C8E6C9;border-radius:12px;overflow:hidden;background:#fff}
+.stu-pick-item{display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;text-align:left;background:#fff;border:0;border-bottom:1px solid #EEF3EE;padding:10px 12px;font-size:15px;font-weight:600;color:#1B3A24;cursor:pointer;min-height:48px;font-family:inherit}
+.stu-pick-item:last-child{border-bottom:0}
+.stu-pick-item:active{background:#E8F5E9}
+.stu-pick-sub{font-size:12.5px;font-weight:500;color:#607D6B}
 .err-box{border-radius:12px;background:#FDECEA;padding:10px 12px;font-size:14px;color:#C62828}
 .ok-box{border-radius:12px;background:#E8F5E9;padding:10px 12px;font-size:14px}
 .warn-box{border-radius:12px;background:#FFF8E1;padding:10px 12px;font-size:14px}
@@ -2302,6 +2308,30 @@ function datExport() {
 }
 /* --- Form xếp lịch mới: kiểm tra trùng phía client trước khi ghi --- */
 const DC = { date: TODAY, slot: '08-10h', type: 'DAT', km: 40 };
+/* O chon hoc vien co go loc ten (khong can dau) cho form xep lich dc/qc.
+   O an #<pfx>-student giu id da chon de datCreate() doc nhu cu. */
+function stuPickInit_(pfx, students) {
+  const q = document.getElementById(pfx + '-student-q');
+  const hid = document.getElementById(pfx + '-student');
+  const list = document.getElementById(pfx + '-student-list');
+  if (!q || !hid || !list) return;
+  const label = s => `${s.code} · ${s.name}`;
+  const render = () => {
+    const t = normText(q.value.trim());
+    const hits = (students || []).filter(s => !t || normText(s.name).includes(t) || normText(s.code).includes(t) || normText(s.maHv || '').includes(t)).slice(0, 8);
+    if (!hits.length) { list.style.display = 'none'; list.innerHTML = ''; return; }
+    list.innerHTML = hits.map(s => `<button type="button" class="stu-pick-item" data-sid="${s.id}">${esc(label(s))}<span class="stu-pick-sub">DAT ${s.datKmDone}/${s.datKmTotal}km · Xe KG ${esc(s.plateKg || '—')}</span></button>`).join('');
+    list.style.display = 'block';
+    list.querySelectorAll('.stu-pick-item').forEach(b => b.addEventListener('click', () => {
+      const st = (students || []).find(x => x.id === Number(b.dataset.sid));
+      if (!st) return;
+      hid.value = st.id; q.value = label(st); list.style.display = 'none';
+    }));
+  };
+  q.addEventListener('input', () => { hid.value = ''; render(); });
+  q.addEventListener('focus', render);
+  q.addEventListener('blur', () => setTimeout(() => { list.style.display = 'none'; }, 200));
+}
 async function datCreateLoad() {
   const host = document.getElementById('datcreate');
   if (!host) return;
@@ -2316,7 +2346,7 @@ async function datCreateLoad() {
         <label class="field"><span>Giờ kết thúc</span><select id="dc-end" class="select">${TIME_OPTIONS.map(x => `<option ${x === parseSlot(DC.slot).end ? 'selected' : ''}>${x}</option>`).join('')}</select></label>
         <label class="field"><span>Loại buổi</span><select id="dc-type" class="select">${['DAT', 'Sa hình', 'Lý thuyết', 'Cabin', 'Bổ túc'].map(t => `<option ${t === DC.type ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
         <label class="field"><span>KM DAT (nếu là buổi DAT)</span><input id="dc-km" type="number" min="0" class="input" value="${DC.km}"></label>
-        <label class="field span2"><span>Học viên</span><select id="dc-student" class="select"><option value="">— Chọn học viên —</option>${(lk.students || []).map(s => `<option value="${s.id}" ${focus && s.id === focus.id ? 'selected' : ''}>${esc(s.code)} · ${esc(s.name)} · DAT ${s.datKmDone}/${s.datKmTotal}km · Xe KG ${esc(s.plateKg || '—')}</option>`).join('')}</select></label>
+        <label class="field span2"><span>Học viên</span><span class="stu-pick"><input id="dc-student-q" class="input" type="text" placeholder="Gõ tên học viên — không cần dấu…" autocomplete="off" value="${focus ? esc(focus.code + ' · ' + focus.name) : ''}"><input type="hidden" id="dc-student" value="${focus ? focus.id : ''}"><span id="dc-student-list" class="stu-pick-list" style="display:none"></span></span></label>
         <label class="field"><span>Giáo viên</span><select id="dc-teacher" class="select"><option value="">— Chọn GV —</option>${(lk.teachers || []).map(t => `<option value="${t.id}">${esc(gvName(t.name))}${t.kind === 'botuc' ? ' (bổ túc)' : ''}</option>`).join('')}</select></label>
         <label class="field"><span>Xe</span><select id="dc-vehicle" class="select"><option value="">— Chọn xe —</option>${(lk.vehicles || []).map(v => `<option value="${v.id}" ${v.status === 'Bảo dưỡng' ? 'disabled' : ''}>${esc(v.plate)} (${esc(v.status)})</option>`).join('')}</select></label>
       </div>
@@ -2325,6 +2355,7 @@ async function datCreateLoad() {
 `);
     const sec = host.closest('section');
     if (sec) { const subEl = sec.querySelector('.sec-head .sub'); if (subEl) subEl.textContent = sub; }
+    stuPickInit_('dc', lk.students || []);
   } catch (e) { host.innerHTML = LoadError(e.message); }
 }
 async function openQuickSchedule(dateStr, preselId) {
@@ -2338,13 +2369,14 @@ async function openQuickSchedule(dateStr, preselId) {
         <label class="field"><span>Giờ kết thúc</span><select id="qc-end" class="select">${TIME_OPTIONS.map(x => `<option ${x === parseSlot(DC.slot).end ? 'selected' : ''}>${x}</option>`).join('')}</select></label>
         <label class="field"><span>Loại buổi</span><select id="qc-type" class="select">${['DAT', 'Sa hình', 'Lý thuyết', 'Cabin', 'Bổ túc'].map(t => `<option ${t === DC.type ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
         <label class="field"><span>KM DAT (nếu là buổi DAT)</span><input id="qc-km" type="number" min="0" class="input" value="${DC.km}"></label>
-        <label class="field span2"><span>Học viên</span><select id="qc-student" class="select"><option value="">— Chọn học viên —</option>${(lk.students || []).map(s2 => `<option value="${s2.id}" ${stu && s2.id === stu.id ? 'selected' : ''}>${esc(s2.code)} · ${esc(s2.name)} · DAT ${s2.datKmDone}/${s2.datKmTotal}km · Xe KG ${esc(s2.plateKg || '—')}</option>`).join('')}</select></label>
+        <label class="field span2"><span>Học viên</span><span class="stu-pick"><input id="qc-student-q" class="input" type="text" placeholder="Gõ tên học viên — không cần dấu…" autocomplete="off" value="${stu ? esc(stu.code + ' · ' + stu.name) : ''}"><input type="hidden" id="qc-student" value="${stu ? stu.id : ''}"><span id="qc-student-list" class="stu-pick-list" style="display:none"></span></span></label>
         <label class="field"><span>Giáo viên</span><select id="qc-teacher" class="select"><option value="">— Chọn GV —</option>${(lk.teachers || []).map(t => `<option value="${t.id}">${esc(gvName(t.name))}${t.kind === 'botuc' ? ' (bổ túc)' : ''}</option>`).join('')}</select></label>
         <label class="field"><span>Xe</span><select id="qc-vehicle" class="select"><option value="">— Chọn xe —</option>${(lk.vehicles || []).map(v => `<option value="${v.id}" ${v.status === 'Bảo dưỡng' ? 'disabled' : ''}>${esc(v.plate)} (${esc(v.status)})</option>`).join('')}</select></label>
       </div>
       <button type="button" class="btn btn-green btn-block" style="min-height:48px;font-weight:700" onclick="datCreate('qc')">Xếp lịch — kiểm tra trùng tự động</button>
       <div id="qc-result"></div>
     </div>`);
+    stuPickInit_('qc', lk.students || []);
   } catch (e) { toast('Không mở được form xếp lịch: ' + e.message); }
 }
 let _dcBusy = false;
@@ -2380,6 +2412,11 @@ async function datCreate(pfx) {
       km: 0,
     };
     payload.km = payload.type === 'DAT' ? (Number(document.getElementById(pfx + '-km').value) || 0) : 0;
+    const qEl = document.getElementById(pfx + '-student-q');
+    if (qEl && qEl.value.trim() && !payload.studentId) {
+      box.innerHTML = '<div class="err-box" style="margin-top:12px">Chưa chọn học viên — gõ tên rồi bấm vào đúng tên trong danh sách hiện ra.</div>';
+      return;
+    }
     if (!tStart || !tEnd || tEnd <= tStart) {
       box.innerHTML = '<div class="err-box" style="margin-top:12px">Giờ kết thúc phải sau giờ bắt đầu — kiểm tra lại giờ học.</div>';
       return;
@@ -3895,9 +3932,9 @@ RENDERERS.guide = (main) => {
     <section class="panel gd" id="hd-dat">${Section('6 · DAT & Sa hình', '', `
       <p class="gtext">Chuẩn số km DAT theo hạng bằng: <b>B1: 710 km · B2: 810 km · C1: 825 km · C: 825 km</b>. Mốc km âm/dương được tính theo tiến độ lý thuyết của khóa: học viên chạy ít hơn mốc là <b>âm km</b> (chip vàng), chạy nhiều hơn là <b>dương km</b> (chip xanh ngọc).</p>
       ${guideStep('1', 'Bảng <b>Tổng hợp DAT</b> cho biết từng học viên: km đã chạy / tổng km, % hoàn thành, trạng thái (Đạt chuẩn / Đúng tiến độ / Chậm tiến độ / Chưa chạy), giờ đã học và tốc độ trung bình.')}
-      ${guideStep('2', '<b>Xếp buổi DAT mới:</b> chọn học viên, ngày, khung giờ, giáo viên và xe. Nếu xe/giáo viên/học viên đã có lịch trùng khung giờ, hệ thống <b>chặn và báo lỗi</b> kèm gợi ý xe và giáo viên còn trống.')}
+      ${guideStep('2', '<b>Xếp buổi mới:</b> ở ô Học viên, <b>gõ vài chữ cái đầu của tên (không cần dấu)</b> rồi bấm vào đúng tên trong danh sách hiện ra; chọn tiếp ngày, khung giờ, giáo viên và xe. Nếu xe/giáo viên/học viên đã có lịch trùng khung giờ, hệ thống <b>chặn và báo lỗi</b> kèm gợi ý xe và giáo viên còn trống.')}
       ${guideStep('3', 'Sau khi xếp, buổi học hiện lên Lịch theo tháng. Hết buổi, giáo viên nhập <b>km thực tế</b> và điểm danh (Có mặt / Vắng) ngay trên thẻ buổi.')}
-      ${guideNote('Ba trường hợp mẫu đang có sẵn trong dữ liệu để trung tâm kiểm chứng tính năng quét trùng: trùng xe ngày 09/11, trùng học viên ngày 10/11 và trùng giáo viên ngày 11/11 — banner cảnh báo ở đầu trang sẽ chỉ rõ.')}`)}<div class="guide-imgs"><figure><img src="guide/g07-tong-hop-dat.jpg" alt="Bảng tổng hợp DAT theo học viên" loading="lazy" decoding="async"><figcaption>Bảng tổng hợp DAT theo học viên</figcaption></figure><figure><img src="guide/g02-tien-do.jpg" alt="Mục Tiến độ khóa học — km DAT và hạn bế giảng" loading="lazy" decoding="async"><figcaption>Mục Tiến độ khóa học — km DAT và hạn bế giảng</figcaption></figure></div></section>
+      ${guideNote('<b>Ghi lịch CABIN</b> cũng làm ngay tại form Xếp lịch mới này: ô <b>Loại buổi</b> chọn <b>Cabin</b>, chọn học viên, ngày và giờ học rồi bấm Xếp lịch — giờ cabin tự cộng vào tiêu chí Cabin 3h/3h của học viên. Buổi mới mặc định là đã học; nếu học viên vắng buổi đó, mở thẻ buổi trên lịch và đổi điểm danh thành “HV vắng” thì giờ sẽ không tính. Mỗi học viên tối đa 1 buổi/ngày, nên xếp cabin vào ngày bạn đó chưa có buổi nào khác.')}`)}<div class="guide-imgs"><figure><img src="guide/g07-tong-hop-dat.jpg" alt="Bảng tổng hợp DAT theo học viên" loading="lazy" decoding="async"><figcaption>Bảng tổng hợp DAT theo học viên</figcaption></figure><figure><img src="guide/g02-tien-do.jpg" alt="Mục Tiến độ khóa học — km DAT và hạn bế giảng" loading="lazy" decoding="async"><figcaption>Mục Tiến độ khóa học — km DAT và hạn bế giảng</figcaption></figure></div></section>
     <section class="panel gd" id="hd-tuyen-sinh">${Section('7 · Tuyển sinh & hồ sơ', '', `
       ${guideStep('1', 'Mục <b>Tuyển sinh</b> quản lý hồ sơ đăng ký mới: mỗi hồ sơ có 5 loại giấy tờ cần nộp — CCCD, Giấy khám sức khỏe, Ảnh 3x4, Đơn đăng ký, Sơ yếu lý lịch.')}
       ${guideStep('2', 'Bấm vào từng <b>nhãn giấy tờ</b> để chuyển trạng thái: Đã nộp (xanh) → Chưa nộp (xám) → Thiếu/sai (đỏ). Hồ sơ đủ 5/5 giấy tờ sẽ hiện nhãn “Đủ giấy tờ”.')}
