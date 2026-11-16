@@ -1423,7 +1423,7 @@ function svRenderNav(id) {
     el.innerHTML = `<div class="sv-navrow"><button type="button" class="btn btn-sm" onclick="svNavM('${id}',-1)" aria-label="Tháng trước">‹</button><button type="button" class="btn btn-sm ${st.half === 1 ? 'btn-green-grad' : ''}" onclick="svHalf('${id}',1)">1–15</button><button type="button" class="btn btn-sm ${st.half === 2 ? 'btn-green-grad' : ''}" onclick="svHalf('${id}',2)">15–${lastDayOf(st.monthCursor)}</button><button type="button" class="btn btn-sm" onclick="svNavM('${id}',1)" aria-label="Tháng sau">›</button></div>`;
   } else {
     const [ny, nm] = st.monthCursor.split('-');
-    el.innerHTML = `<div class="sv-navrow"><button type="button" class="btn btn-sm" onclick="svNavM('${id}',-1)" aria-label="Tháng trước">‹</button><span class="sv-month">Tháng ${Number(nm)}/${ny}</span><button type="button" class="btn btn-sm" onclick="svNavM('${id}',1)" aria-label="Tháng sau">›</button><button type="button" class="btn btn-sm" onclick="svNavM('${id}',0)">Tháng này</button>${st.readOnly ? '' : (st.mode === 'grid' ? `<button type="button" class="btn btn-sm" onclick="svSetMode('${id}','month')">Theo ngày</button>` : `<button type="button" class="btn btn-sm" onclick="svSetMode('${id}','grid')">Lưới HV</button>`)}</div>`;
+    el.innerHTML = `<div class="sv-navrow"><button type="button" class="btn btn-sm" onclick="svNavM('${id}',-1)" aria-label="Tháng trước">‹</button><span class="sv-month">Tháng ${Number(nm)}/${ny}</span><button type="button" class="btn btn-sm" onclick="svNavM('${id}',1)" aria-label="Tháng sau">›</button><button type="button" class="btn btn-sm" onclick="svNavM('${id}',0)">Tháng này</button>${st.mode === 'grid' ? `<button type="button" class="btn btn-sm" onclick="svSetMode('${id}','month')">Theo ngày</button>` : `<button type="button" class="btn btn-sm" onclick="svSetMode('${id}','grid')">Lưới HV</button>`}</div>`;
   }
 }
 function lastDayOf(mc) { return Number(addDays(addMonths(mc, 1), -1).slice(8, 10)); }
@@ -1509,7 +1509,8 @@ function fitCardNames_(root) {
   fix.forEach(([el, size]) => { el.style.fontSize = size.toFixed(1) + 'px'; });
 }
 function ScheduleGrid_(days, byDate, st, focusId) {
-  const students = ((st.lookups && st.lookups.students) || []).filter(x => !focusId || x.id === focusId);
+  let students = ((st.lookups && st.lookups.students) || []).filter(x => !focusId || x.id === focusId);
+  if (st.readOnly && st.fTeacher) students = students.filter(x => x.homeTeacherName === st.fTeacher);
   const byStu = {};
   Object.keys(byDate).forEach(d => (byDate[d] || []).forEach(sv => { if (sv.studentId) { const o = (byStu[sv.studentId] = byStu[sv.studentId] || {}); o[d] = (o[d] || []).concat(sv); } }));
   const courses = [];
