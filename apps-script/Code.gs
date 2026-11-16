@@ -93,7 +93,7 @@ function nextId_(tabName) {
 // Các cột định danh toàn số: setValues/appendRow diễn giải chuỗi số thành SỐ nên
 // CCCD/SĐT bị mất số 0 đầu (0790... -> 790...). Sau mỗi lần ghi, ép các ô này về
 // định dạng text (@) rồi ghi lại dạng chuỗi để giữ nguyên số 0 đầu.
-const TEXT_COLS_ = { HocVien: ['CCCD', 'SDT', 'SoChungChi'], TuyenSinh: ['SDT'], GiaoVien: ['SDT'], BoTucThueXe: ['SDT'] };
+const TEXT_COLS_ = { HocVien: ['CCCD', 'SDT', 'SoChungChi', 'MaThe'], TuyenSinh: ['SDT'], GiaoVien: ['SDT', 'MaGV'], BoTucThueXe: ['SDT'] };
 function forceTextCells_(tabName, sheet, row, headers, vals) {
   const cols = TEXT_COLS_[tabName];
   if (!cols || !row) return;
@@ -221,7 +221,7 @@ function studentObj_(o, payMap, kmMap, cabinMap) {
     id: sid, code: str_(o['MaHV']), maHv: str_(o['MaHVSach']), name: str_(o['HoTen']),
     dob: dstr_(o['NgaySinh']), cccd: str_(o['CCCD']), phone: str_(o['SDT']), address: str_(o['DiaChi']),
     courseCode: str_(o['MaKhoa']), licenseClass: cls, centerName: str_(o['TrungTamLienKet']),
-    homeTeacherName: str_(o['GVChinh']), homePlate: str_(o['XeQuen']), plateKg: str_(o['BienSoKG']),
+    homeTeacherName: str_(o['GVChinh']), homePlate: str_(o['XeQuen']), plateKg: str_(o['BienSoKG']), cardNo: str_(o['MaThe']),
     regDate: dstr_(o['NgayDangKy']), healthExamDate: dstr_(o['NgayKhamSK']), healthExpiry: dstr_(o['HanKhamSK']),
     cabinHours: cabinHours, cabinSessions: cabinSessions,
     theoryScore: o['DiemLyThuyet'] === '' ? null : num_(o['DiemLyThuyet']), theoryPassed: crit.theory,
@@ -467,7 +467,7 @@ function normSearch_(s) {
 }
 function apiListStudents(p) {
   let rows = allStudents_();
-  if (p.search) { const q = normSearch_(p.search); rows = rows.filter(s => normSearch_(s.name).includes(q) || normSearch_(s.code).includes(q) || normSearch_(s.maHv).includes(q)); }
+  if (p.search) { const q = normSearch_(p.search); rows = rows.filter(s => normSearch_(s.name).includes(q) || normSearch_(s.code).includes(q) || normSearch_(s.maHv).includes(q) || normSearch_(s.cardNo || '').includes(q)); }
   if (p.courseCode) rows = rows.filter(s => s.courseCode === p.courseCode);
   if (p.status) rows = rows.filter(s => s.status === p.status);
   if (p.centerName) rows = rows.filter(s => s.centerName === p.centerName);
@@ -624,7 +624,7 @@ function apiGetFleet() {
   const wk = weekHoursByVehicle_();
   const teachers = tab_('GiaoVien').objs.map(o => ({
     id: num_(o['ID']), name: str_(o['HoTen']), shortName: str_(o['TenNgan']), color: str_(o['Mau']),
-    kind: str_(o['Loai']), phone: str_(o['SDT']), hourlyRate: num_(o['DonGiaGio']),
+    kind: str_(o['Loai']), phone: str_(o['SDT']), code: str_(o['MaGV']), hourlyRate: num_(o['DonGiaGio']),
     hoursMonth: num_(o['GioThang']), salary: num_(o['DonGiaGio']) * num_(o['GioThang'])
   }));
   const threshold = num_(cfg_('NguongXeQuaGioTuan', 56)) || 56;
@@ -894,9 +894,9 @@ function apiNotifications() {
 function apiGetLookups() {
   return {
     courses: courses_().map(c => ({ code: c.code, licenseClass: c.licenseClass, tuition: c.tuition })),
-    teachers: tab_('GiaoVien').objs.map(o => ({ id: num_(o['ID']), name: str_(o['HoTen']), shortName: str_(o['TenNgan']), color: str_(o['Mau']), kind: str_(o['Loai']) })),
+    teachers: tab_('GiaoVien').objs.map(o => ({ id: num_(o['ID']), name: str_(o['HoTen']), shortName: str_(o['TenNgan']), color: str_(o['Mau']), kind: str_(o['Loai']), code: str_(o['MaGV']) })),
     vehicles: tab_('Xe').objs.map(o => ({ id: num_(o['ID']), plate: str_(o['BienSo']), status: str_(o['TrangThai']) })),
-    students: allStudents_().map(s => ({ id: s.id, code: s.code, maHv: s.maHv, name: s.name, courseCode: s.courseCode, status: s.status, datKmDone: s.datKmDone, datKmTotal: s.datKmTotal, plateKg: s.plateKg }))
+    students: allStudents_().map(s => ({ id: s.id, code: s.code, maHv: s.maHv, name: s.name, courseCode: s.courseCode, status: s.status, datKmDone: s.datKmDone, datKmTotal: s.datKmTotal, plateKg: s.plateKg, cardNo: s.cardNo }))
   };
 }
 
@@ -920,7 +920,7 @@ function apiSaveStudent(p) {
       GioCabin: 0, BuoiCabin: 0, DiemLyThuyet: '', DatLyThuyet: 'Chưa đạt', DaHocSaHinh: 'Chưa học',
       KmDATDaChay: 0, KmDATMucTieu: TARGET_KM[p.licenseClass || c.licenseClass] || 810, MocKmDAT: 0,
       GiamTien: num_(p.discount), MuaLL: p.muaLL ? 1 : '', HocPhi: num_(p.tuition) > 0 ? num_(p.tuition) : priceFor_(p.licenseClass || c.licenseClass || ''), LyDoGiam: p.discountReason || '', TrangThai: p.status || 'Đang học',
-      NgayThiTotNghiep: '', KetQuaTotNghiep: '', SoChungChi: '', NgayCapChungChi: '',
+      MaThe: p.cardNo || '', NgayThiTotNghiep: '', KetQuaTotNghiep: '', SoChungChi: '', NgayCapChungChi: '',
       NgayCoBang: '', CoBang: 'Chưa', DiemBangLai: ''
     });
   }
@@ -928,6 +928,7 @@ function apiSaveStudent(p) {
   if (p.name !== undefined) patch['HoTen'] = p.name;
   if (p.dob !== undefined) patch['NgaySinh'] = p.dob;
   if (p.cccd !== undefined) patch['CCCD'] = p.cccd;
+  if (p.cardNo !== undefined) patch['MaThe'] = p.cardNo;
   if (p.phone !== undefined) patch['SDT'] = p.phone;
   if (p.address !== undefined) patch['DiaChi'] = p.address;
   if (p.status !== undefined) patch['TrangThai'] = p.status;
@@ -1059,7 +1060,7 @@ function apiSaveTeacher(p) {
   let id = num_(p.id);
   if (!id) {
     id = nextId_('GiaoVien');
-    appendObj_('GiaoVien', { ID: id, HoTen: '', TenNgan: '', Mau: '#90A4AE', Loai: 'chinh', SDT: '', DonGiaGio: 0, GioThang: 0, LuongThang: 0 });
+    appendObj_('GiaoVien', { ID: id, HoTen: '', TenNgan: '', Mau: '#90A4AE', Loai: 'chinh', SDT: '', MaGV: '', DonGiaGio: 0, GioThang: 0, LuongThang: 0 });
   }
   const patch = {};
   if (p.name !== undefined) {
@@ -1069,6 +1070,7 @@ function apiSaveTeacher(p) {
   if (p.shortName !== undefined) patch['TenNgan'] = p.shortName;
   if (p.kind !== undefined) patch['Loai'] = p.kind;
   if (p.phone !== undefined) patch['SDT'] = p.phone;
+  if (p.code !== undefined) patch['MaGV'] = p.code;
   if (p.color !== undefined) patch['Mau'] = p.color;
   writeRow_('GiaoVien', id, patch);
   logHistory_('saveTeacher', 'GV' + id, 'Lưu GV ' + (p.name || ''));
@@ -1256,9 +1258,31 @@ function apiUpdateExamResult(p) {
   if (p.retakeFee !== undefined) patch['PhiThiLai'] = num_(p.retakeFee);
   if (p.retakeFeeNote !== undefined) patch['GhiChuPhi'] = p.retakeFeeNote;
   if (p.note !== undefined) patch['GhiChu'] = p.note;
+  const exRow = tab_('KetQuaThi').objs.find(o => num_(o['ID']) === id);
   writeRow_('KetQuaThi', id, patch);
+  const sidEx = num_(p.studentId) || (exRow ? num_(exRow['IDHocVien']) : 0);
+  if (sidEx) {
+    const mLT = patch['LyThuyet'] !== undefined ? patch['LyThuyet'] : (exRow ? str_(exRow['LyThuyet']) : '');
+    const mSH = patch['SaHinh'] !== undefined ? patch['SaHinh'] : (exRow ? str_(exRow['SaHinh']) : '');
+    const mDT = patch['DuongTruong'] !== undefined ? patch['DuongTruong'] : (exRow ? str_(exRow['DuongTruong']) : '');
+    const mKQ = patch['KetQua'] !== undefined ? patch['KetQua'] : (exRow ? str_(exRow['KetQua']) : '');
+    const failP = (mLT === 'Rớt' || mLT === 'Vắng') ? 'Lý thuyết' : ((mSH === 'Rớt' || mSH === 'Vắng') ? 'Sa hình' : ((mDT === 'Rớt' || mDT === 'Vắng') ? 'Đường trường' : ''));
+    if (mKQ === 'Đậu' || (mLT === 'Đậu' && mSH === 'Đậu' && mDT === 'Đậu')) autoStatus_(sidEx, 'Chờ nhận bằng');
+    else if (failP) autoStatus_(sidEx, 'Rớt ' + failP);
+    else { const curE = str_((findRow_('HocVien', sidEx) || {})['TrangThai']); if (['Chờ nhận bằng', 'Rớt Lý thuyết', 'Rớt Sa hình', 'Rớt Đường trường'].includes(curE)) autoStatus_(sidEx, 'Chờ sát hạch'); }
+  }
   logHistory_('updateExamResult', 'KQ' + id, 'Cập nhật kết quả thi');
   return { ok: true, id };
+}
+/* Trang thai tu dong theo ket qua tot nghiep / sat hach. Chi ap dung khi HV dang
+   o luong chinh; Bao luu / Da nghi hoc de tuy hoan canh xu ly tay, khong tu doi. */
+const AUTO_STATUS_OK_ = ['', 'Đang học', 'Chờ sát hạch', 'Chờ nhận bằng', 'Rớt Lý thuyết', 'Rớt Sa hình', 'Rớt Đường trường', 'Đã đậu sát hạch'];
+function autoStatus_(studentId, status) {
+  const st = findRow_('HocVien', num_(studentId));
+  if (!st) return;
+  const cur = str_(st['TrangThai']);
+  if (cur === status || !AUTO_STATUS_OK_.includes(cur)) return;
+  writeRow_('HocVien', num_(studentId), { TrangThai: status });
 }
 function apiUpdateGraduation(p) {
   const st = bystId_(num_(p.studentId));
@@ -1279,6 +1303,8 @@ function apiUpdateGraduation(p) {
   }
   writeRow_('HocVien', num_(p.studentId), { NgayThiTotNghiep: vals.NgayThiTN, KetQuaTotNghiep: vals.KetQua,
     SoChungChi: vals.SoChungChi, NgayCapChungChi: vals.NgayCap });
+  if (vals.KetQua === 'Đạt') autoStatus_(p.studentId, 'Chờ sát hạch');
+  else { const curG = str_((findRow_('HocVien', num_(p.studentId)) || {})['TrangThai']); if (curG === 'Chờ sát hạch') autoStatus_(p.studentId, 'Đang học'); }
   logHistory_('updateGraduation', st ? st.code : '', 'Cập nhật thi tốt nghiệp: ' + (p.result || ''));
   return { ok: true };
 }
@@ -1290,6 +1316,8 @@ function apiUpdateLicenseStatus(p) {
   writeRow_('HocVien', num_(p.studentId), patch);
   const ex = tab_('KetQuaThi').objs.find(o => num_(o['IDHocVien']) === num_(p.studentId));
   if (ex) writeRow_('KetQuaThi', num_(ex['ID']), { CoBang: p.hasLicense ? 'Có' : 'Chưa', NgayCoBang: p.licenseDate || '' });
+  if (p.hasLicense) autoStatus_(p.studentId, 'Đã có bằng');
+  else if (str_(st['TrangThai']) === 'Đã có bằng') autoStatus_(p.studentId, 'Chờ nhận bằng');
   logHistory_('updateLicenseStatus', str_(st['MaHV']), 'Cập nhật cấp bằng: ' + (p.hasLicense ? 'Đã có bằng ' + (p.licenseDate || '') : 'Chưa có bằng'));
   return { ok: true };
 }
@@ -1483,7 +1511,7 @@ const WRITE_GROUPS = {
   deleteschedule: ['sched', 'dash', 'dat', 'alerts'],
   saveexamround: ['exams'], deleteexamround: ['exams'],
   addroundregistration: ['exams'], removeroundregistration: ['exams'],
-  updateexamresult: ['exams', 'dash', 'reports'],
+  updateexamresult: ['exams', 'dash', 'reports', 'students', 'lookups'],
   updategraduation: ['exams', 'students', 'lookups', 'dash'],
   updatelicensestatus: ['exams', 'students', 'lookups'],
   saveadmission: ['admissions', 'alerts'], deleteadmission: ['admissions', 'alerts'],
