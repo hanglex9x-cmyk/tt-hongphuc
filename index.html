@@ -159,6 +159,19 @@ textarea.input{min-height:80px}
 .gtable td.g-cell:hover{background:#E9F6E9}
 .gtable td.g-cell:hover .g-plus{opacity:.85;color:#007A38}
 .gchip{display:block;border-radius:7px;color:#fff;font-size:11px;font-weight:700;padding:3px 4px;margin:1px 0;white-space:nowrap;overflow:hidden;cursor:pointer;box-shadow:0 1px 2px rgba(10,50,25,.25)}
+.gv-pick{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:#fff;border:1.5px solid #DFEAE0;border-radius:14px;padding:11px 14px;cursor:pointer;box-shadow:0 1px 3px rgba(20,80,40,.05);font:inherit}
+.gv-pick:active{background:#F2F9F2}
+.gv-ava{width:44px;height:44px;border-radius:50%;color:#fff;font-weight:800;font-size:17px;display:flex;align-items:center;justify-content:center;flex:0 0 auto;box-shadow:inset 0 -2px 4px rgba(0,0,0,.14)}
+.gv-ava.sm{width:38px;height:38px;font-size:15px}
+.gv-pinfo{display:flex;flex-direction:column;min-width:0}
+.gv-pname{font-weight:800;font-size:16px;color:#1B3A24}
+.gv-psub{font-size:12.5px;color:var(--dim);margin-top:1px}
+.gv-chev{margin-left:auto;color:#A9C6A9;font-size:22px;font-weight:700;line-height:1}
+.gv-head{display:flex;align-items:center;gap:10px}
+.gv-change{margin-left:auto;flex:0 0 auto}
+.gv-tabs{display:flex;background:#EDF3ED;border-radius:999px;padding:3px;gap:3px;margin:12px 0 4px}
+.gv-tabs button{flex:1;border:0;background:transparent;border-radius:999px;min-height:37px;font-size:13.5px;font-weight:700;color:#5B7263;cursor:pointer;font:inherit;padding:4px 6px}
+.gv-tabs button.on{background:linear-gradient(135deg,#00C853,#00B050 45%,#007A38);color:#fff;box-shadow:0 3px 8px rgba(0,122,56,.35)}
 .sv-navrow{display:flex;gap:6px;align-items:center;width:100%;flex-wrap:nowrap}
 .sv-navrow .btn-sm{min-height:34px;padding:4px 9px;font-size:12.5px;border-radius:9px;white-space:nowrap}
 .sv-month{flex:1;text-align:center;font-weight:800;font-size:15px;white-space:nowrap;color:#1B3A24}
@@ -1031,19 +1044,20 @@ function gvRender_() {
   if (!GV_TEACHER) {
     view.innerHTML = `<section class="panel"><h2 style="margin:0 0 6px;font-size:19px">Giáo viên vào xem lịch dạy</h2>
       <p style="margin:0 0 14px;color:var(--dim);font-size:14.5px">Chọn đúng tên của bạn để xem lịch dạy và danh sách học viên kèm mã thẻ.</p>
-      <div class="stack-sm">${teachers.map(t => `<button type="button" class="btn" style="min-height:52px;justify-content:flex-start;font-weight:700" onclick="gvPick_(${t.id})">${TeacherPill(t.shortName, t.color)}<span style="margin-left:8px">${esc(gvName(t.name))}</span></button>`).join('') || '<p>Chưa có giáo viên nào trong hệ thống.</p>'}</div></section>`;
+      <div class="stack-sm">${teachers.map(t => `<button type="button" class="gv-pick" onclick="gvPick_(${t.id})"><span class="gv-ava" style="background:${esc(t.color || '#43A047')}">${esc((t.shortName || t.name || '?').trim().charAt(0).toUpperCase())}</span><span class="gv-pinfo"><span class="gv-pname">${esc(gvName(t.name))}</span><span class="gv-psub">Mã GV: ${esc(t.code || 'Chưa cấp')}</span></span><span class="gv-chev">›</span></button>`).join('') || '<p>Chưa có giáo viên nào trong hệ thống.</p>'}</div></section>`;
     return;
   }
   const t = GV_TEACHER;
   const locked = GV_PARAM !== '1' && String(t.code || '') === GV_PARAM;
   view.innerHTML = `<section class="panel">
-      <div class="row-wrap" style="justify-content:space-between">
-        <p style="margin:0;font-size:17px"><b>${esc(gvName(t.name))}</b> · Mã GV: <b>${esc(t.code || 'Chưa cấp')}</b></p>
-        ${locked ? '' : '<button type="button" class="btn btn-sm" onclick="GV_TEACHER=null;gvRender_()">Đổi giáo viên</button>'}
+      <div class="gv-head">
+        <span class="gv-ava sm" style="background:${esc(t.color || '#43A047')}">${esc((t.shortName || t.name || '?').trim().charAt(0).toUpperCase())}</span>
+        <span class="gv-pinfo"><span class="gv-pname">${esc(gvName(t.name))}</span><span class="gv-psub">Mã GV: <b>${esc(t.code || 'Chưa cấp')}</b></span></span>
+        ${locked ? '' : '<button type="button" class="btn btn-sm gv-change" onclick="GV_TEACHER=null;gvRender_()">Đổi giáo viên</button>'}
       </div>
-      <div class="row-wrap" role="tablist" style="margin:14px 0">
-        <button type="button" class="tab ${GV_TAB === 'lich' ? 'on' : ''}" onclick="gvTab_('lich')">Lịch dạy của tôi</button>
-        <button type="button" class="tab ${GV_TAB === 'hv' ? 'on' : ''}" onclick="gvTab_('hv')">Học viên & mã thẻ</button>
+      <div class="gv-tabs" role="tablist">
+        <button type="button" class="${GV_TAB === 'lich' ? 'on' : ''}" onclick="gvTab_('lich')">Lịch dạy của tôi</button>
+        <button type="button" class="${GV_TAB === 'hv' ? 'on' : ''}" onclick="gvTab_('hv')">Học viên & mã thẻ</button>
       </div>
       <div id="gv-body"></div>
     </section>`;
@@ -1409,7 +1423,7 @@ function svRenderNav(id) {
     el.innerHTML = `<div class="sv-navrow"><button type="button" class="btn btn-sm" onclick="svNavM('${id}',-1)" aria-label="Tháng trước">‹</button><button type="button" class="btn btn-sm ${st.half === 1 ? 'btn-green-grad' : ''}" onclick="svHalf('${id}',1)">1–15</button><button type="button" class="btn btn-sm ${st.half === 2 ? 'btn-green-grad' : ''}" onclick="svHalf('${id}',2)">15–${lastDayOf(st.monthCursor)}</button><button type="button" class="btn btn-sm" onclick="svNavM('${id}',1)" aria-label="Tháng sau">›</button></div>`;
   } else {
     const [ny, nm] = st.monthCursor.split('-');
-    el.innerHTML = `<div class="sv-navrow"><button type="button" class="btn btn-sm" onclick="svNavM('${id}',-1)" aria-label="Tháng trước">‹</button><span class="sv-month">Tháng ${Number(nm)}/${ny}</span><button type="button" class="btn btn-sm" onclick="svNavM('${id}',1)" aria-label="Tháng sau">›</button><button type="button" class="btn btn-sm" onclick="svNavM('${id}',0)">Tháng này</button>${st.mode === 'grid' ? `<button type="button" class="btn btn-sm" onclick="svSetMode('${id}','month')">Theo ngày</button>` : `<button type="button" class="btn btn-sm" onclick="svSetMode('${id}','grid')">Lưới HV</button>`}</div>`;
+    el.innerHTML = `<div class="sv-navrow"><button type="button" class="btn btn-sm" onclick="svNavM('${id}',-1)" aria-label="Tháng trước">‹</button><span class="sv-month">Tháng ${Number(nm)}/${ny}</span><button type="button" class="btn btn-sm" onclick="svNavM('${id}',1)" aria-label="Tháng sau">›</button><button type="button" class="btn btn-sm" onclick="svNavM('${id}',0)">Tháng này</button>${st.readOnly ? '' : (st.mode === 'grid' ? `<button type="button" class="btn btn-sm" onclick="svSetMode('${id}','month')">Theo ngày</button>` : `<button type="button" class="btn btn-sm" onclick="svSetMode('${id}','grid')">Lưới HV</button>`)}</div>`;
   }
 }
 function lastDayOf(mc) { return Number(addDays(addMonths(mc, 1), -1).slice(8, 10)); }
