@@ -159,6 +159,16 @@ textarea.input{min-height:80px}
 .gtable td.g-cell:hover{background:#E9F6E9}
 .gtable td.g-cell:hover .g-plus{opacity:.85;color:#007A38}
 .gchip{display:block;border-radius:7px;color:#fff;font-size:11px;font-weight:700;padding:3px 4px;margin:1px 0;white-space:nowrap;overflow:hidden;cursor:pointer;box-shadow:0 1px 2px rgba(10,50,25,.25)}
+.sv-navrow{display:flex;gap:6px;align-items:center;width:100%;flex-wrap:nowrap}
+.sv-navrow .btn-sm{min-height:34px;padding:4px 9px;font-size:12.5px;border-radius:9px;white-space:nowrap}
+.sv-month{flex:1;text-align:center;font-weight:800;font-size:15px;white-space:nowrap;color:#1B3A24}
+.sv-subrow{display:flex;align-items:center;gap:8px;margin-top:8px;min-height:28px;flex-wrap:wrap}
+.sv-count{font-size:12.5px;color:var(--dim)}
+.sv-subrow .btn-sm.sv-chip{margin-left:auto;min-height:28px;padding:2px 10px;font-size:12px;border-radius:999px;white-space:nowrap}
+.sv-filters{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:8px 0 0}
+.sv-filters .select,.sv-filters .input{width:100%;height:38px;font-size:13.5px;padding:0 8px;border-radius:10px;margin:0}
+.sv-fq,.sv-fs{grid-column:1/-1}
+.sv-fclear{grid-column:1/-1;justify-self:end;min-height:30px;padding:2px 12px;font-size:12px}
 .stu-pick{display:block}
 .stu-pick-list{margin-top:6px;border:1.5px solid #C8E6C9;border-radius:12px;overflow:hidden;background:#fff}
 .stu-pick-item{display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;text-align:left;background:#fff;border:0;border-bottom:1px solid #EEF3EE;padding:10px 12px;font-size:15px;font-weight:600;color:#1B3A24;cursor:pointer;min-height:48px;font-family:inherit}
@@ -1393,11 +1403,14 @@ function svRenderNav(id) {
   const st = SVI[id];
   const el = document.getElementById(id + '-nav');
   if (!el) return;
-  el.innerHTML = st.mode === 'week'
-    ? `<button type="button" class="btn btn-sm" onclick="svNav('${id}',-7)">‹ Tuần trước</button><button type="button" class="btn btn-sm" onclick="svNav('${id}',0)">Tuần này</button><button type="button" class="btn btn-sm" onclick="svNav('${id}',7)">Tuần sau ›</button>`
-    : st.mode === 'half'
-    ? `<button type="button" class="btn btn-sm" onclick="svNavM('${id}',-1)">‹ Tháng trước</button><button type="button" class="btn btn-sm ${st.half === 1 ? 'btn-green-grad' : ''}" onclick="svHalf('${id}',1)">1–15</button><button type="button" class="btn btn-sm ${st.half === 2 ? 'btn-green-grad' : ''}" onclick="svHalf('${id}',2)">15–${lastDayOf(st.monthCursor)}</button><button type="button" class="btn btn-sm" onclick="svNavM('${id}',1)">Tháng sau ›</button>`
-    : `<button type="button" class="btn btn-sm" onclick="svNavM('${id}',-1)">‹ Tháng trước</button><button type="button" class="btn btn-sm" onclick="svNavM('${id}',0)">Tháng này</button><button type="button" class="btn btn-sm" onclick="svNavM('${id}',1)">Tháng sau ›</button>${st.mode === 'grid' ? `<button type="button" class="btn btn-sm" onclick="svSetMode('${id}','month')">Xem theo ngày</button>` : `<button type="button" class="btn btn-sm" onclick="svSetMode('${id}','grid')">Dạng lưới HV</button>`}`;
+  if (st.mode === 'week') {
+    el.innerHTML = `<div class="sv-navrow"><button type="button" class="btn btn-sm" onclick="svNav('${id}',-7)">‹ Tuần trước</button><button type="button" class="btn btn-sm" onclick="svNav('${id}',0)">Tuần này</button><button type="button" class="btn btn-sm" onclick="svNav('${id}',7)">Tuần sau ›</button></div>`;
+  } else if (st.mode === 'half') {
+    el.innerHTML = `<div class="sv-navrow"><button type="button" class="btn btn-sm" onclick="svNavM('${id}',-1)" aria-label="Tháng trước">‹</button><button type="button" class="btn btn-sm ${st.half === 1 ? 'btn-green-grad' : ''}" onclick="svHalf('${id}',1)">1–15</button><button type="button" class="btn btn-sm ${st.half === 2 ? 'btn-green-grad' : ''}" onclick="svHalf('${id}',2)">15–${lastDayOf(st.monthCursor)}</button><button type="button" class="btn btn-sm" onclick="svNavM('${id}',1)" aria-label="Tháng sau">›</button></div>`;
+  } else {
+    const [ny, nm] = st.monthCursor.split('-');
+    el.innerHTML = `<div class="sv-navrow"><button type="button" class="btn btn-sm" onclick="svNavM('${id}',-1)" aria-label="Tháng trước">‹</button><span class="sv-month">Tháng ${Number(nm)}/${ny}</span><button type="button" class="btn btn-sm" onclick="svNavM('${id}',1)" aria-label="Tháng sau">›</button><button type="button" class="btn btn-sm" onclick="svNavM('${id}',0)">Tháng này</button>${st.mode === 'grid' ? `<button type="button" class="btn btn-sm" onclick="svSetMode('${id}','month')">Theo ngày</button>` : `<button type="button" class="btn btn-sm" onclick="svSetMode('${id}','grid')">Lưới HV</button>`}</div>`;
+  }
 }
 function lastDayOf(mc) { return Number(addDays(addMonths(mc, 1), -1).slice(8, 10)); }
 function svSetMode(id, m) { const st = SVI[id]; st.mode = m; svRenderNav(id); svRenderMain(id); }
@@ -1432,18 +1445,17 @@ function svRenderFilters(id) {
   if (!host) return;
   const lk = st.lookups || LK || { teachers: [], vehicles: [], students: [] };
   const plates = [...new Set([...(lk.vehicles || []).map(v => v.plate), ...((st.data && st.data.schedules) || []).map(s => s.plate).filter(Boolean)])];
-  const sel = (fid, label, val, opts) => `<select id="${fid}" aria-label="${label}" class="select" style="width:auto;flex:1 1 150px" onchange="svFilter('${id}')"><option value="">${label}</option>${opts}</select>`;
+  const sel = (fid, label, val, opts) => `<select id="${fid}" aria-label="${label}" class="select" onchange="svFilter('${id}')"><option value="">${label}</option>${opts}</select>`;
   host.innerHTML = `
     ${sel(id + '-fT', 'Tất cả giáo viên', st.fTeacher, (lk.teachers || []).map(t => `<option value="${esc(t.name)}" ${t.name === st.fTeacher ? 'selected' : ''}>${esc(gvName(t.name))}</option>`).join(''))}
     ${sel(id + '-fP', 'Tất cả xe', st.fPlate, plates.map(p => `<option value="${esc(p)}" ${p === st.fPlate ? 'selected' : ''}>${esc(p)}</option>`).join(''))}
     ${sel(id + '-fC', 'Tất cả trung tâm', st.fCenter, (st.centers || []).map(c => `<option value="${esc(c.name)}" ${c.name === st.fCenter ? 'selected' : ''}>${esc(shortCenterName(c.name))}</option>`).join('') + `<option value="__none__" ${st.fCenter === '__none__' ? 'selected' : ''}>— Chưa rõ trung tâm</option>`)}
     ${sel(id + '-fTy', 'Tất cả loại buổi', st.fType, Object.keys(TYPE_META).map(t => `<option value="${esc(t)}" ${t === st.fType ? 'selected' : ''}>${esc(typeMeta(t).label)}</option>`).join(''))}
-    <span class="row-wrap" style="flex:2 1 260px">
-      <input id="${id}-fQ" aria-label="Tìm học viên để lọc lịch" placeholder="Tìm HV: tên / MHV / mã…" value="${esc(st.studentSearch)}" oninput="svSearch('${id}')" onkeydown="if(event.key==='Enter')event.preventDefault()" class="input" style="flex:1 1 130px;width:auto">
-      <select id="${id}-fS" aria-label="Lọc lịch theo học viên" class="select" style="flex:1 1 150px;width:auto" onchange="svFilter('${id}')"><option value="">Tất cả học viên</option>${svStudentOptions(st).map(x => `<option value="${x.id}" ${String(x.id) === st.fStudentId ? 'selected' : ''}>${esc(x.name)} · ${esc(x.code)} · ${esc(x.courseCode)}</option>`).join('')}</select>
-    </span>
-    ${(st.fTeacher || st.fPlate || st.fCenter || st.fType || st.fStudentId) ? `<button type="button" class="btn" onclick="svClear('${id}')">Xóa lọc</button>` : ''}
-`;
+    <input id="${id}-fQ" aria-label="Tìm học viên để lọc lịch" placeholder="Tìm HV: tên / MHV / mã thẻ…" value="${esc(st.studentSearch)}" oninput="svSearch('${id}')" onkeydown="if(event.key==='Enter')event.preventDefault()" class="input sv-fq">
+    <select id="${id}-fS" aria-label="Lọc lịch theo học viên" class="select sv-fs" onchange="svFilter('${id}')"><option value="">Tất cả học viên</option>${svStudentOptions(st).map(x => `<option value="${x.id}" ${String(x.id) === st.fStudentId ? 'selected' : ''}>${esc(x.name)} · ${esc(x.code)} · ${esc(x.courseCode)}</option>`).join('')}</select>
+    ${(st.fTeacher || st.fPlate || st.fCenter || st.fType || st.fStudentId) ? `<button type="button" class="btn btn-sm sv-fclear" onclick="svClear('${id}')">Xóa lọc</button>` : ''}
+  `;
+  
 }
 const DOW_SHORT = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
 const DOW_ACCENT = ['#1E88E5', '#F57C00', '#0097A7', '#00B050', '#E53935', '#FB8C00', '#C2185B'];
@@ -1515,10 +1527,9 @@ function svRenderMain(id) {
   const dayTotals = {}; (st.data.dayTotals || []).forEach(d => { dayTotals[d.date] = d.sessions; });
   const fStudent = ((st.lookups && st.lookups.students) || []).find(x => String(x.id) === st.fStudentId);
   let head = '';
-  if (st.mode === 'week') head = `<b style="font-size:16px">Tuần ${fmtDate(st.weekStart)} – ${fmtDate(addDays(st.weekStart, 6))}</b>`;
-  else if (st.mode === 'half') { const [y, m] = st.monthCursor.split('-'); head = `<b style="font-size:16px">Tháng ${Number(m)}/${y} · ${st.half === 1 ? 'Ngày 1–15' : `Ngày 15–${lastDayOf(st.monthCursor)}`}</b>`; }
-  else { const [y, m] = st.monthCursor.split('-'); head = `<b style="font-size:16px">Tháng ${Number(m)}/${y}</b>`; }
-  head += `<span style="margin-left:8px;font-size:14px;color:var(--dim)">${filtered.length} thẻ buổi hiển thị${hasFilter ? ' (đang lọc)' : ''}${fStudent ? ` · Chỉ HV: ${esc(fStudent.name)} (${esc(fStudent.courseCode)})` : ''}</span>${(st.mode === 'month' || st.mode === 'half' || st.mode === 'grid') && st.monthCursor === monthStartOf(TODAY) ? `<button type="button" class="btn btn-sm" style="margin-left:10px" onclick="svToggleToday('${id}')">${st.fromToday ? 'Đang hiện từ hôm nay · Xem cả tháng' : 'Đang hiện cả tháng · Chỉ từ hôm nay'}</button>` : ''}`;
+  if (st.mode === 'week') head = `<b style="font-size:14.5px">Tuần ${fmtDate(st.weekStart)} – ${fmtDate(addDays(st.weekStart, 6))}</b>`;
+  else if (st.mode === 'half') { const [y, m] = st.monthCursor.split('-'); head = `<b style="font-size:14.5px">Tháng ${Number(m)}/${y} · ${st.half === 1 ? 'Ngày 1–15' : `Ngày 15–${lastDayOf(st.monthCursor)}`}</b>`; }
+  head += `<span class="sv-count">${filtered.length} thẻ buổi hiển thị${hasFilter ? ' (đang lọc)' : ''}${fStudent ? ` · Chỉ HV: ${esc(fStudent.name)} (${esc(fStudent.courseCode)})` : ''}</span>${(st.mode === 'month' || st.mode === 'half' || st.mode === 'grid') && st.monthCursor === monthStartOf(TODAY) ? `<button type="button" class="btn btn-sm sv-chip" onclick="svToggleToday('${id}')" title="Bấm để đổi: chỉ từ hôm nay / cả tháng">${st.fromToday ? '✓ Từ hôm nay' : 'Cả tháng'}</button>` : ''}`;
   let body = '';
   if (st.mode === 'week') {
     const days = Array.from({ length: 7 }, (_, i) => addDays(st.weekStart, i));
@@ -1540,7 +1551,7 @@ function svRenderMain(id) {
     if (st.fromToday && first === monthStartOf(TODAY)) days = days.filter(d => d >= TODAY);
     body = SwipeStrip(days, byDate, markersByDate, fStudent ? fStudent.id : null);
   }
-  host.innerHTML = `<p style="margin:0 0 4px">${head}</p><div id="${id}-filters" class="row-wrap" style="margin:12px 0"></div>${TypeLegend()}<div style="margin-top:12px">${body}</div>${st.readOnly ? '' : `<div style="display:flex;justify-content:flex-end;margin-top:12px">${importExportHtml('schedules', 'lich.csv', 'impmsg-schedules')}</div>`}`;
+  host.innerHTML = `<div class="sv-subrow">${head}</div><div id="${id}-filters" class="sv-filters"></div>${TypeLegend()}<div style="margin-top:8px">${body}</div>${st.readOnly ? '' : `<div style="display:flex;justify-content:flex-end;margin-top:12px">${importExportHtml('schedules', 'lich.csv', 'impmsg-schedules')}</div>`}`;
   if (!st.readOnly) svRenderFilters(id);
   fitCardNames_(host);
   if (st._scrollDay) {
