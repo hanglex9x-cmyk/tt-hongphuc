@@ -134,6 +134,18 @@ textarea.input{min-height:80px}
 .modtab{min-height:44px;border-radius:12px;padding:8px 16px;font-size:14px;font-weight:700;border:1px solid var(--border);background:#fff;color:var(--text);cursor:pointer;font-family:inherit}
 .modtab.on{border:none;color:#fff;background:linear-gradient(135deg,#00C853 0%,#00B050 45%,#007A38 100%);box-shadow:0 5px 16px rgba(0,150,70,.38),inset 0 1px 0 rgba(255,255,255,.35)}
 .note-dim{font-size:12px;color:var(--dim)}
+.grid-wrap{overflow:auto;max-height:72vh;border:1.5px solid #DCE8DC;border-radius:12px;background:#fff}
+.gtable{border-collapse:separate;border-spacing:0;font-size:12.5px}
+.gtable th,.gtable td{border-bottom:1px solid #EDF2ED;border-right:1px solid #EDF2ED;padding:4px 5px;min-width:62px;text-align:center;vertical-align:top}
+.gtable thead th{position:sticky;top:0;background:#F2F8F2;z-index:2;font-size:11.5px;line-height:1.35}
+.gtable th.g-name{position:sticky;left:0;background:#fff;z-index:1;text-align:left;min-width:148px;max-width:190px;font-weight:600;font-size:13px}
+.gtable thead th.g-name{z-index:3;background:#F2F8F2}
+.gtable th.g-name span{display:block;font-size:11px;color:var(--dim);font-weight:500;white-space:nowrap}
+.gtable tr.g-course td{background:#E8F5E9;font-weight:700;text-align:left;font-size:13px;color:#1B3A24}
+.gtable td.g-cell{cursor:pointer}
+.gtable td.g-cell:hover{background:#F0F7F0}
+.gtable thead th.today{color:#007A38}
+.gchip{display:block;border-radius:6px;color:#fff;font-size:11px;font-weight:700;padding:2px 4px;margin:1px 0;white-space:nowrap;overflow:hidden;cursor:pointer}
 .stu-pick{display:block}
 .stu-pick-list{margin-top:6px;border:1.5px solid #C8E6C9;border-radius:12px;overflow:hidden;background:#fff}
 .stu-pick-item{display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;text-align:left;background:#fff;border:0;border-bottom:1px solid #EEF3EE;padding:10px 12px;font-size:15px;font-weight:600;color:#1B3A24;cursor:pointer;min-height:48px;font-family:inherit}
@@ -819,7 +831,7 @@ function TeacherPill(short, color) {
 function PlateBadge(plate) { return plate ? `<span class="plate-badge">${esc(plate)}</span>` : '<span style="color:var(--dim)">—</span>'; }
 function PlateText(plate) { return plate ? `<span style="font-weight:600;white-space:nowrap">${esc(plate)}</span>` : '<span style="color:var(--dim)">—</span>'; }
 function StatusChip(status) {
-  const color = status === 'Đã có bằng' ? BRAND.green : status === 'Đã đậu sát hạch' ? '#00893D' : status === 'Đủ điều kiện thi' ? BRAND.navy : '#64748B';
+  const color = status === 'Đã có bằng' ? BRAND.green : status === 'Đã đậu sát hạch' ? '#00893D' : status === 'Chờ nhận bằng' ? '#00897B' : status === 'Chờ sát hạch' ? '#1565C0' : (status && status.indexOf('Rớt') === 0) ? '#C62828' : status === 'Đủ điều kiện thi' ? BRAND.navy : '#64748B';
   return `<span class="status-chip" style="background:${color}">${esc(status)}</span>`;
 }
 function DatMarkerChip(markerKm) {
@@ -953,7 +965,91 @@ function navBtn(v, compact, iconOnly) {
   const on = state.view === v.id;
   return `<button type="button" class="navbtn ${compact ? 'compact' : ''} ${iconOnly ? 'icononly' : ''} ${on ? 'btn-green-grad active' : ''}" aria-label="${esc(v.label)}" ${on ? 'aria-current="page"' : ''} onclick="go('${v.id}')">${navIcon(v.icon)}${iconOnly ? '' : `<span>${esc(v.label)}</span>`}</button>`;
 }
+/* Che do GIAO VIEN: mo bang ?gv=1 (chon ten) hoac ?gv=<MaGV> (vao thang).
+   GV chi xem Lich day cua minh + Hoc vien & ma the; khong thay hoc phi/bao cao/cai dat. */
+const GV_PARAM = new URLSearchParams(location.search).get('gv');
+const GV_MODE = GV_PARAM !== null && GV_PARAM !== '';
+let GV_TEACHER = null;
+let GV_TAB = 'lich';
 let SHELL_BUILT = false;
+function renderGvShell() {
+  document.getElementById('app').innerHTML = `
+  <header class="header-glass">
+    <div class="header-inner">
+      ${Logo(46)}
+      <div class="h-phones"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg><span data-center-phone>${CENTER.phone.split('·').map(x => x.trim()).filter(Boolean).join('<br>')}</span></div>
+      <div style="flex:1"></div>
+      <span class="chip" style="background:#E8F5E9;color:#007A38;font-weight:700;white-space:nowrap">Giáo viên · Chỉ xem</span>
+    </div>
+    <div class="header-sub"><p class="h-sub" data-center-sub>${CENTER.address}</p></div>
+  </header>
+  <div class="layout"><main id="view" style="flex:1;padding-bottom:28px"><p class="loading">Đang tải dữ liệu…</p></main></div>
+  <style>#svgv .day-col .btn-block{display:none!important}</style>`;
+  SHELL_BUILT = true;
+}
+async function gvBoot_() {
+  const view = document.getElementById('view');
+  try {
+    const lk = await getLookups();
+    window._GV_TEACHERS = lk.teachers || [];
+    if (GV_PARAM !== '1') {
+      const t = window._GV_TEACHERS.find(x => String(x.code || '') !== '' && String(x.code) === GV_PARAM);
+      if (t) GV_TEACHER = t;
+    }
+    gvRender_();
+  } catch (e) { if (view) view.innerHTML = LoadError(e.message); }
+}
+function gvPick_(id) { GV_TEACHER = (window._GV_TEACHERS || []).find(x => x.id === id) || null; GV_TAB = 'lich'; gvRender_(); }
+function gvTab_(t) { GV_TAB = t; gvRender_(); }
+function gvRender_() {
+  const view = document.getElementById('view');
+  if (!view) return;
+  const teachers = window._GV_TEACHERS || [];
+  if (!GV_TEACHER) {
+    view.innerHTML = `<section class="panel"><h2 style="margin:0 0 6px;font-size:19px">Giáo viên vào xem lịch dạy</h2>
+      <p style="margin:0 0 14px;color:var(--dim);font-size:14.5px">Chọn đúng tên của bạn để xem lịch dạy và danh sách học viên kèm mã thẻ.</p>
+      <div class="stack-sm">${teachers.map(t => `<button type="button" class="btn" style="min-height:52px;justify-content:flex-start;font-weight:700" onclick="gvPick_(${t.id})">${TeacherPill(t.shortName, t.color)}<span style="margin-left:8px">${esc(gvName(t.name))}</span></button>`).join('') || '<p>Chưa có giáo viên nào trong hệ thống.</p>'}</div></section>`;
+    return;
+  }
+  const t = GV_TEACHER;
+  const locked = GV_PARAM !== '1' && String(t.code || '') === GV_PARAM;
+  view.innerHTML = `<section class="panel">
+      <div class="row-wrap" style="justify-content:space-between">
+        <p style="margin:0;font-size:17px"><b>${esc(gvName(t.name))}</b> · Mã GV: <b>${esc(t.code || 'Chưa cấp')}</b></p>
+        ${locked ? '' : '<button type="button" class="btn btn-sm" onclick="GV_TEACHER=null;gvRender_()">Đổi giáo viên</button>'}
+      </div>
+      <div class="row-wrap" role="tablist" style="margin:14px 0">
+        <button type="button" class="tab ${GV_TAB === 'lich' ? 'on' : ''}" onclick="gvTab_('lich')">Lịch dạy của tôi</button>
+        <button type="button" class="tab ${GV_TAB === 'hv' ? 'on' : ''}" onclick="gvTab_('hv')">Học viên & mã thẻ</button>
+      </div>
+      <div id="gv-body"></div>
+    </section>`;
+  if (GV_TAB === 'lich') gvSchedule_(); else gvStudents_();
+}
+async function gvSchedule_() {
+  const host = document.getElementById('gv-body');
+  if (!host) return;
+  host.innerHTML = `<div id="svgv"><div class="row-wrap" style="margin-bottom:12px"><span class="row-wrap" style="margin-left:auto" id="svgv-nav"></span></div><div id="svgv-main">${Loading()}</div></div>`;
+  const st = svRegister('svgv', 'month');
+  st.fTeacher = GV_TEACHER.name; st.readOnly = true;
+  const seq = (st._rseq = (st._rseq || 0) + 1);
+  try { await svLoad('svgv'); if (st._rseq !== seq) return; svRenderMain('svgv'); svRenderNav('svgv'); }
+  catch (e) { if (st._rseq === seq) { const h = document.getElementById('svgv-main'); if (h) h.innerHTML = LoadError(e.message); } }
+}
+async function gvStudents_() {
+  const host = document.getElementById('gv-body');
+  if (!host) return;
+  host.innerHTML = Loading();
+  try {
+    const q = await call('liststudents', { page: 1, pageSize: 200 });
+    const mine = (q.students || []).filter(x => x.homeTeacherName === GV_TEACHER.name);
+    host.innerHTML = `<p style="margin:0 0 10px;color:var(--dim);font-size:14.5px">${mine.length} học viên do bạn phụ trách chính.</p>
+      <div class="d-only tbl-wrap"><table class="tbl"><thead><tr><th>Học viên</th><th>Khóa</th><th>Mã thẻ HV</th><th>DAT (km)</th><th>Cabin</th></tr></thead><tbody>
+      ${mine.map(x => `<tr><td><b>${esc(x.name)}</b><span style="display:block;font-size:12px;color:var(--dim)">${esc(x.code)}</span></td><td>${esc(x.courseCode)} · ${esc(x.licenseClass)}</td><td>${x.cardNo ? `<b>${esc(x.cardNo)}</b>` : '<span style="color:var(--dim)">Chưa cấp</span>'}</td><td>${x.datKmDone}/${x.datKmTotal}</td><td>${x.cabinHours}/3h</td></tr>`).join('') || '<tr><td colspan="5">Chưa có học viên nào gắn với giáo viên này.</td></tr>'}
+      </tbody></table></div>
+      <div class="m-only mlist">${mine.map(x => `<article class="mcard"><b>${esc(x.name)}</b><p style="margin-top:4px;font-size:14px">${esc(x.courseCode)} · Mã thẻ: ${x.cardNo ? `<b>${esc(x.cardNo)}</b>` : 'Chưa cấp'} · DAT ${x.datKmDone}/${x.datKmTotal}km · Cabin ${x.cabinHours}/3h</p></article>`).join('') || '<p>Chưa có học viên nào gắn với giáo viên này.</p>'}</div>`;
+  } catch (e) { host.innerHTML = LoadError(e.message); }
+}
 function renderShell() {
   const navAll = VIEWS.map(v => navBtn(v)).join('');
   document.getElementById('app').innerHTML = `
@@ -1091,6 +1187,7 @@ function SessionCard(s, acc) {
   /* Thẻ buổi theo mẫu user gửi 28/10 + chốt 22:12: thanh màu trái theo loại, badge loại + giờ bắt đầu,
      tên HV 2 từ cỡ nhỏ 1 hàng, dòng Khóa - Số Km, dòng Biển số xe, tên Gv. ở góc dưới phải màu theo thứ. */
   const cf = sessionConflict(s);
+  const ed = s.editable && !GV_MODE;
   const isGroup = !!s.groupLabel;
   const m = typeMeta(s.type);
   const bc = cf ? (cf.level === 'error' ? '#E53935' : '#FFC107') : '';
@@ -1098,7 +1195,7 @@ function SessionCard(s, acc) {
   const kmTxt = s.type === 'DAT' && (s.km > 0 || s.actualKm != null) ? `${s.actualKm != null ? s.actualKm : s.km} km` : '';
   const line3 = [courseSlotLabel(s), kmTxt].filter(Boolean).join(' - ');
   const line4 = s.plate || '';
-  return `<div class="sess-card2 ${s.editable ? 'clickable' : ''}" style="${style}" ${s.editable ? `role="button" tabindex="0" title="Bấm để sửa buổi học (${esc(s.slot || '')})" onclick="openSessionEdit(${s.id})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSessionEdit(${s.id})}"` : (isGroup ? `title="${esc(s.groupLabel)}"` : '')}>
+  return `<div class="sess-card2 ${ed ? 'clickable' : ''}" style="${style}" ${ed ? `role="button" tabindex="0" title="Bấm để sửa buổi học (${esc(s.slot || '')})" onclick="openSessionEdit(${s.id})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openSessionEdit(${s.id})}"` : (isGroup ? `title="${esc(s.groupLabel)}"` : '')}>
     <p class="sc2-top"><span class="sc2-badge" style="background:${m.color};color:#fff">${esc(m.s || m.label)}</span><span class="sc2-time" style="color:${m.color}">${esc(parseSlot(s.slot).start)}</span></p>
     ${isGroup
       ? `<p class="nm">${esc(s.groupLabel)}</p>`
@@ -1287,9 +1384,10 @@ function svRenderNav(id) {
     ? `<button type="button" class="btn btn-sm" onclick="svNav('${id}',-7)">‹ Tuần trước</button><button type="button" class="btn btn-sm" onclick="svNav('${id}',0)">Tuần này</button><button type="button" class="btn btn-sm" onclick="svNav('${id}',7)">Tuần sau ›</button>`
     : st.mode === 'half'
     ? `<button type="button" class="btn btn-sm" onclick="svNavM('${id}',-1)">‹ Tháng trước</button><button type="button" class="btn btn-sm ${st.half === 1 ? 'btn-green-grad' : ''}" onclick="svHalf('${id}',1)">1–15</button><button type="button" class="btn btn-sm ${st.half === 2 ? 'btn-green-grad' : ''}" onclick="svHalf('${id}',2)">15–${lastDayOf(st.monthCursor)}</button><button type="button" class="btn btn-sm" onclick="svNavM('${id}',1)">Tháng sau ›</button>`
-    : `<button type="button" class="btn btn-sm" onclick="svNavM('${id}',-1)">‹ Tháng trước</button><button type="button" class="btn btn-sm" onclick="svNavM('${id}',0)">Tháng này</button><button type="button" class="btn btn-sm" onclick="svNavM('${id}',1)">Tháng sau ›</button>`;
+    : `<button type="button" class="btn btn-sm" onclick="svNavM('${id}',-1)">‹ Tháng trước</button><button type="button" class="btn btn-sm" onclick="svNavM('${id}',0)">Tháng này</button><button type="button" class="btn btn-sm" onclick="svNavM('${id}',1)">Tháng sau ›</button>${st.mode === 'grid' ? `<button type="button" class="btn btn-sm" onclick="svSetMode('${id}','month')">Xem theo ngày</button>` : `<button type="button" class="btn btn-sm" onclick="svSetMode('${id}','grid')">Dạng lưới HV</button>`}`;
 }
 function lastDayOf(mc) { return Number(addDays(addMonths(mc, 1), -1).slice(8, 10)); }
+function svSetMode(id, m) { const st = SVI[id]; st.mode = m; svRenderNav(id); svRenderMain(id); }
 function svToggleToday(id) { const st = SVI[id]; st.fromToday = !st.fromToday; svRenderMain(id); }
 function svHalf(id, h) { const st = SVI[id]; st.half = h; st._scrollDay = true; st.selectedDate = h === 1 ? st.monthCursor : addDays(st.monthCursor, 14); svRenderNav(id); svRenderMain(id); }
 async function svNav(id, d) { const st = SVI[id]; st._scrollDay = true; st.weekStart = d === 0 ? mondayOf(TODAY) : addDays(st.weekStart, d); const seq = (st._rseq = (st._rseq || 0) + 1); document.getElementById(id + '-main').innerHTML = Loading(); try { await svLoad(id); if (st._rseq !== seq) return; svRenderMain(id); } catch (e) { if (st._rseq === seq) { const h = document.getElementById(id + '-main'); if (h) h.innerHTML = LoadError(e.message); } } }
@@ -1371,6 +1469,27 @@ function fitCardNames_(root) {
   });
   fix.forEach(([el, size]) => { el.style.fontSize = size.toFixed(1) + 'px'; });
 }
+function ScheduleGrid_(days, byDate, st, focusId) {
+  const students = ((st.lookups && st.lookups.students) || []).filter(x => !focusId || x.id === focusId);
+  const byStu = {};
+  Object.keys(byDate).forEach(d => (byDate[d] || []).forEach(sv => { if (sv.studentId) { const o = (byStu[sv.studentId] = byStu[sv.studentId] || {}); o[d] = (o[d] || []).concat(sv); } }));
+  const courses = [];
+  students.forEach(x => { if (!courses.includes(x.courseCode)) courses.push(x.courseCode); });
+  const dowOf = d => DOW_SHORT[(new Date(d + 'T12:00:00').getDay() + 6) % 7];
+  let rows = '';
+  courses.forEach(c => {
+    const inCourse = students.filter(x => x.courseCode === c);
+    rows += `<tr class="g-course"><td colspan="${days.length + 1}">Khóa ${esc(c)} · ${inCourse.length} học viên</td></tr>`;
+    inCourse.forEach(x => {
+      rows += `<tr><th class="g-name"><b>${esc(x.name)}</b><span>${esc(x.code)} · DAT ${x.datKmDone}/${x.datKmTotal}km</span></th>${days.map(d => {
+        const ss = (byStu[x.id] || {})[d] || [];
+        if (!ss.length) return st.readOnly ? '<td class="g-cell"></td>' : `<td class="g-cell" onclick="openQuickSchedule('${d}', ${x.id})" title="Xếp buổi ${fmtDate(d)} cho ${esc(x.name)}"></td>`;
+        return `<td class="g-cell has">${ss.map(sv => { const m = typeMeta(sv.type); const lbl = sv.type === 'DAT' ? `DAT ${sv.actualKm != null ? sv.actualKm : (sv.km || '')}` : `${m.s || m.label} ${parseSlot(sv.slot).start}`; const att = sv.attendance && sv.attendance !== 'Đã học' ? 'opacity:.55;' : ''; return `<span class="gchip" style="background:${m.color};${att}" ${sv.editable && !GV_MODE ? `onclick="openSessionEdit(${sv.id})" title="Bấm để sửa buổi"` : ''}>${esc(lbl)}</span>`; }).join('')}</td>`;
+      }).join('')}</tr>`;
+    });
+  });
+  return `<div class="grid-wrap"><table class="gtable"><thead><tr><th class="g-name">Học viên</th>${days.map(d => `<th class="${d === TODAY ? 'today' : ''}">${dowOf(d)}<br>${d.slice(8, 10)}/${d.slice(5, 7)}</th>`).join('')}</tr></thead><tbody>${rows || '<tr><td>Chưa có học viên.</td></tr>'}</tbody></table></div>`;
+}
 function svRenderMain(id) {
   const st = SVI[id];
   const host = document.getElementById(id + '-main');
@@ -1385,7 +1504,7 @@ function svRenderMain(id) {
   if (st.mode === 'week') head = `<b style="font-size:16px">Tuần ${fmtDate(st.weekStart)} – ${fmtDate(addDays(st.weekStart, 6))}</b>`;
   else if (st.mode === 'half') { const [y, m] = st.monthCursor.split('-'); head = `<b style="font-size:16px">Tháng ${Number(m)}/${y} · ${st.half === 1 ? 'Ngày 1–15' : `Ngày 15–${lastDayOf(st.monthCursor)}`}</b>`; }
   else { const [y, m] = st.monthCursor.split('-'); head = `<b style="font-size:16px">Tháng ${Number(m)}/${y}</b>`; }
-  head += `<span style="margin-left:8px;font-size:14px;color:var(--dim)">${filtered.length} thẻ buổi hiển thị${hasFilter ? ' (đang lọc)' : ''}${fStudent ? ` · Chỉ HV: ${esc(fStudent.name)} (${esc(fStudent.courseCode)})` : ''}</span>${(st.mode === 'month' || st.mode === 'half') && st.monthCursor === monthStartOf(TODAY) ? `<button type="button" class="btn btn-sm" style="margin-left:10px" onclick="svToggleToday('${id}')">${st.fromToday ? 'Đang hiện từ hôm nay · Xem cả tháng' : 'Đang hiện cả tháng · Chỉ từ hôm nay'}</button>` : ''}`;
+  head += `<span style="margin-left:8px;font-size:14px;color:var(--dim)">${filtered.length} thẻ buổi hiển thị${hasFilter ? ' (đang lọc)' : ''}${fStudent ? ` · Chỉ HV: ${esc(fStudent.name)} (${esc(fStudent.courseCode)})` : ''}</span>${(st.mode === 'month' || st.mode === 'half' || st.mode === 'grid') && st.monthCursor === monthStartOf(TODAY) ? `<button type="button" class="btn btn-sm" style="margin-left:10px" onclick="svToggleToday('${id}')">${st.fromToday ? 'Đang hiện từ hôm nay · Xem cả tháng' : 'Đang hiện cả tháng · Chỉ từ hôm nay'}</button>` : ''}`;
   let body = '';
   if (st.mode === 'week') {
     const days = Array.from({ length: 7 }, (_, i) => addDays(st.weekStart, i));
@@ -1396,14 +1515,19 @@ function svRenderMain(id) {
     let days = Array.from({ length: b - a + 1 }, (_, k) => addDays(first, a + k));
     if (st.fromToday && first === monthStartOf(TODAY)) { const f = days.filter(d => d >= TODAY); if (f.length) days = f; }
     body = SwipeStrip(days, byDate, markersByDate, fStudent ? fStudent.id : null);
+  } else if (st.mode === 'grid') {
+    const first = st.monthCursor; const last = lastDayOf(first);
+    let days = Array.from({ length: last }, (_, k) => addDays(first, k));
+    if (st.fromToday && first === monthStartOf(TODAY)) days = days.filter(d => d >= TODAY);
+    body = ScheduleGrid_(days, byDate, st, fStudent ? fStudent.id : null);
   } else {
     const first = st.monthCursor; const last = lastDayOf(first);
     let days = Array.from({ length: last }, (_, k) => addDays(first, k));
     if (st.fromToday && first === monthStartOf(TODAY)) days = days.filter(d => d >= TODAY);
     body = SwipeStrip(days, byDate, markersByDate, fStudent ? fStudent.id : null);
   }
-  host.innerHTML = `<p style="margin:0 0 4px">${head}</p><div id="${id}-filters" class="row-wrap" style="margin:12px 0"></div>${TypeLegend()}<div style="margin-top:12px">${body}</div><div style="display:flex;justify-content:flex-end;margin-top:12px">${importExportHtml('schedules', 'lich.csv', 'impmsg-schedules')}</div>`;
-  svRenderFilters(id);
+  host.innerHTML = `<p style="margin:0 0 4px">${head}</p><div id="${id}-filters" class="row-wrap" style="margin:12px 0"></div>${TypeLegend()}<div style="margin-top:12px">${body}</div>${st.readOnly ? '' : `<div style="display:flex;justify-content:flex-end;margin-top:12px">${importExportHtml('schedules', 'lich.csv', 'impmsg-schedules')}</div>`}`;
+  if (!st.readOnly) svRenderFilters(id);
   fitCardNames_(host);
   if (st._scrollDay) {
     st._scrollDay = false;
@@ -1785,7 +1909,7 @@ function stuRowHtml_(s, i) {
   const myDots_ = (window._DOTS && window._DOTS[s.id]) || [];
   const tuitionCell = s.muaLL ? '<span style="color:#E65100;font-weight:600">Mua LL</span><span style="display:block;font-size:12px;color:var(--dim)">GV tự thu — không qua trung tâm</span>' : `<span style="font-size:14px">${dotBtns_(s.id, myDots_, false)}</span><span style="display:block;font-size:12px;color:var(--dim)">Đã đóng ${myDots_.length}/3 đợt</span>`;
   return `<tr class="${i % 2 ? 'alt' : ''}">
-      <td><b>${esc(s.name)}</b>${s.muaLL ? ' <span class="chip" style="background:#FFF3E0;color:#E65100">Mua LL</span>' : ''}<span style="display:block;font-size:12px;color:var(--dim)">${esc(s.code)} · MHV ${esc(s.maHv || '—')} · ${esc(s.phone || '')}</span></td>
+      <td><b>${esc(s.name)}</b>${s.muaLL ? ' <span class="chip" style="background:#FFF3E0;color:#E65100">Mua LL</span>' : ''}<span style="display:block;font-size:12px;color:var(--dim)">${esc(s.code)} · MHV ${esc(s.maHv || '—')} · ${esc(s.phone || '')}${s.cardNo ? ` · Thẻ ${esc(s.cardNo)}` : ''}</span></td>
       <td><b>${esc(s.courseCode)}</b> · ${esc(s.licenseClass)}<span style="display:block;font-size:12px;white-space:nowrap;color:var(--dim)">KG ${fmtDate(s.openDate)} · Hạn ${fmtDate(s.closeDate)}</span></td>
       <td>${CenterBadge(s.centerName)}</td>
       <td>${s.plateKg ? `<span class="plate-badge">${esc(s.plateKg)}</span>` : '<span style="color:var(--dim)">—</span>'}</td>
@@ -1846,13 +1970,13 @@ RENDERERS.students = async (main) => {
   window._DOTS = dotsMap;
   const centers = ct.centers || [];
   window._STU_ROWS = q.students || [];
-  regExport('students', 'hoc-vien-hong-phuc.csv', ['Mã HV', 'Họ tên', 'SĐT', 'CCCD', 'Khóa', 'Khai giảng', 'Hạn khóa', 'Hạng', 'Trung tâm', 'Mốc DAT (km)', 'Học phí chuẩn', 'Giảm tiền', 'Lý do giảm', 'Phải thu', 'Đã thu', 'Còn nợ', 'Ngày ĐK', 'Biển số xe KG'], () => (window._STU_ROWS || []).map(s => ({ 'Mã HV': s.maHv, 'Họ tên': s.name, 'SĐT': s.phone, CCCD: s.cccd, 'Khóa': s.courseCode, 'Khai giảng': fmtDate(s.openDate), 'Hạn khóa': fmtDate(s.closeDate), 'Hạng': s.licenseClass, 'Trung tâm': s.centerName ? shortCenterName(s.centerName) : '', 'Mốc DAT (km)': s.datMarkerKm !== 0 ? s.datMarkerKm : '', 'Học phí chuẩn': s.muaLL ? '' : s.tuitionTotal, 'Giảm tiền': s.muaLL ? '' : s.tuitionDiscount, 'Lý do giảm': s.muaLL ? 'Mua LL' : s.discountReason, 'Phải thu': s.muaLL ? '' : s.tuitionPayable, 'Đã thu': s.muaLL ? '' : s.tuitionPaid, 'Còn nợ': s.muaLL ? '' : s.tuitionDebt, 'Ngày ĐK': s.regDate, 'Biển số xe KG': s.plateKg })));
+  regExport('students', 'hoc-vien-hong-phuc.csv', ['Mã HV', 'Họ tên', 'SĐT', 'CCCD', 'Khóa', 'Khai giảng', 'Hạn khóa', 'Hạng', 'Trung tâm', 'Mốc DAT (km)', 'Học phí chuẩn', 'Giảm tiền', 'Lý do giảm', 'Phải thu', 'Đã thu', 'Còn nợ', 'Ngày ĐK', 'Biển số xe KG', 'Mã thẻ'], () => (window._STU_ROWS || []).map(s => ({ 'Mã HV': s.maHv, 'Họ tên': s.name, 'SĐT': s.phone, CCCD: s.cccd, 'Khóa': s.courseCode, 'Khai giảng': fmtDate(s.openDate), 'Hạn khóa': fmtDate(s.closeDate), 'Hạng': s.licenseClass, 'Trung tâm': s.centerName ? shortCenterName(s.centerName) : '', 'Mốc DAT (km)': s.datMarkerKm !== 0 ? s.datMarkerKm : '', 'Học phí chuẩn': s.muaLL ? '' : s.tuitionTotal, 'Giảm tiền': s.muaLL ? '' : s.tuitionDiscount, 'Lý do giảm': s.muaLL ? 'Mua LL' : s.discountReason, 'Phải thu': s.muaLL ? '' : s.tuitionPayable, 'Đã thu': s.muaLL ? '' : s.tuitionPaid, 'Còn nợ': s.muaLL ? '' : s.tuitionDebt, 'Ngày ĐK': s.regDate, 'Biển số xe KG': s.plateKg, 'Mã thẻ': s.cardNo || '' })));
   main.innerHTML = Section('Quản lý học viên', `${q.total} HV thuộc ${(lk.courses || []).length} khóa (${(lk.courses || []).map(c => c.code).join(' · ')}) — kèm trung tâm HV thuộc về, GV DAT chính, xe quen, biển số xe khai giảng và mốc DAT`, `
     <div class="row-wrap" style="margin-bottom:12px">
-      <input aria-label="Tìm học viên" placeholder="Tìm theo tên, mã HV, CCCD, SĐT…" value="${esc(STU.search)}" oninput="stuSearch(this.value)" onkeydown="if(event.key==='Enter')event.preventDefault()" class="input" style="flex:1 1 220px;width:auto;max-width:340px">
+      <input aria-label="Tìm học viên" placeholder="Tìm theo tên, mã HV, mã thẻ, CCCD, SĐT…" value="${esc(STU.search)}" oninput="stuSearch(this.value)" onkeydown="if(event.key==='Enter')event.preventDefault()" class="input" style="flex:1 1 220px;width:auto;max-width:340px">
       <select aria-label="Lọc theo khóa" class="select" style="width:auto;flex:1 1 150px" onchange="stuFilter('course',this.value)"><option value="">Tất cả khóa</option>${courseCodes_().map(c => `<option value="${c}" ${c === STU.course ? 'selected' : ''}>${esc(courseOptionLabel(c))}</option>`).join('')}</select>
       <select aria-label="Lọc theo trung tâm" class="select" style="width:auto;flex:1 1 150px" onchange="stuFilter('center',this.value)"><option value="">Tất cả trung tâm</option>${centers.map(c => `<option value="${esc(c.name)}" ${c.name === STU.center ? 'selected' : ''}>${esc(shortCenterName(c.name))}</option>`).join('')}<option value="__none__" ${STU.center === '__none__' ? 'selected' : ''}>— Chưa rõ trung tâm</option></select>
-      <select aria-label="Lọc theo trạng thái" class="select" style="width:auto;flex:1 1 150px" onchange="stuFilter('status',this.value)"><option value="">Tất cả trạng thái</option>${['Đang học', 'Đủ điều kiện thi', 'Đã đậu sát hạch', 'Đã có bằng', 'Bảo lưu', 'Đã nghỉ học'].map(x => `<option value="${x}" ${x === STU.status ? 'selected' : ''}>${x}</option>`).join('')}</select>
+      <select aria-label="Lọc theo trạng thái" class="select" style="width:auto;flex:1 1 150px" onchange="stuFilter('status',this.value)"><option value="">Tất cả trạng thái</option>${['Đang học', 'Đủ điều kiện thi', 'Chờ sát hạch', 'Chờ nhận bằng', 'Rớt Lý thuyết', 'Rớt Sa hình', 'Rớt Đường trường', 'Đã đậu sát hạch', 'Đã có bằng', 'Bảo lưu', 'Đã nghỉ học'].map(x => `<option value="${x}" ${x === STU.status ? 'selected' : ''}>${x}</option>`).join('')}</select>
       <label class="row-wrap" style="font-size:14px;min-height:48px"><input type="checkbox" ${STU.onlyEligible ? 'checked' : ''} onchange="stuFilter('onlyEligible',this.checked)" style="height:20px;width:20px"> Chỉ HV đủ điều kiện thi (5 tiêu chí)</label>
       <button type="button" class="btn btn-green" style="min-height:48px;font-weight:700" onclick="openStudentForm(null)">+ Thêm HV / Đối chiếu CCCD</button>
     </div>
@@ -1950,6 +2074,7 @@ function renderStudentDetail_(s, q) {
         <p><span class="dim">Mã HV:</span> <b>${esc(s.maHv || '—')}</b></p>
         <p><span class="dim">SĐT:</span> ${esc(s.phone || '—')}</p>
         <p><span class="dim">CCCD:</span> ${esc(s.cccd || '—')}</p>
+        <p><span class="dim">Mã thẻ HV:</span> <b>${esc(s.cardNo || '—')}</b></p>
         <p><span class="dim">Ngày sinh:</span> ${fmtDate(s.dob)}</p>
         <p class="wide2 wide3"><span class="dim">Khóa:</span> <b>${esc(courseKgHan(s.courseCode, s.openDate, s.closeDate))}</b> · Hạng ${esc(s.licenseClass)}</p>
         <p><span class="dim">Trung tâm:</span> ${s.centerName ? `<b>${esc(shortCenterName(s.centerName))}</b>` : '<span class="dim">— Chưa rõ trung tâm</span>'}</p>
@@ -2042,7 +2167,7 @@ async function openStudentForm(id) {
   const f = {
     name: s ? s.name : '', phone: s ? s.phone : '', cccd: s ? s.cccd : '', dob: s ? s.dob : '', address: s ? s.address : '',
     courseCode: s ? s.courseCode : 'K40', centerName: s ? s.centerName : '', healthExamDate: s ? s.healthExamDate : '',
-    tuitionDiscount: s ? s.tuitionDiscount : 0, discountReason: s ? s.discountReason : '', muaLL: s ? !!s.muaLL : false, tuition: s ? s.tuitionTotal : 0,
+    tuitionDiscount: s ? s.tuitionDiscount : 0, discountReason: s ? s.discountReason : '', muaLL: s ? !!s.muaLL : false, tuition: s ? s.tuitionTotal : 0, cardNo: s ? (s.cardNo || '') : '',
     openDate: s ? s.openDate : '', closeDate: s ? s.closeDate : '',
   };
   const fld = (label, fid, val, type, extra) => `<label class="field"><span>${label}</span><input id="${fid}" type="${type || 'text'}" class="input" value="${esc(val)}" ${extra || ''}></label>`;
@@ -2059,6 +2184,7 @@ async function openStudentForm(id) {
       ${fld('Họ tên', 'sf-name', f.name)}
       ${fld('Số điện thoại', 'sf-phone', f.phone, 'tel')}
       ${fld('Số CCCD', 'sf-cccd', f.cccd)}
+      ${fld('Mã thẻ HV (số thẻ DAT)', 'sf-card', f.cardNo, 'text', 'inputmode="numeric" placeholder="VD: 9038053"')}
       ${fld('Ngày sinh', 'sf-dob', f.dob, 'date')}
       ${fld('Ngày khám sức khỏe', 'sf-health', f.healthExamDate, 'date')}
       <label class="field"><span>Khóa học</span>
@@ -2171,6 +2297,7 @@ async function sfSave() {
       discountReason: document.getElementById('sf-dreason').value,
       muaLL: document.getElementById('sf-muall').checked ? 1 : 0,
       tuition: Number(document.getElementById('sf-tuition').value) || 0,
+      cardNo: document.getElementById('sf-card').value.trim(),
     });
     LK = null;
     toast('Đã lưu học viên');
@@ -2362,6 +2489,7 @@ async function datCreateLoad() {
   } catch (e) { host.innerHTML = LoadError(e.message); }
 }
 async function openQuickSchedule(dateStr, preselId) {
+  if (GV_MODE) return;
   try {
     const lk = await getLookups();
     const stu = preselId ? (lk.students || []).find(s => s.id === preselId) : (state.focusStudentId ? (lk.students || []).find(s => s.id === state.focusStudentId) : null);
@@ -2721,7 +2849,7 @@ function receiptHtmlFor(students) {
     <h2>BIÊN LAI THU HỌC PHÍ</h2>
     <table>
       <tr><td>Họ tên học viên</td><td><b>${esc(s.name)}</b></td></tr>
-      <tr><td>Mã học viên</td><td>${esc(s.code)} · MHV ${esc(s.maHv || '—')} · CCCD ${esc(s.cccd || '—')}</td></tr>
+      <tr><td>Mã học viên</td><td>${esc(s.code)} · MHV ${esc(s.maHv || '—')} · CCCD ${esc(s.cccd || '—')} · Mã thẻ ${esc(s.cardNo || '—')}</td></tr>
       <tr><td>Khóa / Hạng</td><td>${esc(courseKgHan(s.courseCode, s.openDate, s.closeDate))} · Hạng ${esc(s.licenseClass)} · Biển số xe KG ${esc(s.plateKg || '—')}</td></tr>
       <tr><td>Học phí</td><td>${fmtMoney(s.tuitionTotal)}</td></tr>
       ${s.tuitionDiscount > 0 ? `<tr><td>Giảm tiền${s.discountReason ? ` (${esc(s.discountReason)})` : ''}</td><td>−${fmtMoney(s.tuitionDiscount)}</td></tr><tr><td>Phải thu sau giảm</td><td><b>${fmtMoney(s.tuitionPayable)}</b></td></tr>` : ''}
@@ -3067,7 +3195,7 @@ RENDERERS.fleet = async (main) => {
   const mainTeachers = (d.teachers || []).filter(t => t.kind === 'chinh');
   const botucTeachers = (d.teachers || []).filter(t => t.kind === 'botuc');
   const payrollTotal = (d.teachers || []).reduce((a, t) => a + (t.salary || 0), 0);
-  regExport('teachers', 'bang-luong-giao-vien.csv', ['Họ tên', 'Đơn giá/giờ', 'Giờ dạy tháng', 'SĐT', 'Loại'], () => (d.teachers || []).map(t => ({ 'Họ tên': t.name, 'Đơn giá/giờ': t.hourlyRate, 'Giờ dạy tháng': t.hoursMonth, 'SĐT': t.phone, 'Loại': t.kind })));
+  regExport('teachers', 'bang-luong-giao-vien.csv', ['Họ tên', 'Đơn giá/giờ', 'Giờ dạy tháng', 'SĐT', 'Mã GV', 'Loại'], () => (d.teachers || []).map(t => ({ 'Họ tên': t.name, 'Đơn giá/giờ': t.hourlyRate, 'Giờ dạy tháng': t.hoursMonth, 'SĐT': t.phone, 'Mã GV': t.code || '', 'Loại': t.kind })));
   regExport('vehicles', 'danh-sach-xe.csv', ['Biển số', 'Hạng', 'Trạng thái', 'GV chủ xe', 'Khóa phụ trách', 'Hạn đăng kiểm', 'Bảo dưỡng', 'Giờ/tuần', 'Xăng tháng'], () => (d.vehicles || []).map(v => ({ 'Biển số': v.plate, 'Hạng': v.licenseClass, 'Trạng thái': v.status, 'GV chủ xe': v.ownerTeacher, 'Khóa phụ trách': (v.poolCourses || []).join(' · '), 'Hạn đăng kiểm': v.inspectionDate, 'Bảo dưỡng': v.maintenanceDate, 'Giờ/tuần': v.hoursWeek, 'Xăng tháng': v.fuelMonth })));
   regExport('centers', 'bao-cao-hoa-hong-tt-lien-ket.csv', ['Tên trung tâm', 'Số HV', 'Doanh thu', '% Hoa hồng', 'Hoa hồng'], () => (d.centers || []).map(c => ({ 'Tên trung tâm': c.name, 'Số HV': c.studentsCount, 'Doanh thu': c.revenue, '% Hoa hồng': c.commissionRate, 'Hoa hồng': c.commission })));
   regExport('botuc', 'bo-tuc-tay-lai.csv', ['Khách hàng', 'SĐT', 'Dịch vụ', 'Số giờ', 'Đơn giá', 'Ngày', 'Khung giờ', 'Biển số xe', 'Giáo viên', 'Ghi chú'], () => (d.botuc || []).map(b => ({ 'Khách hàng': b.customerName, 'SĐT': b.phone, 'Dịch vụ': b.service, 'Số giờ': b.hours, 'Đơn giá': b.rate, 'Ngày': b.date, 'Khung giờ': b.slot, 'Biển số xe': b.plate, 'Giáo viên': b.teacherName, 'Ghi chú': b.note })));
@@ -3077,10 +3205,11 @@ RENDERERS.fleet = async (main) => {
   window._importers.botuc = async (row) => { await write('savebotuc', { customerName: row['Khách hàng'] || '', phone: row['SĐT'] || '', service: row['Dịch vụ'] || 'Bổ túc tay lái', hours: csvNum(row['Số giờ']) || 1, rate: csvNum(row['Đơn giá']), date: csvDate(row['Ngày']) || TODAY, slot: row['Khung giờ'] || '', plate: row['Biển số xe'] || '', teacherName: row['Giáo viên'] || '', note: row['Ghi chú'] || '' }); };
   main.innerHTML = `<div class="stack">
     ${Section(`Giáo viên — ${mainTeachers.length} GV chính + ${botucTeachers.length} GV bổ túc/thỉnh giảng`, `Lương tháng = giờ dạy × đơn giá · Tổng quỹ lương: ${fmtMoney(payrollTotal)}`, `
-      <div class="d-only tbl-wrap"><table class="tbl"><thead><tr><th>Giáo viên</th><th>SĐT</th><th>Đơn giá/giờ</th><th>Giờ dạy tháng</th><th style="text-align:right">Lương tháng</th><th></th></tr></thead><tbody>
+      <div class="d-only tbl-wrap"><table class="tbl"><thead><tr><th>Giáo viên</th><th>SĐT</th><th>Mã GV</th><th>Đơn giá/giờ</th><th>Giờ dạy tháng</th><th style="text-align:right">Lương tháng</th><th></th></tr></thead><tbody>
         ${(d.teachers || []).map((t, i) => `<tr class="${i % 2 ? 'alt' : ''}">
           <td><span class="row-wrap">${TeacherPill(t.shortName, t.color)} <span>${esc(gvName(t.name))}</span>${t.kind === 'botuc' ? '<span style="font-size:12px;color:var(--dim)">(bổ túc)</span>' : ''}</span></td>
           <td>${esc(t.phone || '')}</td>
+          <td>${esc(t.code || '—')}</td>
           <td>${fmtMoney(t.hourlyRate)}</td>
           <td>${t.hoursMonth}h</td>
           <td style="text-align:right;font-weight:700">${fmtMoney(t.salary)}</td>
@@ -3089,7 +3218,7 @@ RENDERERS.fleet = async (main) => {
       </tbody></table></div>
       <div class="m-only mlist">${(d.teachers || []).map(t => `<article class="mcard">
         <div class="row-wrap">${TeacherPill(t.shortName, t.color)} <b>${esc(gvName(t.name))}</b>${t.kind === 'botuc' ? '<span style="font-size:12px;color:var(--dim)">(bổ túc)</span>' : ''}</div>
-        <p style="margin-top:6px;font-size:14px">${esc(t.phone || '—')} · ${fmtMoney(t.hourlyRate)}/giờ · ${t.hoursMonth}h/tháng · Lương <b>${fmtMoney(t.salary)}</b></p>
+        <p style="margin-top:6px;font-size:14px">${esc(t.phone || '—')}${t.code ? ` · Mã GV ${esc(t.code)}` : ''} · ${fmtMoney(t.hourlyRate)}/giờ · ${t.hoursMonth}h/tháng · Lương <b>${fmtMoney(t.salary)}</b></p>
         <button type="button" class="btn btn-green btn-block" style="margin-top:8px" aria-label="Sửa giáo viên ${esc(t.name)}" onclick="teacherForm(${t.id})">Sửa giáo viên</button>
       </article>`).join('')}</div>
       <button type="button" class="btn btn-green" style="margin-top:12px" onclick="teacherForm(null)">+ Thêm giáo viên</button>
@@ -3221,6 +3350,7 @@ function teacherForm(id) {
       <label class="field"><span>Họ tên giáo viên</span><input id="tf-name" class="input" value="${esc(t ? t.name : '')}"></label>
       <label class="field"><span>Tên ngắn (hiện trên nhãn Gv.)</span><input id="tf-short" class="input" value="${esc(t ? t.shortName : '')}" placeholder="VD: Hùng"></label>
       <label class="field"><span>Số điện thoại</span><input id="tf-phone" class="input" value="${esc(t ? t.phone : '')}"></label>
+      <label class="field"><span>Mã GV (trên hệ thống Sở)</span><input id="tf-code" class="input" value="${esc(t ? (t.code || '') : '')}" placeholder="VD: 8183248"></label>
       <label class="field"><span>Loại giáo viên</span><select id="tf-kind" class="select"><option value="chinh" ${t && t.kind === 'chinh' ? 'selected' : ''}>GV chính</option><option value="botuc" ${t && t.kind === 'botuc' ? 'selected' : ''}>GV bổ túc / thỉnh giảng</option></select></label>
       <label class="field"><span>Màu nhãn (pill) của GV</span><input id="tf-color" type="color" class="input" style="min-height:48px;padding:4px" value="${esc(t && /^#[0-9a-fA-F]{6}$/.test(t.color) ? t.color : '#90A4AE')}"></label>
       ${t ? `<p style="font-size:14px;margin:0">Đơn giá/giờ hiện tại: <b>${fmtMoney(t.hourlyRate)}</b> · Giờ dạy tháng: <b>${t.hoursMonth}h</b> · Lương tháng: <b>${fmtMoney(t.salary)}</b> <span style="color:var(--dim)">(đơn giá và giờ dạy do Sheet tính/quản trị cập nhật, bản web chỉ sửa hồ sơ GV)</span></p>` : ''}
@@ -3231,7 +3361,7 @@ async function teacherSave(id) {
   const name = document.getElementById('tf-name').value.trim();
   if (!name) { toast('Chưa nhập họ tên GV'); return; }
   try {
-    await write('saveteacher', { id: id || undefined, name, shortName: document.getElementById('tf-short').value, phone: document.getElementById('tf-phone').value, kind: document.getElementById('tf-kind').value, color: document.getElementById('tf-color').value });
+    await write('saveteacher', { id: id || undefined, name, shortName: document.getElementById('tf-short').value, phone: document.getElementById('tf-phone').value, code: document.getElementById('tf-code').value.trim(), kind: document.getElementById('tf-kind').value, color: document.getElementById('tf-color').value });
     LK = null; toast('Đã lưu giáo viên'); closeModal(); refresh();
   } catch (e) { toast('Không lưu được: ' + e.message); }
 }
@@ -3992,9 +4122,12 @@ RENDERERS.guide = (main) => {
 };
 
 /* ================= BOOT ================= */
-renderShell();
-const BOOT_P = (async () => { try { const b = await call('getbootstrap', { month: TUI.month }); primeFromBootstrap_(b); return b; } catch (e) { return null; } })();
-(async () => { await Promise.race([BOOT_P, new Promise(r => setTimeout(r, 6000))]); go('dashboard'); })();
+if (GV_MODE) { renderGvShell(); gvBoot_(); }
+else {
+  renderShell();
+  const BOOT_P = (async () => { try { const b = await call('getbootstrap', { month: TUI.month }); primeFromBootstrap_(b); return b; } catch (e) { return null; } })();
+  (async () => { await Promise.race([BOOT_P, new Promise(r => setTimeout(r, 6000))]); go('dashboard'); })();
+}
 (async () => {
   // Mở app chỉ tải bản NHẸ (không logo); logo 84KB lấy từ bộ nhớ máy khi dấu
   // logoVer khớp, chỉ tải lại bản đầy đủ khi logo trên hệ thống đã đổi.
