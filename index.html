@@ -1058,20 +1058,22 @@ function gvRender_() {
       <div class="gv-tabs" role="tablist">
         <button type="button" class="${GV_TAB === 'lich' ? 'on' : ''}" onclick="gvTab_('lich')">Lịch dạy của tôi</button>
         <button type="button" class="${GV_TAB === 'hv' ? 'on' : ''}" onclick="gvTab_('hv')">Học viên & mã thẻ</button>
+        <button type="button" class="${GV_TAB === 'all' ? 'on' : ''}" onclick="gvTab_('all')">Lịch cả 4 GV</button>
       </div>
       <div id="gv-body"></div>
     </section>`;
-  if (GV_TAB === 'lich') gvSchedule_(); else gvStudents_();
+  if (GV_TAB === 'lich') gvSchedule_(); else if (GV_TAB === 'all') gvSchedule_(true); else gvStudents_();
 }
-async function gvSchedule_() {
+async function gvSchedule_(allMode) {
   const host = document.getElementById('gv-body');
   if (!host) return;
-  host.innerHTML = `<div id="svgv"><div class="row-wrap" style="margin-bottom:12px"><span class="row-wrap" style="margin-left:auto" id="svgv-nav"></span></div><div id="svgv-main">${Loading()}</div></div>`;
-  const st = svRegister('svgv', 'month');
-  st.fTeacher = GV_TEACHER.name; st.readOnly = true;
+  const rid = allMode ? 'svgvall' : 'svgv';
+  host.innerHTML = `<div id="${rid}"><div class="row-wrap" style="margin-bottom:12px"><span class="row-wrap" style="margin-left:auto" id="${rid}-nav"></span></div><div id="${rid}-main">${Loading()}</div></div>`;
+  const st = svRegister(rid, 'month');
+  st.fTeacher = allMode ? '' : GV_TEACHER.name; st.readOnly = true;
   const seq = (st._rseq = (st._rseq || 0) + 1);
-  try { await svLoad('svgv'); if (st._rseq !== seq) return; svRenderMain('svgv'); svRenderNav('svgv'); }
-  catch (e) { if (st._rseq === seq) { const h = document.getElementById('svgv-main'); if (h) h.innerHTML = LoadError(e.message); } }
+  try { await svLoad(rid); if (st._rseq !== seq) return; svRenderMain(rid); svRenderNav(rid); }
+  catch (e) { if (st._rseq === seq) { const h = document.getElementById(rid + '-main'); if (h) h.innerHTML = LoadError(e.message); } }
 }
 async function gvStudents_() {
   const host = document.getElementById('gv-body');
