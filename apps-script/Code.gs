@@ -896,7 +896,7 @@ function apiGetLookups() {
     courses: courses_().map(c => ({ code: c.code, licenseClass: c.licenseClass, tuition: c.tuition })),
     teachers: tab_('GiaoVien').objs.map(o => ({ id: num_(o['ID']), name: str_(o['HoTen']), shortName: str_(o['TenNgan']), color: str_(o['Mau']), kind: str_(o['Loai']), code: str_(o['MaGV']) })),
     vehicles: tab_('Xe').objs.map(o => ({ id: num_(o['ID']), plate: str_(o['BienSo']), status: str_(o['TrangThai']) })),
-    students: allStudents_().map(s => ({ id: s.id, code: s.code, maHv: s.maHv, name: s.name, courseCode: s.courseCode, status: s.status, datKmDone: s.datKmDone, datKmTotal: s.datKmTotal, plateKg: s.plateKg, cardNo: s.cardNo }))
+    students: allStudents_().map(s => ({ id: s.id, code: s.code, maHv: s.maHv, name: s.name, courseCode: s.courseCode, status: s.status, datKmDone: s.datKmDone, datKmTotal: s.datKmTotal, plateKg: s.plateKg, cardNo: s.cardNo, homeTeacherName: s.homeTeacherName }))
   };
 }
 
