@@ -1233,7 +1233,7 @@ async function editDelete() {
 /* ----- ScheduleViews: xem Tuần / Tháng (dùng ở Lịch hôm nay + DAT) ----- */
 const SVI = {};
 function svRegister(id, defaultMode) {
-  if (!SVI[id]) SVI[id] = { mode: defaultMode || 'week', half: 1, _scrollDay: true, weekStart: mondayOf(TODAY), monthCursor: monthStartOf(TODAY), selectedDate: TODAY, fTeacher: '', fPlate: '', fCenter: '', fType: '', fStudentId: '', studentSearch: '', data: null, centers: [] };
+  if (!SVI[id]) SVI[id] = { mode: defaultMode || 'week', half: 1, _scrollDay: true, fromToday: true, weekStart: mondayOf(TODAY), monthCursor: monthStartOf(TODAY), selectedDate: TODAY, fTeacher: '', fPlate: '', fCenter: '', fType: '', fStudentId: '', studentSearch: '', data: null, centers: [] };
   return SVI[id];
 }
 function svRangeFor_(cursor) { const from = mondayOf(cursor); return { from, to: addDays(from, 41) }; }
@@ -1290,6 +1290,7 @@ function svRenderNav(id) {
     : `<button type="button" class="btn btn-sm" onclick="svNavM('${id}',-1)">‹ Tháng trước</button><button type="button" class="btn btn-sm" onclick="svNavM('${id}',0)">Tháng này</button><button type="button" class="btn btn-sm" onclick="svNavM('${id}',1)">Tháng sau ›</button>`;
 }
 function lastDayOf(mc) { return Number(addDays(addMonths(mc, 1), -1).slice(8, 10)); }
+function svToggleToday(id) { const st = SVI[id]; st.fromToday = !st.fromToday; svRenderMain(id); }
 function svHalf(id, h) { const st = SVI[id]; st.half = h; st._scrollDay = true; st.selectedDate = h === 1 ? st.monthCursor : addDays(st.monthCursor, 14); svRenderNav(id); svRenderMain(id); }
 async function svNav(id, d) { const st = SVI[id]; st._scrollDay = true; st.weekStart = d === 0 ? mondayOf(TODAY) : addDays(st.weekStart, d); const seq = (st._rseq = (st._rseq || 0) + 1); document.getElementById(id + '-main').innerHTML = Loading(); try { await svLoad(id); if (st._rseq !== seq) return; svRenderMain(id); } catch (e) { if (st._rseq === seq) { const h = document.getElementById(id + '-main'); if (h) h.innerHTML = LoadError(e.message); } } }
 async function svNavM(id, d) { const st = SVI[id]; st._scrollDay = true; st.monthCursor = d === 0 ? monthStartOf(TODAY) : addMonths(st.monthCursor, d); const seq = (st._rseq = (st._rseq || 0) + 1); document.getElementById(id + '-main').innerHTML = Loading(); try { await svLoad(id); if (st._rseq !== seq) return; svRenderMain(id); svRenderNav(id); svPrefetchAdjacent_(id); } catch (e) { if (st._rseq === seq) { const h = document.getElementById(id + '-main'); if (h) h.innerHTML = LoadError(e.message); } } }
@@ -1384,7 +1385,7 @@ function svRenderMain(id) {
   if (st.mode === 'week') head = `<b style="font-size:16px">Tuần ${fmtDate(st.weekStart)} – ${fmtDate(addDays(st.weekStart, 6))}</b>`;
   else if (st.mode === 'half') { const [y, m] = st.monthCursor.split('-'); head = `<b style="font-size:16px">Tháng ${Number(m)}/${y} · ${st.half === 1 ? 'Ngày 1–15' : `Ngày 15–${lastDayOf(st.monthCursor)}`}</b>`; }
   else { const [y, m] = st.monthCursor.split('-'); head = `<b style="font-size:16px">Tháng ${Number(m)}/${y}</b>`; }
-  head += `<span style="margin-left:8px;font-size:14px;color:var(--dim)">${filtered.length} thẻ buổi hiển thị${hasFilter ? ' (đang lọc)' : ''}${fStudent ? ` · Chỉ HV: ${esc(fStudent.name)} (${esc(fStudent.courseCode)})` : ''}</span>`;
+  head += `<span style="margin-left:8px;font-size:14px;color:var(--dim)">${filtered.length} thẻ buổi hiển thị${hasFilter ? ' (đang lọc)' : ''}${fStudent ? ` · Chỉ HV: ${esc(fStudent.name)} (${esc(fStudent.courseCode)})` : ''}</span>${(st.mode === 'month' || st.mode === 'half') && st.monthCursor === monthStartOf(TODAY) ? `<button type="button" class="btn btn-sm" style="margin-left:10px" onclick="svToggleToday('${id}')">${st.fromToday ? 'Đang hiện từ hôm nay · Xem cả tháng' : 'Đang hiện cả tháng · Chỉ từ hôm nay'}</button>` : ''}`;
   let body = '';
   if (st.mode === 'week') {
     const days = Array.from({ length: 7 }, (_, i) => addDays(st.weekStart, i));
@@ -1392,11 +1393,13 @@ function svRenderMain(id) {
   } else if (st.mode === 'half') {
     const first = st.monthCursor; const last = lastDayOf(first);
     const a = st.half === 1 ? 0 : 14; const b = st.half === 1 ? 14 : last - 1;
-    const days = Array.from({ length: b - a + 1 }, (_, k) => addDays(first, a + k));
+    let days = Array.from({ length: b - a + 1 }, (_, k) => addDays(first, a + k));
+    if (st.fromToday && first === monthStartOf(TODAY)) { const f = days.filter(d => d >= TODAY); if (f.length) days = f; }
     body = SwipeStrip(days, byDate, markersByDate, fStudent ? fStudent.id : null);
   } else {
     const first = st.monthCursor; const last = lastDayOf(first);
-    const days = Array.from({ length: last }, (_, k) => addDays(first, k));
+    let days = Array.from({ length: last }, (_, k) => addDays(first, k));
+    if (st.fromToday && first === monthStartOf(TODAY)) days = days.filter(d => d >= TODAY);
     body = SwipeStrip(days, byDate, markersByDate, fStudent ? fStudent.id : null);
   }
   host.innerHTML = `<p style="margin:0 0 4px">${head}</p><div id="${id}-filters" class="row-wrap" style="margin:12px 0"></div>${TypeLegend()}<div style="margin-top:12px">${body}</div><div style="display:flex;justify-content:flex-end;margin-top:12px">${importExportHtml('schedules', 'lich.csv', 'impmsg-schedules')}</div>`;
