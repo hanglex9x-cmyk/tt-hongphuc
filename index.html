@@ -175,6 +175,9 @@ textarea.input{min-height:80px}
 .sv-navrow{display:flex;gap:6px;align-items:center;width:100%;flex-wrap:nowrap}
 .sv-navrow .btn-sm{min-height:34px;padding:4px 9px;font-size:12.5px;border-radius:9px;white-space:nowrap}
 .sv-navrow .sv-chip{border-radius:999px}
+.sv-seg{display:inline-flex;gap:6px}
+@media (max-width:560px){.sv-seg{display:none}}
+@media (min-width:561px){.sv-mode-one{display:none}}
 @media (max-width:560px){.sv-navrow:has(.sv-chip) .sv-thismonth{display:none}.sv-navrow{gap:3px}.sv-navrow .btn-sm{padding:4px 5px;font-size:11.5px;min-height:32px}.sv-month{font-size:12.5px;min-width:0}}
 .sv-month{flex:1;text-align:center;font-weight:800;font-size:15px;white-space:nowrap;color:#1B3A24}
 .sv-subrow{display:flex;align-items:center;gap:8px;margin-top:8px;min-height:28px;flex-wrap:wrap}
@@ -1071,7 +1074,7 @@ async function gvSchedule_(allMode) {
   const host = document.getElementById('gv-body');
   if (!host) return;
   const rid = allMode ? 'svgvall' : 'svgv';
-  host.innerHTML = `<div id="${rid}"><div class="row-wrap" style="margin-bottom:12px"><span class="row-wrap" style="margin-left:auto" id="${rid}-nav"></span></div><div id="${rid}-main">${Loading()}</div></div>`;
+  host.innerHTML = `<div id="${rid}"><div class="row-wrap" style="margin-bottom:12px"><span class="row-wrap" id="${rid}-nav"></span></div><div id="${rid}-main">${Loading()}</div></div>`;
   const st = svRegister(rid, 'month');
   st.fTeacher = allMode ? '' : GV_TEACHER.name; st.readOnly = true;
   const seq = (st._rseq = (st._rseq || 0) + 1);
@@ -1412,7 +1415,7 @@ function ScheduleViewsHtml(id) {
   return `<div id="${id}">
     <div class="stack-sm" style="margin-bottom:12px">${ConflictBannerHtml()}<div id="${id}-confpanel">${ConflictsPanelHtml()}</div></div>
     <div class="row-wrap" role="tablist" aria-label="Chế độ xem lịch" style="margin-bottom:12px">
-      <span class="row-wrap" style="margin-left:auto" id="${id}-nav"></span>
+      <span class="row-wrap" id="${id}-nav"></span>
     </div>
     <div id="${id}-main">${Loading()}</div>
   </div>`;
@@ -1425,10 +1428,10 @@ function svRenderNav(id) {
   if (st.mode === 'week') {
     el.innerHTML = `<div class="sv-navrow"><button type="button" class="btn btn-sm" onclick="svNav('${id}',-7)">‹ Tuần trước</button><button type="button" class="btn btn-sm" onclick="svNav('${id}',0)">Tuần này</button><button type="button" class="btn btn-sm" onclick="svNav('${id}',7)">Tuần sau ›</button></div>`;
   } else if (st.mode === 'half') {
-    el.innerHTML = `<div class="sv-navrow"><button type="button" class="btn btn-sm" onclick="svNavM('${id}',-1)" aria-label="Tháng trước">‹</button><button type="button" class="btn btn-sm ${st.half === 1 ? 'btn-green-grad' : ''}" onclick="svHalf('${id}',1)">1–15</button><button type="button" class="btn btn-sm ${st.half === 2 ? 'btn-green-grad' : ''}" onclick="svHalf('${id}',2)">15–${lastDayOf(st.monthCursor)}</button><button type="button" class="btn btn-sm" onclick="svNavM('${id}',1)" aria-label="Tháng sau">›</button>${st.monthCursor === monthStartOf(TODAY) ? `<button type="button" class="btn btn-sm sv-chip" onclick="svToggleToday('${id}')" title="Bấm để đổi: chỉ từ hôm nay / cả tháng">${st.fromToday ? '✓ Từ hôm nay' : 'Cả tháng'}</button>` : ''}</div>`;
+    el.innerHTML = `<div class="sv-navrow"><button type="button" class="btn btn-sm" onclick="svNavM('${id}',-1)" aria-label="Tháng trước">‹</button><button type="button" class="btn btn-sm ${st.half === 1 ? 'btn-green-grad' : ''}" onclick="svHalf('${id}',1)">1–15</button><button type="button" class="btn btn-sm ${st.half === 2 ? 'btn-green-grad' : ''}" onclick="svHalf('${id}',2)">15–${lastDayOf(st.monthCursor)}</button><button type="button" class="btn btn-sm" onclick="svNavM('${id}',1)" aria-label="Tháng sau">›</button>${st.monthCursor === monthStartOf(TODAY) ? `<button type="button" class="btn btn-sm sv-chip${st.fromToday ? ' btn-green-grad' : ''}" onclick="svToggleToday('${id}')" title="Bấm để đổi: chỉ từ hôm nay / cả tháng">${st.fromToday ? '✓ Từ hôm nay' : 'Cả tháng'}</button>` : ''}</div>`;
   } else {
     const [ny, nm] = st.monthCursor.split('-');
-    el.innerHTML = `<div class="sv-navrow"><button type="button" class="btn btn-sm" onclick="svNavM('${id}',-1)" aria-label="Tháng trước">‹</button><span class="sv-month">Tháng ${Number(nm)}/${ny}</span><button type="button" class="btn btn-sm" onclick="svNavM('${id}',1)" aria-label="Tháng sau">›</button><button type="button" class="btn btn-sm sv-thismonth" onclick="svNavM('${id}',0)">Tháng này</button>${st.mode === 'grid' ? `<button type="button" class="btn btn-sm" onclick="svSetMode('${id}','month')">Theo ngày</button>` : `<button type="button" class="btn btn-sm" onclick="svSetMode('${id}','grid')">Lưới HV</button>`}${st.monthCursor === monthStartOf(TODAY) ? `<button type="button" class="btn btn-sm sv-chip" onclick="svToggleToday('${id}')" title="Bấm để đổi: chỉ từ hôm nay / cả tháng">${st.fromToday ? '✓ Từ hôm nay' : 'Cả tháng'}</button>` : ''}</div>`;
+    el.innerHTML = `<div class="sv-navrow"><button type="button" class="btn btn-sm" onclick="svNavM('${id}',-1)" aria-label="Tháng trước">‹</button><span class="sv-month">Tháng ${Number(nm)}/${ny}</span><button type="button" class="btn btn-sm" onclick="svNavM('${id}',1)" aria-label="Tháng sau">›</button><button type="button" class="btn btn-sm sv-thismonth" onclick="svNavM('${id}',0)">Tháng này</button><span class="sv-seg"><button type="button" class="btn btn-sm ${st.mode === 'grid' ? '' : 'btn-green-grad'}" onclick="svSetMode('${id}','month')">Theo ngày</button><button type="button" class="btn btn-sm ${st.mode === 'grid' ? 'btn-green-grad' : ''}" onclick="svSetMode('${id}','grid')">Lưới HV</button></span><button type="button" class="btn btn-sm sv-mode-one" onclick="svSetMode('${id}','${st.mode === 'grid' ? 'month' : 'grid'}')">${st.mode === 'grid' ? 'Theo ngày' : 'Lưới HV'}</button>${st.monthCursor === monthStartOf(TODAY) ? `<button type="button" class="btn btn-sm sv-chip${st.fromToday ? ' btn-green-grad' : ''}" onclick="svToggleToday('${id}')" title="Bấm để đổi: chỉ từ hôm nay / cả tháng">${st.fromToday ? '✓ Từ hôm nay' : 'Cả tháng'}</button>` : ''}</div>`;
   }
 }
 function lastDayOf(mc) { return Number(addDays(addMonths(mc, 1), -1).slice(8, 10)); }
