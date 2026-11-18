@@ -204,7 +204,9 @@ function studentObj_(o, payMap, kmMap, cabinMap) {
   const discount = num_(o['GiamTien']);
   const payable = total - discount;
   const cls = str_(o['Hang']);
-  const kmDone = kmMap[sid] !== undefined ? kmMap[sid] : num_(o['KmDATDaChay']);
+  const kmSes = kmMap[sid] || 0;
+  const kmMan = num_(o['KmDATDaChay']);
+  const kmDone = kmMan + kmSes; // km nhap tay (da chay ngoai app, truoc khi dung app) + km tu cac buoi DAT tren lich
   const target = TARGET_KM[cls] || 810;
   const isMLL = num_(o['MuaLL']) === 1;
   const cab = cabinMap && cabinMap[sid] ? cabinMap[sid] : null;
@@ -225,7 +227,7 @@ function studentObj_(o, payMap, kmMap, cabinMap) {
     regDate: dstr_(o['NgayDangKy']), healthExamDate: dstr_(o['NgayKhamSK']), healthExpiry: dstr_(o['HanKhamSK']),
     cabinHours: cabinHours, cabinSessions: cabinSessions,
     theoryScore: o['DiemLyThuyet'] === '' ? null : num_(o['DiemLyThuyet']), theoryPassed: crit.theory,
-    sahinhDone: crit.sahinh, datKmDone: kmDone, datKmTotal: target, datMarkerKm: num_(o['MocKmDAT']),
+    sahinhDone: crit.sahinh, datKmDone: kmDone, datKmManual: kmMan, datKmSessions: kmSes, datKmTotal: target, datMarkerKm: num_(o['MocKmDAT']),
     datStartDate: course.datStart || '', datDeadline: course.closeDate || '',
     openDate: course.openDate || '', closeDate: course.closeDate || '',
     tuitionTotal: total, tuitionDiscount: discount, discountReason: str_(o['LyDoGiam']),
@@ -946,6 +948,7 @@ function apiSaveStudent(p) {
   if (p.sahinhDone !== undefined) patch['DaHocSaHinh'] = p.sahinhDone ? 'Đã học' : 'Chưa học';
   if (p.cabinHours !== undefined) patch['GioCabin'] = num_(p.cabinHours);
   if (p.cabinSessions !== undefined) patch['BuoiCabin'] = num_(p.cabinSessions);
+  if (p.datKm !== undefined) patch['KmDATDaChay'] = num_(p.datKm);
   if (p.homeTeacherId !== undefined) {
     const t = tab_('GiaoVien').objs.find(o => num_(o['ID']) === num_(p.homeTeacherId));
     if (t) patch['GVChinh'] = str_(t['HoTen']);
