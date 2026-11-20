@@ -176,6 +176,8 @@ textarea.input{min-height:80px}
 .sv-navrow .btn-sm{min-height:34px;padding:4px 9px;font-size:12.5px;border-radius:9px;white-space:nowrap}
 .sv-navrow .sv-chip{border-radius:999px}
 .sv-seg{display:inline-flex;gap:6px}
+.bk-tbl input[type=checkbox]{width:20px;height:20px}
+.bk-tbl tr.bk-dirty{background:#FFF8E1}
 @media (max-width:560px){.sv-seg{display:none}}
 @media (min-width:561px){.sv-mode-one{display:none}}
 @media (max-width:560px){.sv-navrow:has(.sv-chip) .sv-thismonth{display:none}.sv-navrow{gap:3px}.sv-navrow .btn-sm{padding:4px 5px;font-size:11.5px;min-height:32px}.sv-month{font-size:12.5px;min-width:0}}
@@ -542,7 +544,7 @@ const WB_STUD = { r: ['liststudents', 'getdashboard', 'listpayments', 'getreport
 const WB_EXAM = { r: ['listexams', 'listexamrounds', 'getdashboard', 'getreports', 'getgovreports', 'liststudents'] };
 const WRITE_INVALIDATES = {
   createschedule: WB_SCHED, updateschedule: WB_SCHED, deleteschedule: WB_SCHED,
-  savestudent: WB_STUD, setstudentstatus: WB_STUD, transferstudentcourse: WB_STUD, enrolladmission: WB_STUD,
+  savestudent: WB_STUD, setstudentstatus: WB_STUD, transferstudentcourse: WB_STUD, enrolladmission: WB_STUD, saveprogressbulk: WB_STUD,
   addpayment: { r: ['listpayments', 'getdots', 'liststudents', 'getdashboard', 'getreports', 'getgovreports'] },
   saveteacher: { r: ['listschedules', 'getdatsummary'], range: 1, lk: 1 },
   savevehicle: { r: ['getfleet', 'listschedules'], range: 1, lk: 1 },
@@ -873,7 +875,7 @@ function TeacherPill(short, color) {
 function PlateBadge(plate) { return plate ? `<span class="plate-badge">${esc(plate)}</span>` : '<span style="color:var(--dim)">—</span>'; }
 function PlateText(plate) { return plate ? `<span style="font-weight:600;white-space:nowrap">${esc(plate)}</span>` : '<span style="color:var(--dim)">—</span>'; }
 function StatusChip(status) {
-  const color = status === 'Đã có bằng' ? BRAND.green : status === 'Đã đậu sát hạch' ? '#00893D' : status === 'Chờ nhận bằng' ? '#00897B' : status === 'Chờ sát hạch' ? '#1565C0' : (status && status.indexOf('Rớt') === 0) ? '#C62828' : status === 'Đủ điều kiện thi' ? BRAND.navy : '#64748B';
+  const color = status === 'Đã có bằng' ? BRAND.green : status === 'Đã đậu sát hạch' ? '#00893D' : status === 'Chờ nhận bằng' ? '#00897B' : status === 'Chờ sát hạch' ? '#1565C0' : status === 'Chờ tốt nghiệp' ? '#EF6C00' : (status && status.indexOf('Rớt') === 0) ? '#C62828' : status === 'Đủ điều kiện thi' ? BRAND.navy : '#64748B';
   return `<span class="status-chip" style="background:${color}">${esc(status)}</span>`;
 }
 function DatMarkerChip(markerKm) {
@@ -1090,9 +1092,9 @@ async function gvStudents_() {
     const mine = (q.students || []).filter(x => x.homeTeacherName === GV_TEACHER.name);
     host.innerHTML = `<p style="margin:0 0 10px;color:var(--dim);font-size:14.5px">${mine.length} học viên do bạn phụ trách chính.</p>
       <div class="d-only tbl-wrap"><table class="tbl"><thead><tr><th>Học viên</th><th>Khóa</th><th>Mã thẻ HV</th><th>DAT (km)</th><th>Cabin</th></tr></thead><tbody>
-      ${mine.map(x => `<tr><td><b>${esc(x.name)}</b><span style="display:block;font-size:12px;color:var(--dim)">${esc(x.code)}</span></td><td>${esc(x.courseCode)} · ${esc(x.licenseClass)}</td><td>${x.cardNo ? `<b>${esc(x.cardNo)}</b>` : '<span style="color:var(--dim)">Chưa cấp</span>'}</td><td>${x.datKmDone}/${x.datKmTotal}</td><td>${x.cabinHours}/3h</td></tr>`).join('') || '<tr><td colspan="5">Chưa có học viên nào gắn với giáo viên này.</td></tr>'}
+      ${mine.map(x => `<tr><td><b>${esc(x.name)}</b><span style="display:block;font-size:12px;color:var(--dim)">${esc(x.code)}</span></td><td>${esc(x.courseCode)} · ${esc(x.licenseClass)}</td><td>${x.cardNo ? `<b>${esc(x.cardNo)}</b>` : '<span style="color:var(--dim)">Chưa cấp</span>'}</td><td>${x.datKmDone}/${x.datKmTotal}</td><td>${x.criteria && x.criteria.cabin ? 'Đạt' : 'Chưa'}${x.cabinSessions ? ` (${x.cabinSessions} ca)` : ''}</td></tr>`).join('') || '<tr><td colspan="5">Chưa có học viên nào gắn với giáo viên này.</td></tr>'}
       </tbody></table></div>
-      <div class="m-only mlist">${mine.map(x => `<article class="mcard"><b>${esc(x.name)}</b><p style="margin-top:4px;font-size:14px">${esc(x.courseCode)} · Mã thẻ: ${x.cardNo ? `<b>${esc(x.cardNo)}</b>` : 'Chưa cấp'} · DAT ${x.datKmDone}/${x.datKmTotal}km · Cabin ${x.cabinHours}/3h</p></article>`).join('') || '<p>Chưa có học viên nào gắn với giáo viên này.</p>'}</div>`;
+      <div class="m-only mlist">${mine.map(x => `<article class="mcard"><b>${esc(x.name)}</b><p style="margin-top:4px;font-size:14px">${esc(x.courseCode)} · Mã thẻ: ${x.cardNo ? `<b>${esc(x.cardNo)}</b>` : 'Chưa cấp'} · DAT ${x.datKmDone}/${x.datKmTotal}km · Cabin ${x.criteria && x.criteria.cabin ? 'Đạt' : 'Chưa'}</p></article>`).join('') || '<p>Chưa có học viên nào gắn với giáo viên này.</p>'}</div>`;
   } catch (e) { host.innerHTML = LoadError(e.message); }
 }
 function renderShell() {
@@ -1118,7 +1120,7 @@ function renderShell() {
       ${navAll}
       <div class="law-box">
         <p style="font-weight:700;color:#00893D">Luật mới TT 108/2026</p>
-        <p>Kỳ thi sát hạch chỉ còn 3 phần theo thứ tự bắt buộc. Đủ điều kiện thi = đạt 5 tiêu chí: Lý thuyết · Cabin 3h/3h · DAT đủ km · Sa hình đủ bài · Học phí đủ.</p>
+        <p>Kỳ thi sát hạch chỉ còn 3 phần theo thứ tự bắt buộc. Đủ điều kiện thi = đạt 4 tiêu chí: Lý thuyết · Cabin đạt · DAT đủ km · Học phí đủ.</p>
       </div>
     </aside>
     <div id="drawer-root"></div>
@@ -1719,7 +1721,7 @@ function paintDashboard_(main, d) {
     alertRows.push(`<div class="alert-row" style="background:#FDECEA;border-left-color:${BRAND.red}"><span style="font-weight:700;color:#E53935">Cảnh báo bảo dưỡng:</span><span style="font-size:14px">Xe ${esc(v.plate)} chạy ${v.hoursWeek}h/tuần (&gt;56h) — cần kiểm tra bảo dưỡng</span></div>`);
   });
   if (al.cabinNotStarted && al.cabinNotStarted.count > 0) {
-    const rows = (al.cabinNotStarted.rows || []).slice(0, 3).map(r => `${esc(r.name)} — ${esc(r.courseCode)}${r.homeTeacherName ? ` · ${esc(gvName(r.homeTeacherName))}` : ''} · Chưa học cabin (0/3h)`).join(' · ');
+    const rows = (al.cabinNotStarted.rows || []).slice(0, 3).map(r => `${esc(r.name)} — ${esc(r.courseCode)}${r.homeTeacherName ? ` · ${esc(gvName(r.homeTeacherName))}` : ''} · Chưa học cabin`).join(' · ');
     alertRows.push(`<div class="alert-row" style="background:#FFF8E1;border-left-color:${BRAND.amber}"><span style="font-weight:700;color:#8D6E00">Chưa học cabin — ${al.cabinNotStarted.count} HV</span><span style="font-size:14px">${rows}${al.cabinNotStarted.count > 3 ? ` · … và ${al.cabinNotStarted.count - 3} HV nữa (xem đủ ở mục Cảnh báo &amp; Zalo)` : ''}</span></div>`);
   }
   const maxHeat = Math.max(...(d.heatmap || []).map(h => h.sessions), 1);
@@ -1761,7 +1763,7 @@ function paintDashboard_(main, d) {
       </div>
 `) : ''}
     ${Section('Lý thuyết & Cabin tuần này', 'Buổi lý thuyết học chung theo khóa tại Phòng LT · Buổi cabin theo nhóm 5 HV tại Phòng cabin — cả 2 là buổi cấp khóa/nhóm, không cộng vào tổng ${sp.total} buổi', `<div id="dash-theory">${Loading()}</div>
-      <p style="font-size:14px;margin:8px 0 0"><b>Cabin đủ 3h/3h:</b> ${d.cabinStats.fullCount}/${d.cabinStats.total} HV (${d.cabinStats.pct}%) đã đủ 3 giờ cabin — điều kiện bắt buộc khi xét đủ điều kiện thi sát hạch.</p>`)}
+      <p style="font-size:14px;margin:8px 0 0"><b>Đạt Cabin:</b> ${d.cabinStats.fullCount}/${d.cabinStats.total} HV (${d.cabinStats.pct}%) đã đạt tiêu chí cabin (đi học cabin được đánh dấu hoàn thành là đạt, hoặc tick Đạt Cabin trong hồ sơ).</p>`)}
     ${Section('Cảnh báo DAT & vận hành', 'Cảnh báo sinh từ chính dữ liệu trong app (tiến độ DAT, hạn DAT, vận hành xe)', alertRows.length ? `<div class="stack-sm">${alertRows.join('')}</div>` : '<p style="font-size:14px;color:var(--dim);margin:0">Không có cảnh báo nào.</p>')}
     <div class="grid2">
       ${Section('Các khóa đang quản lý', 'Mỗi khóa 12 tuần học + trừ hao, chia 3 giai đoạn: Lý thuyết · DAT + Sa hình · Ôn + Thi', `
@@ -2023,8 +2025,8 @@ RENDERERS.students = async (main) => {
       <input aria-label="Tìm học viên" placeholder="Tìm theo tên, mã HV, mã thẻ, CCCD, SĐT…" value="${esc(STU.search)}" oninput="stuSearch(this.value)" onkeydown="if(event.key==='Enter')event.preventDefault()" class="input" style="flex:1 1 220px;width:auto;max-width:340px">
       <select aria-label="Lọc theo khóa" class="select" style="width:auto;flex:1 1 150px" onchange="stuFilter('course',this.value)"><option value="">Tất cả khóa</option>${courseCodes_().map(c => `<option value="${c}" ${c === STU.course ? 'selected' : ''}>${esc(courseOptionLabel(c))}</option>`).join('')}</select>
       <select aria-label="Lọc theo trung tâm" class="select" style="width:auto;flex:1 1 150px" onchange="stuFilter('center',this.value)"><option value="">Tất cả trung tâm</option>${centers.map(c => `<option value="${esc(c.name)}" ${c.name === STU.center ? 'selected' : ''}>${esc(shortCenterName(c.name))}</option>`).join('')}<option value="__none__" ${STU.center === '__none__' ? 'selected' : ''}>— Chưa rõ trung tâm</option></select>
-      <select aria-label="Lọc theo trạng thái" class="select" style="width:auto;flex:1 1 150px" onchange="stuFilter('status',this.value)"><option value="">Tất cả trạng thái</option>${['Đang học', 'Đủ điều kiện thi', 'Chờ sát hạch', 'Chờ nhận bằng', 'Rớt Lý thuyết', 'Rớt Sa hình', 'Rớt Đường trường', 'Đã đậu sát hạch', 'Đã có bằng', 'Bảo lưu', 'Đã nghỉ học'].map(x => `<option value="${x}" ${x === STU.status ? 'selected' : ''}>${x}</option>`).join('')}</select>
-      <label class="row-wrap" style="font-size:14px;min-height:48px"><input type="checkbox" ${STU.onlyEligible ? 'checked' : ''} onchange="stuFilter('onlyEligible',this.checked)" style="height:20px;width:20px"> Chỉ HV đủ điều kiện thi (5 tiêu chí)</label>
+      <select aria-label="Lọc theo trạng thái" class="select" style="width:auto;flex:1 1 150px" onchange="stuFilter('status',this.value)"><option value="">Tất cả trạng thái</option>${['Đang học', 'Đủ điều kiện thi', 'Chờ tốt nghiệp', 'Chờ sát hạch', 'Chờ nhận bằng', 'Rớt Lý thuyết', 'Rớt Sa hình', 'Rớt Đường trường', 'Đã đậu sát hạch', 'Đã có bằng', 'Bảo lưu', 'Đã nghỉ học'].map(x => `<option value="${x}" ${x === STU.status ? 'selected' : ''}>${x}</option>`).join('')}</select>
+      <label class="row-wrap" style="font-size:14px;min-height:48px"><input type="checkbox" ${STU.onlyEligible ? 'checked' : ''} onchange="stuFilter('onlyEligible',this.checked)" style="height:20px;width:20px"> Chỉ HV đủ điều kiện thi (4 tiêu chí)</label>
       <button type="button" class="btn btn-green" style="min-height:48px;font-weight:700" onclick="openStudentForm(null)">+ Thêm HV / Đối chiếu CCCD</button>
     </div>
     <div id="stu-results">${stuResultsHtml_(q)}</div>
@@ -2068,18 +2070,23 @@ async function openStudentDetail(id) {
   }
 }
 async function saveCriteria_(id) {
-  const scoreEl = document.getElementById('crit-score');
+  const ltEl = document.getElementById('crit-theory');
+  const cabEl = document.getElementById('crit-cabin');
+  const gradEl = document.getElementById('crit-grad');
+  const kmEl = document.getElementById('crit-datkm');
   try {
-    await write('savestudent', {
-      id,
-      theoryScore: scoreEl && scoreEl.value !== '' ? Number(scoreEl.value) : '',
-      theoryPassed: !!document.getElementById('crit-theory').checked,
-      sahinhDone: !!document.getElementById('crit-sahinh').checked,
-      cabinHours: Number(document.getElementById('crit-cabin').value) || 0,
-      datKm: Number(document.getElementById('crit-datkm').value) || 0,
-    });
-    toast('Đã lưu tiêu chí thi');
-    openStudentDetail(id);
+    const payload = { id };
+    if (ltEl && !!ltEl.checked !== (ltEl.dataset.cur === '1')) payload.theoryPassed = !!ltEl.checked;
+    if (cabEl && !!cabEl.checked !== (cabEl.dataset.cur === '1')) payload.cabinHours = cabEl.checked ? 3 : 0;
+    if (kmEl && (Number(kmEl.value) || 0) !== (Number(kmEl.dataset.cur) || 0)) payload.datKm = Number(kmEl.value) || 0;
+    let wrote = false;
+    if (Object.keys(payload).length > 1) { await write('savestudent', payload); wrote = true; }
+    if (gradEl && !!gradEl.checked !== (gradEl.dataset.cur === '1')) {
+      await write('updategraduation', { studentId: id, result: gradEl.checked ? 'Đạt' : 'Chưa thi' });
+      wrote = true;
+    }
+    toast(wrote ? 'Đã lưu tiêu chí thi' : 'Không có thay đổi nào');
+    if (wrote) openStudentDetail(id);
   } catch (e) { toast('Không lưu được: ' + e.message); }
 }
 function renderStudentDetail_(s, q) {
@@ -2090,7 +2097,7 @@ function renderStudentDetail_(s, q) {
     const timeline = [
       { label: 'Ngày khai giảng', value: fmtDate(s.openDate), color: BRAND.navy },
       ...(s.datStartDate ? [{ label: 'Ngày xuống DAT', value: fmtDate(s.datStartDate), color: BRAND.green }] : []),
-      { label: 'Lịch Cabin', value: `${s.cabinSessions} ca · ${s.cabinHours}/3 giờ`, color: '#7B1FA2' },
+      { label: 'Lịch Cabin', value: `${s.cabinSessions} ca đã học · ${s.criteria.cabin ? 'Đạt' : 'Chưa đạt'}`, color: '#7B1FA2' },
       { label: 'Lịch DAT', value: `Đã chạy ${s.datKmDone}/${s.datKmTotal} km (${datPct}%) · Hạn ${fmtDate(s.datDeadline)}`, color: BRAND.amber },
       ...(s.hasLicense && s.licenseDate ? [{ label: 'Có bằng lái', value: fmtDate(s.licenseDate), color: BRAND.green }] : []),
       ...(q ? (q.history || []).map(h => ({ label: h.action || h.kind || 'Lịch sử', value: `${h.detail || ''}${h.time ? ` — ${h.time}` : (h.date ? ` — ${fmtDate(h.date)}` : '')}`, color: BRAND.navy })) : [{ label: 'Lịch sử hồ sơ', value: 'Đang tải…', color: BRAND.navy }]),
@@ -2098,9 +2105,9 @@ function renderStudentDetail_(s, q) {
     ];
     const critItems = [
       { ok: s.criteria.theory, label: `Lý thuyết ${s.theoryScore != null ? `(${s.theoryScore} điểm)` : ''}` },
-      { ok: s.criteria.cabin, label: `Cabin ${s.cabinHours}/3h (${s.cabinSessions} ca)` },
-      { ok: s.criteria.dat, label: `DAT ${s.datKmDone}/${s.datKmTotal} km${s.datKmManual ? ` (ngoài app ${s.datKmManual} + qua lịch ${s.datKmSessions || 0})` : ''}` },
-      { ok: s.criteria.sahinh, label: 'Sa hình đủ bài' },
+      { ok: s.criteria.cabin, label: `Cabin — ${s.criteria.cabin ? 'Đạt' : 'Chưa đạt'}${s.cabinSessions ? ` · ${s.cabinSessions} ca đã học` : ''}` },
+      { ok: s.criteria.dat, label: `DAT ${s.datKmDone}/${s.datKmTotal} km${s.datKmManual ? ` (ngoài app ${s.datKmManual} + qua lịch ${s.datKmSessions || 0})` : ''}${s.datKmDone < s.datKmTotal ? ` · còn thiếu ${s.datKmTotal - s.datKmDone} km` : ''}` },
+      { info: true, label: `Sa hình — đã học ${s.sahinhSessions || 0} buổi` },
       { ok: s.muaLL ? true : s.criteria.tuition, label: s.muaLL ? 'Học phí: Mua LL — GV tự thu' : `Học phí: ${myDots.length ? 'đã đóng đợt ' + myDots.join(', ') : 'chưa đóng đợt nào'} (${myDots.length}/3 đợt)` },
       { ok: s.gradResult === 'Đậu', label: `Tốt nghiệp${!s.gradResult || s.gradResult === 'Chưa thi' ? ' — chưa thi' : ` — ${s.gradResult}`}${s.certNo ? ` · CC ${s.certNo}` : ''}` },
     ];
@@ -2144,14 +2151,13 @@ function renderStudentDetail_(s, q) {
         <div class="bar" style="margin-top:8px;height:10px"><i style="width:${datPct}%;background:${BRAND.amber}"></i></div>
       </div>
       <div>
-        <p style="margin:0 0 4px;font-size:14px"><b>Điều kiện đủ thi sát hạch — 5 tiêu chí (TT 108/2026)</b></p>
-        <ul class="crit">${critItems.map(it => `<li><span class="ic" style="background:${it.ok ? BRAND.green : '#B0BEC5'}">${it.ok ? '✓' : '–'}</span><span ${it.ok ? '' : 'style="color:var(--dim)"'}>${esc(it.label)}</span></li>`).join('')}</ul>
+        <p style="margin:0 0 4px;font-size:14px"><b>Điều kiện đủ thi sát hạch — 4 tiêu chí (TT 108/2026)</b></p>
+        <ul class="crit">${critItems.map(it => it.info ? `<li><span class="ic" style="background:#78909C">•</span><span>${esc(it.label)}</span></li>` : `<li><span class="ic" style="background:${it.ok ? BRAND.green : '#B0BEC5'}">${it.ok ? '✓' : '–'}</span><span ${it.ok ? '' : 'style="color:var(--dim)"'}>${esc(it.label)}</span></li>`).join('')}</ul>
         <div class="row-wrap" style="margin-top:10px;gap:10px;align-items:flex-end">
-          <label style="font-size:13px">Điểm lý thuyết<br><input id="crit-score" type="number" min="0" max="35" step="1" class="input" style="width:96px" value="${s.theoryScore != null ? s.theoryScore : ''}"></label>
-          <label style="font-size:13px;display:flex;gap:6px;align-items:center;padding-bottom:10px"><input id="crit-theory" type="checkbox" ${s.criteria.theory ? 'checked' : ''}> Đạt lý thuyết</label>
-          <label style="font-size:13px;display:flex;gap:6px;align-items:center;padding-bottom:10px"><input id="crit-sahinh" type="checkbox" ${s.criteria.sahinh ? 'checked' : ''}> Sa hình đủ bài</label>
-          <label style="font-size:13px">Giờ cabin nhập tay<br><input id="crit-cabin" type="number" min="0" step="0.5" class="input" style="width:96px" value="${s.cabinHours || 0}"></label>
-          <label style="font-size:13px">Km DAT đã chạy ngoài app<br><input id="crit-datkm" type="number" min="0" step="1" class="input" style="width:110px" value="${s.datKmManual || 0}"></label>
+          <label style="font-size:13px;display:flex;gap:6px;align-items:center;padding-bottom:10px"><input id="crit-theory" type="checkbox" data-cur="${s.criteria.theory ? '1' : '0'}" ${s.criteria.theory ? 'checked' : ''}> Đạt lý thuyết</label>
+          <label style="font-size:13px;display:flex;gap:6px;align-items:center;padding-bottom:10px"><input id="crit-cabin" type="checkbox" data-cur="${s.criteria.cabin ? '1' : '0'}" ${s.criteria.cabin ? 'checked' : ''}> Đạt Cabin</label>
+          <label style="font-size:13px;display:flex;gap:6px;align-items:center;padding-bottom:10px"><input id="crit-grad" type="checkbox" data-cur="${(s.gradResult === 'Đạt' || s.gradResult === 'Đậu') ? '1' : '0'}" ${(s.gradResult === 'Đạt' || s.gradResult === 'Đậu') ? 'checked' : ''}> Thi tốt nghiệp: Đậu</label>
+          <label style="font-size:13px">Km DAT đã chạy ngoài app<br><input id="crit-datkm" type="number" min="0" step="1" class="input" style="width:110px" data-cur="${s.datKmManual || 0}" value="${s.datKmManual || 0}"></label>
           <button type="button" class="btn" onclick="saveCriteria_(${s.id})">Lưu tiêu chí</button>
         </div>
       </div>
@@ -3569,7 +3575,7 @@ RENDERERS.exams = async (main) => {
       ? eligible.map(s => ({ 'SBD': '—', 'Họ tên': s.name, 'CCCD': s.cccd, 'Hạng': s.licenseClass, 'Giờ DAT': datById[s.id] ? datById[s.id].hoursDone : 0, 'Điểm lý thuyết': s.theoryScore != null ? s.theoryScore : (s.criteria && s.criteria.theory ? 'Đạt' : '') }))
       : results.map(r => ({ 'Mã HV': r.code, 'Họ tên': r.name, 'SBD': r.sbd, 'Ngày thi': r.examDate, 'Lý thuyết': r.theory, 'Sa hình': r.sahinh, 'Đường trường': r.road, 'Ngày có bằng': r.licenseDate || '', 'Có bằng': r.hasLicense ? 'Có' : 'Chưa' })));
   main.innerHTML = `<div class="stack">
-    ${Section('Kỳ thi sát hạch — luật mới TT 108/2026', 'Thi 3 phần theo thứ tự: Lý thuyết → Sa hình → Đường trường. Rớt/Vắng phần nào thì dừng ở đó, phần sau ghi nhận "Chưa thi". Đủ điều kiện thi = đạt cả 5 tiêu chí: Lý thuyết · Cabin 3h/3h · DAT đủ km · Sa hình đủ bài · Học phí đủ.', '',
+    ${Section('Kỳ thi sát hạch — luật mới TT 108/2026', 'Thi 3 phần theo thứ tự: Lý thuyết → Sa hình → Đường trường. Rớt/Vắng phần nào thì dừng ở đó, phần sau ghi nhận "Chưa thi". Đủ điều kiện thi = đạt cả 4 tiêu chí: Lý thuyết · Cabin đạt · DAT đủ km · Học phí đủ.', '',
       `<div class="row-wrap" style="font-size:14px">
         ${d.nextExamDate ? `<span class="chip" style="background:#FFF8E1;color:#B45309">Kỳ thi ${fmtDate(d.nextExamDate)} · còn ${daysLeft} ngày · ${d.eligibleTotal} HV đủ điều kiện</span>` : ''}
         ${zaloBtn('Lịch thi', 'Báo lịch thi cho HV đủ điều kiện', 'Tất cả học viên đủ điều kiện thi', `${CENTER.name} trân trọng thông báo tới quý học viên đủ điều kiện thi: kỳ thi sát hạch lái xe sẽ diễn ra ngày ${d.nextExamDate ? fmtDate(d.nextExamDate) : ''}. Quý học viên vui lòng tập trung tại trung tâm lúc 6h30, mang theo CCCD bản gốc. Mọi chi tiết liên hệ: ${CENTER.phone}.`)}
@@ -3857,21 +3863,104 @@ RENDERERS.reports = async (main) => {
   </div>`;
 };
 /* ================= TIẾN ĐỘ KHÓA HỌC (Progress) ================= */
+function bulkHtml_(rows) {
+  if (!rows.length) return '<p style="font-size:14px;color:var(--dim);margin:0">Chưa tải được danh sách học viên.</p>';
+  const courses = [...new Set(rows.map(x => x.courseCode).filter(Boolean))].sort();
+  const body = rows.map(x => {
+    const ini = window._BK.init[x.id];
+    const rem = (x.datKmTotal || 0) - (x.datKmDone || 0);
+    return `<tr id="bk-row-${x.id}" data-course="${esc(x.courseCode)}" data-search="${esc(normText((x.name || '') + ' ' + (x.code || '')))}" data-ses="${x.datKmSessions || 0}" data-tot="${x.datKmTotal || 0}">
+      <td><b>${esc(x.name)}</b><span style="display:block;font-size:12px;color:var(--dim)">${esc(x.code)} · ${esc(x.courseCode)} · ${esc(x.licenseClass)}</span></td>
+      <td><input type="checkbox" class="bk-lt" ${ini.lt ? 'checked' : ''} onchange="bulkTouch_(${x.id})" aria-label="Đạt lý thuyết"></td>
+      <td><input type="checkbox" class="bk-cab" ${ini.cab ? 'checked' : ''} onchange="bulkTouch_(${x.id})" aria-label="Đạt Cabin"></td>
+      <td><input type="number" class="bk-km input" min="0" step="1" style="width:88px" value="${ini.km}" oninput="bulkTouch_(${x.id})" aria-label="Km DAT đã chạy ngoài app"><span style="display:block;font-size:11px;color:var(--dim)">+ qua lịch ${x.datKmSessions || 0} km</span></td>
+      <td><b class="bk-tot">${x.datKmDone}/${x.datKmTotal}</b><span class="bk-rem" style="display:block;font-size:11px;color:var(--dim)">${rem > 0 ? 'còn thiếu ' + rem + ' km' : 'đã đủ'}</span></td>
+      <td><input type="checkbox" class="bk-grad" ${ini.grad ? 'checked' : ''} onchange="bulkTouch_(${x.id})" aria-label="Thi tốt nghiệp đậu"></td>
+      <td>${StatusChip(x.status)}</td></tr>`;
+  }).join('');
+  return `<div class="row-wrap" style="margin-bottom:10px;gap:8px">
+      <select id="bk-course" class="select" style="width:auto;flex:0 1 200px" onchange="bulkFilter_()"><option value="">Tất cả khóa</option>${courses.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('')}</select>
+      <input id="bk-q" class="input" style="flex:1 1 160px;width:auto" placeholder="Tìm theo tên, mã HV…" oninput="bulkFilter_()">
+      <button id="bk-save" type="button" class="btn btn-green-grad" onclick="bulkSave_()" disabled>Lưu tất cả</button>
+    </div>
+    <div class="tbl-wrap"><table class="tbl bk-tbl"><thead><tr><th>Học viên</th><th>Đạt LT</th><th>Đạt Cabin</th><th>Km DAT ngoài app</th><th>Tổng DAT</th><th>Thi TN Đậu</th><th>Trạng thái</th></tr></thead><tbody>${body}</tbody></table></div>
+    <p class="note-dim" id="bk-count" style="margin-top:8px">Hiển thị ${rows.length}/${rows.length} học viên</p>`;
+}
+function bulkTouch_(id) {
+  const row = document.getElementById('bk-row-' + id);
+  if (!row || !window._BK || !window._BK.init[id]) return;
+  const ini = window._BK.init[id];
+  const cur = {
+    lt: row.querySelector('.bk-lt').checked,
+    cab: row.querySelector('.bk-cab').checked,
+    km: Number(row.querySelector('.bk-km').value) || 0,
+    grad: row.querySelector('.bk-grad').checked,
+  };
+  const item = { id };
+  if (cur.lt !== ini.lt) item.theoryPassed = cur.lt;
+  if (cur.cab !== ini.cab) item.cabinHours = cur.cab ? 3 : 0;
+  if (cur.km !== ini.km) item.datKm = cur.km;
+  if (cur.grad !== ini.grad) item.gradResult = cur.grad ? 'Đạt' : 'Chưa thi';
+  if (Object.keys(item).length > 1) window._BK.dirty[id] = item; else delete window._BK.dirty[id];
+  row.classList.toggle('bk-dirty', !!window._BK.dirty[id]);
+  const ses = Number(row.dataset.ses) || 0, tot = Number(row.dataset.tot) || 0;
+  const done = cur.km + ses;
+  const totEl = row.querySelector('.bk-tot'); if (totEl) totEl.textContent = done + '/' + tot;
+  const remEl = row.querySelector('.bk-rem'); if (remEl) remEl.textContent = tot - done > 0 ? 'còn thiếu ' + (tot - done) + ' km' : 'đã đủ';
+  const n = Object.keys(window._BK.dirty).length;
+  const btn = document.getElementById('bk-save');
+  if (btn) { btn.disabled = n === 0; btn.textContent = n ? `Lưu tất cả (${n} thay đổi)` : 'Lưu tất cả'; }
+}
+function bulkFilter_() {
+  const cEl = document.getElementById('bk-course');
+  const qEl = document.getElementById('bk-q');
+  if (!cEl || !qEl) return;
+  const c = cEl.value;
+  const q = normText(qEl.value.trim());
+  let shown = 0, total = 0;
+  document.querySelectorAll('.bk-tbl tbody tr').forEach(tr => {
+    total++;
+    const ok = (!c || tr.dataset.course === c) && (!q || (tr.dataset.search || '').includes(q));
+    tr.style.display = ok ? '' : 'none';
+    if (ok) shown++;
+  });
+  const el = document.getElementById('bk-count');
+  if (el) el.textContent = `Hiển thị ${shown}/${total} học viên`;
+}
+async function bulkSave_() {
+  const items = Object.values((window._BK || {}).dirty || {});
+  if (!items.length) return;
+  const btn = document.getElementById('bk-save');
+  if (btn) { btn.disabled = true; btn.textContent = 'Đang lưu…'; }
+  try {
+    const r = await write('saveprogressbulk', { items });
+    toast(`Đã lưu tiến độ ${r && r.count != null ? r.count : items.length} học viên`);
+    go('progress');
+  } catch (e) {
+    toast('Không lưu được: ' + e.message);
+    if (btn) { btn.disabled = false; btn.textContent = `Lưu tất cả (${items.length} thay đổi)`; }
+  }
+}
 RENDERERS.progress = async (main) => {
   main.innerHTML = Loading();
   const ym = TODAY.slice(0, 7);
-  const [dash, range] = await Promise.all([
+  const [dash, range, stuQ] = await Promise.all([
     callSWR('getdashboard', {}, () => { if (state.view === 'progress' && !modalOpen_()) go('progress', undefined, { keepScroll: true }); }),
     callRange_(ym + '-01', ym + '-31'),
+    call('liststudents', { page: 1, pageSize: 200 }).catch(() => null),
   ]);
+  const stuRows = (stuQ && stuQ.students) || [];
+  window._BK = { init: {}, dirty: {} };
+  stuRows.forEach(x => { window._BK.init[x.id] = { lt: !!(x.criteria && x.criteria.theory), cab: !!(x.criteria && x.criteria.cabin), km: x.datKmManual || 0, grad: x.gradResult === 'Đạt' || x.gradResult === 'Đậu' }; });
   const sp = (dash && dash.sessionsProgress) || null;
   const cabin = (range && range.cabinByCourse) || [];
   main.innerHTML = `<div class="stack">
+    ${Section('Nhập tiến độ chung', '', bulkHtml_(stuRows))}
     ${sp && sp.total > 0
       ? Section('Tiến độ xếp lịch cả khóa', `Theo lịch đã xếp trong app: ${fmtDate(sp.from)} – ${fmtDate(sp.to)} · ${sp.days} ngày có lịch`, sessionsProgressHtml(sp))
       : Section('Tiến độ xếp lịch cả khóa', '', '<p style="font-size:14px;color:var(--dim);margin:0">Chưa có dữ liệu tiến độ xếp lịch.</p>')}
-    ${Section('Tiến độ cabin theo khóa', 'Buổi cabin xếp theo nhóm 5 HV tại Phòng cabin, tính bằng giờ — mỗi học viên cần đủ 3h/3h mới đạt tiêu chí cabin khi xét điều kiện thi.', cabin.length
-      ? `<div class="row-wrap">${cabin.map(c => `<span class="tagchip" style="background:#ECEFF1;color:#37474F;font-weight:600">${esc(c.courseCode)}: ${c.done3h}/${c.students} HV đủ 3h (${c.pct}%) · TB ${String(c.avgHours).replace('.', ',')}h/HV</span>`).join('')}</div>`
+    ${Section('Tiến độ cabin theo khóa', 'Buổi cabin xếp theo nhóm 5 HV tại Phòng cabin — học viên đi học và được đánh dấu hoàn thành là đạt tiêu chí cabin.', cabin.length
+      ? `<div class="row-wrap">${cabin.map(c => `<span class="tagchip" style="background:#ECEFF1;color:#37474F;font-weight:600">${esc(c.courseCode)}: ${c.done3h}/${c.students} HV đạt cabin (${c.pct}%) · TB ${String(c.avgHours).replace('.', ',')}h/HV</span>`).join('')}</div>`
       : '<p style="font-size:14px;color:var(--dim);margin:0">Chưa có dữ liệu cabin.</p>')}
   </div>`;
 };
@@ -4110,14 +4199,14 @@ RENDERERS.guide = (main) => {
       ${guideStep('3', '<b>Hồ sơ chi tiết:</b> bấm vào tên học viên để xem tiến độ DAT (thanh km + mốc âm/dương), 5 điều kiện thi, lịch sử đóng học phí và kết quả thi.')}
       ${guideStep('4', '<b>Chuyển trạng thái:</b> trong hồ sơ chi tiết có nút Bảo lưu / Nghỉ học / Hoàn phí. Hoàn phí sẽ hỏi số tiền hoàn và tự ghi 1 phiếu thu âm vào học phí.')}
       ${guideStep('5', '<b>Chuyển khóa:</b> dùng khi học viên xin dời sang khóa sau — chọn khóa đích trong hồ sơ chi tiết, tiến độ DAT và học phí được giữ nguyên.')}
-      ${guideStep('6', '<b>HV đã học/chạy từ trước khi dùng app:</b> mở hồ sơ chi tiết của học viên, ở phần 5 tiêu chí có sẵn ô <b>Giờ cabin nhập tay</b> và <b>Km DAT đã chạy ngoài app</b> — nhập số đã làm ở ngoài rồi bấm <b>Lưu tiêu chí</b>. App cộng phần nhập tay với phần xếp trên lịch; nhập đủ (Cabin 3 giờ, DAT đủ km theo hạng) là tiêu chí tự đánh dấu đạt. Lý thuyết và Sa hình thì tick chọn Đạt / Đủ bài ngay tại đó.')}
+      ${guideStep('6', '<b>Nhập tiến độ cho học viên:</b> cách nhanh nhất là vào mục <b>Tiến độ khóa học → Nhập tiến độ chung</b>: cả danh sách hiện trên 1 trang, tick <b>Đạt lý thuyết</b>, <b>Đạt Cabin</b>, <b>Thi tốt nghiệp Đậu</b> và nhập <b>Km DAT đã chạy ngoài app</b> cho từng người rồi bấm <b>Lưu tất cả</b> — phần mềm tự tách về hồ sơ từng học viên. Vào từng hồ sơ chi tiết cũng chỉnh được các tick này. <b>Đạt Cabin + đủ km DAT</b> thì trạng thái tự chuyển <b>Chờ tốt nghiệp</b>; tick <b>Thi tốt nghiệp: Đậu</b> thì chuyển <b>Chờ sát hạch</b>. Sa hình không còn là tiêu chí đạt/chưa — app chỉ đếm số buổi đã học.')}
       ${guideNote('Mã học viên (HP001, HP002…) được cấp tự động khi thêm mới, không sửa tay được để tránh trùng hồ sơ nộp Sở.')}`)}<div class="guide-imgs"><figure><img src="guide/g05-hoc-vien.jpg" alt="Danh sách học viên" loading="lazy" decoding="async"><figcaption>Danh sách học viên</figcaption></figure><figure><img src="guide/g06-ho-so-hv.jpg" alt="Hồ sơ chi tiết của một học viên" loading="lazy" decoding="async"><figcaption>Hồ sơ chi tiết của một học viên</figcaption></figure></div></section>
     <section class="panel gd" id="hd-dat">${Section('6 · DAT & Sa hình', '', `
       <p class="gtext">Chuẩn số km DAT theo hạng bằng: <b>B1: 710 km · B2: 810 km · C1: 825 km · C: 825 km</b>. Mốc km âm/dương được tính theo tiến độ lý thuyết của khóa: học viên chạy ít hơn mốc là <b>âm km</b> (chip vàng), chạy nhiều hơn là <b>dương km</b> (chip xanh ngọc).</p>
       ${guideStep('1', 'Bảng <b>Tổng hợp DAT</b> cho biết từng học viên: km đã chạy / tổng km, % hoàn thành, trạng thái (Đạt chuẩn / Đúng tiến độ / Chậm tiến độ / Chưa chạy), giờ đã học và tốc độ trung bình.')}
       ${guideStep('2', '<b>Xếp buổi mới:</b> ở ô Học viên, <b>gõ vài chữ cái đầu của tên (không cần dấu)</b> rồi bấm vào đúng tên trong danh sách hiện ra; chọn tiếp ngày, khung giờ, giáo viên và xe. Nếu xe/giáo viên/học viên đã có lịch trùng khung giờ, hệ thống <b>chặn và báo lỗi</b> kèm gợi ý xe và giáo viên còn trống.')}
       ${guideStep('3', 'Sau khi xếp, buổi học hiện lên Lịch theo tháng. Hết buổi, giáo viên nhập <b>km thực tế</b> và điểm danh (Có mặt / Vắng) ngay trên thẻ buổi.')}
-      ${guideNote('<b>Ghi lịch CABIN</b> cũng làm ngay tại form Xếp lịch mới này: ô <b>Loại buổi</b> chọn <b>Cabin</b>, chọn học viên, ngày và giờ học rồi bấm Xếp lịch — giờ cabin tự cộng vào tiêu chí Cabin 3h/3h của học viên. Buổi mới mặc định là đã học; nếu học viên vắng buổi đó, mở thẻ buổi trên lịch và đổi điểm danh thành “HV vắng” thì giờ sẽ không tính. Mỗi học viên tối đa 1 buổi/ngày, nên xếp cabin vào ngày bạn đó chưa có buổi nào khác.')}`)}<div class="guide-imgs"><figure><img src="guide/g07-tong-hop-dat.jpg" alt="Bảng tổng hợp DAT theo học viên" loading="lazy" decoding="async"><figcaption>Bảng tổng hợp DAT theo học viên</figcaption></figure><figure><img src="guide/g02-tien-do.jpg" alt="Mục Tiến độ khóa học — km DAT và hạn bế giảng" loading="lazy" decoding="async"><figcaption>Mục Tiến độ khóa học — km DAT và hạn bế giảng</figcaption></figure></div></section>
+      ${guideNote('<b>Ghi lịch CABIN</b> cũng làm ngay tại form Xếp lịch mới này: ô <b>Loại buổi</b> chọn <b>Cabin</b>, chọn học viên, ngày và giờ học rồi bấm Xếp lịch — học viên có đi học (điểm danh Đã học) là <b>đạt tiêu chí Cabin</b>, không cần tính giờ. Buổi mới mặc định là đã học; nếu học viên vắng buổi đó, mở thẻ buổi trên lịch và đổi điểm danh thành “HV vắng” thì không tính. Mỗi học viên tối đa 1 buổi/ngày, nên xếp cabin vào ngày bạn đó chưa có buổi nào khác.')}`)}<div class="guide-imgs"><figure><img src="guide/g07-tong-hop-dat.jpg" alt="Bảng tổng hợp DAT theo học viên" loading="lazy" decoding="async"><figcaption>Bảng tổng hợp DAT theo học viên</figcaption></figure><figure><img src="guide/g02-tien-do.jpg" alt="Mục Tiến độ khóa học — km DAT và hạn bế giảng" loading="lazy" decoding="async"><figcaption>Mục Tiến độ khóa học — km DAT và hạn bế giảng</figcaption></figure></div></section>
     <section class="panel gd" id="hd-tuyen-sinh">${Section('7 · Tuyển sinh & hồ sơ', '', `
       ${guideStep('1', 'Mục <b>Tuyển sinh</b> quản lý hồ sơ đăng ký mới: mỗi hồ sơ có 5 loại giấy tờ cần nộp — CCCD, Giấy khám sức khỏe, Ảnh 3x4, Đơn đăng ký, Sơ yếu lý lịch.')}
       ${guideStep('2', 'Bấm vào từng <b>nhãn giấy tờ</b> để chuyển trạng thái: Đã nộp (xanh) → Chưa nộp (xám) → Thiếu/sai (đỏ). Hồ sơ đủ 5/5 giấy tờ sẽ hiện nhãn “Đủ giấy tờ”.')}
@@ -4141,7 +4230,7 @@ RENDERERS.guide = (main) => {
       ${guideNote('Mã trung tâm ghi trên lưới lịch giấy của trung tâm: HM = Hóc Môn, ACHAU = Á Châu, PGiao/PHGIAO = Phú Giáo. Khi lọc lịch theo trung tâm, chọn đúng tên trong danh sách là hệ thống tự khớp cả mã viết tắt.')}`)}<div class="guide-imgs"><figure><img src="guide/g11-gv-xe.jpg" alt="Mục Giáo viên · Xe · Trung tâm liên kết" loading="lazy" decoding="async"><figcaption>Mục Giáo viên · Xe · Trung tâm liên kết</figcaption></figure></div></section>
     <section class="panel gd" id="hd-thi">${Section('10 · Kỳ thi sát hạch', '', `
       <p class="gtext">Theo Thông tư 108/2026 (hiệu lực 01/07/2026), kỳ thi sát hạch gồm <b>3 phần thi theo thứ tự: Lý thuyết → Sa hình → Đường trường</b>. Đậu phần trước mới được thi phần sau; rớt hoặc vắng phần nào thì các phần sau ghi “Chưa thi”.</p>
-      ${guideStep('1', '<b>Điều kiện dự thi (đủ 5/5):</b> đạt bài kiểm tra lý thuyết · học đủ cabin 3h/3h · chạy DAT đủ số km theo hạng · hoàn thành đủ bài sa hình · đóng đủ học phí. Học viên đạt 5/5 tự hiện trong “Danh sách đủ điều kiện thi”.')}
+      ${guideStep('1', '<b>Điều kiện dự thi (đủ 4/4):</b> đạt lý thuyết · đạt cabin (đi học cabin là đạt) · chạy DAT đủ số km theo hạng · đóng đủ học phí. Học viên đạt 4/4 tự hiện trong “Danh sách đủ điều kiện thi”.')}
       ${guideStep('2', '<b>Đợt thi:</b> tạo đợt thi (tên đợt, ngày thi, địa điểm), đăng ký học viên đủ điều kiện vào đợt, cập nhật trạng thái hồ sơ (Chưa nộp → Đã nộp Sở → Đã có biên nhận) và xuất danh sách dự thi (SBD, họ tên, ngày sinh, CCCD, hạng) để nộp Sở.')}
       ${guideStep('3', '<b>Nhập kết quả:</b> ở tab “Kết quả thi”, chọn Đậu/Rớt/Vắng cho từng phần. Hệ thống tự khóa phần Sa hình khi Lý thuyết chưa đậu, và khóa Đường trường khi Sa hình chưa đậu — đúng luật thi mới.')}
       ${guideStep('4', '<b>Thi tốt nghiệp:</b> chọn khóa để ghi ngày thi tốt nghiệp, kết quả, số chứng chỉ và ngày cấp cho từng học viên — đây là căn cứ để lập hồ sơ dự thi sát hạch.')}
@@ -4162,7 +4251,7 @@ RENDERERS.guide = (main) => {
       ${guideStep('2', 'Đổi logo: bấm <b>Đổi logo</b>, chọn ảnh logo của trung tâm — app tự nén ảnh và tự cắt biểu tượng gọn cho thanh tiêu đề, rồi bấm <b>Lưu thông tin</b>.')}`)}<div class="guide-imgs"><figure><img src="guide/g16-cau-hinh.jpg" alt="Mục Cấu hình trung tâm" loading="lazy" decoding="async"><figcaption>Mục Cấu hình trung tâm</figcaption></figure></div></section>
     <section class="panel gd" id="hd-hoi-dap">${Section('14 · Hỏi đáp nhanh', '', `
       <p class="gtext"><b>Hỏi:</b> Vì sao không xếp được buổi DAT cho học viên?<br><b>Đáp:</b> Thường do trùng xe, trùng giáo viên hoặc học viên đã có buổi khác trong cùng khung giờ. Thông báo lỗi sẽ nói rõ trùng với buổi nào và gợi ý xe/giáo viên còn trống — đổi sang lựa chọn đó là xếp được.</p>
-      <p class="gtext"><b>Hỏi:</b> Học viên đã đóng đủ tiền nhưng chưa hiện “đủ điều kiện thi”?<br><b>Đáp:</b> Điều kiện thi gồm 5 tiêu chí — kiểm tra trong hồ sơ học viên xem còn tiêu chí nào chưa đạt (thường là thiếu giờ cabin hoặc thiếu vài km DAT cuối).</p>
+      <p class="gtext"><b>Hỏi:</b> Học viên đã đóng đủ tiền nhưng chưa hiện “đủ điều kiện thi”?<br><b>Đáp:</b> Điều kiện thi gồm 4 tiêu chí — kiểm tra trong hồ sơ học viên xem còn tiêu chí nào chưa đạt (thường là chưa đạt cabin hoặc thiếu vài km DAT cuối).</p>
       <p class="gtext"><b>Hỏi:</b> Muốn sửa buổi học đã xếp (đổi giờ, đổi xe)?<br><b>Đáp:</b> Mở Lịch theo tháng, bấm vào thẻ buổi học đó để sửa trực tiếp; hệ thống quét trùng lại ngay sau khi lưu. Xóa buổi cũng làm tại đây.</p>
       <p class="gtext"><b>Hỏi:</b> Số liệu doanh thu không khớp sổ tay?<br><b>Đáp:</b> Doanh thu tính từ các lần thu đã ghi trong mục Học phí. Kiểm tra lại tháng đang chọn và các phiếu “Hoàn phí” (số âm) trong tháng.</p>
       <p class="gtext"><b>Hỏi:</b> Cần hỗ trợ thêm?<br><b>Đáp:</b> Liên hệ quản trị Portal của trung tâm hoặc gọi ${CENTER.phone} (giờ hành chính) để được hướng dẫn trực tiếp.</p>`)}
