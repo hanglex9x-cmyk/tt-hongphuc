@@ -178,6 +178,11 @@ textarea.input{min-height:80px}
 .sv-seg{display:inline-flex;gap:6px}
 .bk-tbl input[type=checkbox]{width:20px;height:20px}
 .bk-tbl tr.bk-dirty{background:#FFF8E1}
+.bk-tbl td{vertical-align:middle}
+.bk-tbl{border-collapse:separate;border-spacing:0}
+.bk-tbl thead th{background:var(--navy);color:#fff;position:sticky;top:92px;z-index:6}
+@media(min-width:761px){.tbl-wrap.bk-wrap{overflow:visible}}
+@media(max-width:760px){.bk-wrap{max-height:72vh;overflow:auto}.bk-tbl thead th{top:0}}
 @media (max-width:560px){.sv-seg{display:none}}
 @media (min-width:561px){.sv-mode-one{display:none}}
 @media (max-width:560px){.sv-navrow:has(.sv-chip) .sv-thismonth{display:none}.sv-navrow{gap:3px}.sv-navrow .btn-sm{padding:4px 5px;font-size:11.5px;min-height:32px}.sv-month{font-size:12.5px;min-width:0}}
@@ -3887,8 +3892,8 @@ function bulkHtml_(rows) {
       <td><b>${esc(x.name)}</b><span style="display:block;font-size:12px;color:var(--dim)">${esc(x.code)} · ${esc(x.courseCode)} · ${esc(x.licenseClass)}</span></td>
       <td><input type="checkbox" class="bk-lt" ${ini.lt ? 'checked' : ''} onchange="bulkTouch_(${x.id})" aria-label="Đạt lý thuyết"></td>
       <td><input type="checkbox" class="bk-cab" ${ini.cab ? 'checked' : ''} onchange="bulkTouch_(${x.id})" aria-label="Đạt Cabin"></td>
-      <td><input type="number" class="bk-km input" min="0" step="1" style="width:88px" value="${ini.km}" oninput="bulkTouch_(${x.id})" aria-label="Km DAT đã chạy ngoài app"> <span style="font-size:11px;color:var(--dim)">km</span><br><input type="number" class="bk-hrs input" min="0" step="0.5" style="width:88px;margin-top:4px" value="${ini.hrs}" oninput="bulkTouch_(${x.id})" aria-label="Giờ DAT đã chạy ngoài app"> <span style="font-size:11px;color:var(--dim)">giờ</span><span style="display:block;font-size:11px;color:var(--dim)">+ qua lịch ${x.datKmSessions || 0} km · ${x.datHoursSessions || 0} giờ</span><span class="bk-night" data-init="${ini.night}" data-cur="${ini.night}" style="display:flex;gap:4px;align-items:center;margin-top:4px"><span style="font-size:11px;color:var(--dim)">đêm:</span>${[1, 2, 3].map(k => `<input type="checkbox" class="bk-nb" data-k="${k}" ${ini.night >= k ? 'checked' : ''} onclick="bulkNight_(${x.id}, ${k})" style="width:18px;height:18px" aria-label="Giờ đêm ${k}">`).join('')}</span></td>
-      <td><b class="bk-tot">${x.datKmDone}/${x.datKmTotal}</b><span class="bk-rem" style="display:block;font-size:11px;color:var(--dim)">${(() => { const kn = Math.max(0, Math.ceil((x.datKmTotal || 0) * 0.8) - (x.datKmDone || 0)); const hn = Math.max(0, Math.round(((x.datHoursTarget || 21) * 0.8 - (x.datHoursDone || 0)) * 10) / 10); return (kn <= 0 && hn <= 0 && (x.nightTicks || 0) >= 3) ? 'đã đạt' : 'còn thiếu ' + kn + ' km · ' + String(hn).replace('.', ',') + 'h (mốc 80%)'; })()}</span><span class="bk-htot" style="display:block;font-size:11px;color:var(--dim)">giờ: ${String(x.datHoursDone || 0).replace('.', ',')}/${x.datHoursTarget || 21}h</span></td>
+      <td><div style="display:flex;align-items:center;gap:5px;flex-wrap:nowrap"><input type="number" class="bk-km input" min="0" step="1" style="width:76px" value="${ini.km}" oninput="bulkTouch_(${x.id})" aria-label="Km DAT đã chạy ngoài app"><span style="font-size:11px;color:var(--dim)">km</span><input type="number" class="bk-hrs input" min="0" step="0.5" style="width:64px" value="${ini.hrs}" oninput="bulkTouch_(${x.id})" aria-label="Giờ DAT đã chạy ngoài app"><span style="font-size:11px;color:var(--dim)">giờ</span><span class="bk-night" data-init="${ini.night}" data-cur="${ini.night}" style="display:flex;gap:4px;align-items:center"><span style="font-size:11px;color:var(--dim)">đêm:</span>${[1, 2, 3].map(k => `<input type="checkbox" class="bk-nb" data-k="${k}" ${ini.night >= k ? 'checked' : ''} onclick="bulkNight_(${x.id}, ${k})" style="width:18px;height:18px" aria-label="Giờ đêm ${k}">`).join('')}</span></div></td>
+      <td><b class="bk-tot">${x.datKmDone}/${x.datKmTotal}</b> km<span class="bk-htot" style="font-size:12px;color:var(--dim)"> · giờ: ${String(x.datHoursDone || 0).replace('.', ',')}/${x.datHoursTarget || 21}h</span><span class="bk-rem" style="display:block;font-size:11px;color:var(--dim)">${(() => { const kn = Math.max(0, Math.ceil((x.datKmTotal || 0) * 0.8) - (x.datKmDone || 0)); const hn = Math.max(0, Math.round(((x.datHoursTarget || 21) * 0.8 - (x.datHoursDone || 0)) * 10) / 10); return (kn <= 0 && hn <= 0 && (x.nightTicks || 0) >= 3) ? 'đã đạt' : 'còn thiếu ' + kn + ' km · ' + String(hn).replace('.', ',') + 'h (mốc 80%)'; })()}</span><span style="display:block;font-size:11px;color:var(--dim)">+ qua lịch ${x.datKmSessions || 0} km · ${x.datHoursSessions || 0} giờ</span></td>
       <td><input type="checkbox" class="bk-grad" ${ini.grad ? 'checked' : ''} onchange="bulkTouch_(${x.id})" aria-label="Thi tốt nghiệp đậu"></td>
       <td>${StatusChip(x.status)}</td></tr>`;
   }).join('');
@@ -3897,7 +3902,7 @@ function bulkHtml_(rows) {
       <input id="bk-q" class="input" style="flex:1 1 160px;width:auto" placeholder="Tìm theo tên, mã HV…" oninput="bulkFilter_()">
       <button id="bk-save" type="button" class="btn btn-green-grad" onclick="bulkSave_()" disabled>Lưu tất cả</button>
     </div>
-    <div class="tbl-wrap"><table class="tbl bk-tbl"><thead><tr><th>Học viên</th><th>Đạt LT</th><th>Đạt Cabin</th><th>DAT ngoài app</th><th>Tổng DAT</th><th>Thi TN Đậu</th><th>Trạng thái</th></tr></thead><tbody>${body}</tbody></table></div>
+    <div class="tbl-wrap bk-wrap"><table class="tbl bk-tbl"><thead><tr><th>Học viên</th><th>Đạt LT</th><th>Đạt Cabin</th><th>DAT ngoài app</th><th>Tổng DAT</th><th>Thi TN Đậu</th><th>Trạng thái</th></tr></thead><tbody>${body}</tbody></table></div>
     <p class="note-dim" id="bk-count" style="margin-top:8px">Hiển thị ${rows.length}/${rows.length} học viên</p>`;
 }
 function bulkNight_(id, k) {
@@ -3937,7 +3942,7 @@ function bulkTouch_(id) {
   const totEl = row.querySelector('.bk-tot'); if (totEl) totEl.textContent = done + '/' + tot;
   const hDone = cur.hrs + (Number(row.dataset.hses) || 0);
   const hTot = Number(row.dataset.htot) || 21;
-  const hTotEl = row.querySelector('.bk-htot'); if (hTotEl) hTotEl.textContent = 'giờ: ' + String(hDone).replace('.', ',') + '/' + hTot + 'h';
+  const hTotEl = row.querySelector('.bk-htot'); if (hTotEl) hTotEl.textContent = ' · giờ: ' + String(hDone).replace('.', ',') + '/' + hTot + 'h';
   const remEl = row.querySelector('.bk-rem');
   if (remEl) {
     const kn = Math.max(0, Math.ceil(tot * 0.8) - done);
