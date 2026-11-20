@@ -194,7 +194,22 @@ function cabinByStudent_() {
     return m;
   });
 }
-function studentObj_(o, payMap, kmMap, cabinMap) {
+function sahinhByStudent_() {
+  // So buoi 'Sa hinh' da hoc (diem danh 'Da hoc', khong tuong lai) — chi de HIEN THI, khong lam tieu chi (user chot 20/11: ben trung tam khong gioi han buoi sa hinh).
+  return memo_('sahinhMap', () => {
+    const T = today_();
+    const m = {};
+    for (const s of tab_('LichHoc').objs) {
+      if (str_(s['LoaiBuoi']) !== 'Sa hình' || !s['IDHocVien']) continue;
+      if (dstr_(s['Ngay']) > T) continue;
+      if (str_(s['DiemDanh']) !== 'Đã học') continue;
+      const sid = num_(s['IDHocVien']);
+      m[sid] = (m[sid] || 0) + 1;
+    }
+    return m;
+  });
+}
+function studentObj_(o, payMap, kmMap, cabinMap, sahinhMap) {
   const cm = courseMap_();
   const course = cm[str_(o['MaKhoa'])] || {};
   const sid = num_(o['ID']);
@@ -214,9 +229,8 @@ function studentObj_(o, payMap, kmMap, cabinMap) {
   const cabinSessions = Math.max(num_(o['BuoiCabin']), cab ? cab.sessions : 0);
   const crit = {
     theory: str_(o['DatLyThuyet']) === 'Đạt',
-    cabin: cabinHours >= 3,
+    cabin: cabinHours >= 3 || cabinSessions >= 1, // Dat Cabin: tick tay (GioCabin=3) HOAC da di hoc >= 1 buoi Cabin duoc danh dau hoan thanh (user chot 20/11)
     dat: kmDone >= target,
-    sahinh: str_(o['DaHocSaHinh']) === 'Đã học',
     tuition: isMLL ? true : (payable - paid) <= 0 || hasAllDots_(sid) // dat neu thu du tien HOAC tick du 3 dot (user chot 12/11)
   };
   return {
@@ -227,7 +241,7 @@ function studentObj_(o, payMap, kmMap, cabinMap) {
     regDate: dstr_(o['NgayDangKy']), healthExamDate: dstr_(o['NgayKhamSK']), healthExpiry: dstr_(o['HanKhamSK']),
     cabinHours: cabinHours, cabinSessions: cabinSessions,
     theoryScore: o['DiemLyThuyet'] === '' ? null : num_(o['DiemLyThuyet']), theoryPassed: crit.theory,
-    sahinhDone: crit.sahinh, datKmDone: kmDone, datKmManual: kmMan, datKmSessions: kmSes, datKmTotal: target, datMarkerKm: num_(o['MocKmDAT']),
+    sahinhSessions: sahinhMap && sahinhMap[sid] ? sahinhMap[sid] : 0, datKmDone: kmDone, datKmManual: kmMan, datKmSessions: kmSes, datKmTotal: target, datMarkerKm: num_(o['MocKmDAT']),
     datStartDate: course.datStart || '', datDeadline: course.closeDate || '',
     openDate: course.openDate || '', closeDate: course.closeDate || '',
     tuitionTotal: total, tuitionDiscount: discount, discountReason: str_(o['LyDoGiam']),
@@ -237,7 +251,7 @@ function studentObj_(o, payMap, kmMap, cabinMap) {
     certNo: str_(o['SoChungChi']), certDate: dstr_(o['NgayCapChungChi']),
     licenseDate: dstr_(o['NgayCoBang']), hasLicense: str_(o['CoBang']) === 'Có',
     licenseScore: o['DiemBangLai'] === '' ? null : num_(o['DiemBangLai']),
-    criteria: crit, eligible: crit.theory && crit.cabin && crit.dat && crit.sahinh && crit.tuition
+    criteria: crit, eligible: crit.theory && crit.cabin && crit.dat && crit.tuition
   };
 }
 function allStudents_() {
@@ -245,7 +259,7 @@ function allStudents_() {
     const payMap = paymentsByStudent_();
     const kmMap = datKmByStudent_();
     const cabinMap = cabinByStudent_();
-    return tab_('HocVien').objs.map(o => studentObj_(o, payMap, kmMap, cabinMap));
+    return tab_('HocVien').objs.map(o => studentObj_(o, payMap, kmMap, cabinMap, sahinhByStudent_()));
   });
 }
 function teacherLook_() {
@@ -405,9 +419,9 @@ function apiGetDashboard() {
     },
     sessionsProgress: sessionsProgress_(students, rows, T),
     cabinStats: {
-      fullCount: students.filter(s => s.cabinHours >= 3).length,
+      fullCount: students.filter(s => s.criteria.cabin).length,
       total: students.length,
-      pct: students.length ? Math.round(students.filter(s => s.cabinHours >= 3).length / students.length * 100) : 0
+      pct: students.length ? Math.round(students.filter(s => s.criteria.cabin).length / students.length * 100) : 0
     },
     gantt: courses_().map(c => ({
       code: c.code, licenseClass: c.licenseClass, openDate: c.openDate, closeDate: c.closeDate,
@@ -510,7 +524,7 @@ function apiListSchedulesRange(p) {
     if (!cabin[s.courseCode]) cabin[s.courseCode] = { courseCode: s.courseCode, students: 0, done3h: 0, sum: 0 };
     cabin[s.courseCode].students++;
     cabin[s.courseCode].sum += s.cabinHours;
-    if (s.cabinHours >= 3) cabin[s.courseCode].done3h++;
+    if (s.criteria.cabin) cabin[s.courseCode].done3h++;
   });
   return {
     schedules: rows,
@@ -865,7 +879,7 @@ function apiNotifications() {
     const days = (new Date(s.healthExpiry) - new Date(T)) / 86400000;
     return days <= 30;
   }).map(s => ({ code: s.code, name: s.name, healthExpiry: s.healthExpiry }));
-  const cabinNS = students.filter(s => s.cabinHours === 0 && s.openDate && s.openDate <= T)
+  const cabinNS = students.filter(s => s.cabinHours === 0 && s.cabinSessions === 0 && s.openDate && s.openDate <= T)
     .map(s => ({ code: s.code, name: s.name, courseCode: s.courseCode, homeTeacherName: s.homeTeacherName }));
   /* Nhắc việc theo yêu cầu chị Hồng (28/10): khóa sắp bế giảng ≤3 ngày + HV sắp xuống DAT ≤2 ngày,
      kèm cờ thiếu DAT/cabin cho từng HV — ngày lấy theo khóa (NgayBeGiang / NgayBatDauDAT), HV thuộc khóa nào tính theo khóa đó.
@@ -874,16 +888,16 @@ function apiNotifications() {
   const realToday_ = Utilities.formatDate(new Date(), 'Asia/Ho_Chi_Minh', 'yyyy-MM-dd');
   const daysTo_ = (ds) => Math.round((new Date(ds) - new Date(realToday_)) / 86400000);
   const closingSoon = students.filter(s => s.closeDate && daysTo_(s.closeDate) >= 0 && daysTo_(s.closeDate) <= 3)
-    .map(s => ({ id: s.id, code: s.code, name: s.name, courseCode: s.courseCode, closeDate: s.closeDate, daysLeft: daysTo_(s.closeDate), datOk: s.datKmDone >= s.datKmTotal, cabinOk: s.cabinHours >= 3, done: s.gradResult === 'Đậu' || s.hasLicense }));
+    .map(s => ({ id: s.id, code: s.code, name: s.name, courseCode: s.courseCode, closeDate: s.closeDate, daysLeft: daysTo_(s.closeDate), datOk: s.datKmDone >= s.datKmTotal, cabinOk: s.criteria.cabin, done: s.gradResult === 'Đậu' || s.hasLicense }));
   const datStartSoon = students.filter(s => s.datStartDate && daysTo_(s.datStartDate) >= 0 && daysTo_(s.datStartDate) <= 2)
-    .map(s => ({ id: s.id, code: s.code, name: s.name, courseCode: s.courseCode, datStartDate: s.datStartDate, daysLeft: daysTo_(s.datStartDate), cabinOk: s.cabinHours >= 3, theoryOk: !!(s.criteria && s.criteria.theory) }));
+    .map(s => ({ id: s.id, code: s.code, name: s.name, courseCode: s.courseCode, datStartDate: s.datStartDate, daysLeft: daysTo_(s.datStartDate), cabinOk: s.criteria.cabin, theoryOk: !!(s.criteria && s.criteria.theory) }));
   if (closingSoon.length) alerts.push({ kind: 'Sắp bế giảng', level: 'error', message: closingSoon.length + ' HV thuộc khóa bế giảng trong 3 ngày tới — xem card nhắc đỏ ở trang Tổng quan' });
   if (datStartSoon.length) alerts.push({ kind: 'Sắp xuống DAT', level: 'warning', message: datStartSoon.length + ' HV bắt đầu giai đoạn DAT trong 2 ngày tới — xem card nhắc đỏ ở trang Tổng quan' });
   const notifs = JSON.parse(cfg_('ThongBaoMau', '[]'));
   const wk = weekHoursByVehicle_();
   const threshold = num_(cfg_('NguongXeQuaGioTuan', 56)) || 56;
   const overuse = Object.keys(wk).filter(k => wk[k] > threshold).map(k => ({ plate: k, hoursWeek: wk[k] }));
-  const datRow_ = (s) => ({ id: s.id, code: s.code, name: s.name, courseCode: s.courseCode, closeDate: s.closeDate, daysLeft: Math.round((new Date(s.closeDate) - new Date(T)) / 86400000), datKmDone: s.datKmDone, datKmTotal: s.datKmTotal, cabinOk: s.cabinHours >= 3, homeTeacherName: s.homeTeacherName });
+  const datRow_ = (s) => ({ id: s.id, code: s.code, name: s.name, courseCode: s.courseCode, closeDate: s.closeDate, daysLeft: Math.round((new Date(s.closeDate) - new Date(T)) / 86400000), datKmDone: s.datKmDone, datKmTotal: s.datKmTotal, cabinOk: s.criteria.cabin, homeTeacherName: s.homeTeacherName });
   return { alerts, notifications: notifs,
     datOverdue: { count: overdue.length, rows: overdue.map(datRow_) },
     datDueSoon: { count: soon.length, rows: soon.map(datRow_) },
@@ -904,6 +918,27 @@ function apiGetLookups() {
 
 
 // ---------- API: Ghi ----------
+function apiSaveProgressBulk(p) {
+  // Nhap tien do CHUNG 1 trang (user/khach chot 20/11): nhan danh sach thay doi, tu tach ve tung HV.
+  // Moi muc: theoryPassed (tick Dat ly thuyet), cabinHours (3 = tick Dat Cabin, 0 = bo tick), datKm (km DAT ngoai app),
+  // gradResult (chi gui khi o Thi TN thay doi: 'Dat' / 'Chua thi').
+  const items = Array.isArray(p.items) ? p.items : [];
+  let n = 0;
+  for (const it of items) {
+    const id = num_(it.id);
+    if (!id || !findRow_('HocVien', id)) continue;
+    const patch = {};
+    if (it.theoryPassed !== undefined) patch['DatLyThuyet'] = it.theoryPassed ? 'Đạt' : 'Chưa đạt';
+    if (it.cabinHours !== undefined) patch['GioCabin'] = num_(it.cabinHours);
+    if (it.datKm !== undefined) patch['KmDATDaChay'] = num_(it.datKm);
+    if (Object.keys(patch).length) writeRow_('HocVien', id, patch);
+    if (it.gradResult !== undefined) apiUpdateGraduation({ studentId: id, result: it.gradResult });
+    else autoStatusProgress_(id);
+    n++;
+  }
+  if (n) logHistory_('saveProgressBulk', '', 'Nhập tiến độ chung: ' + n + ' HV');
+  return { ok: true, count: n };
+}
 function apiSaveStudent(p) {
   let id = num_(p.id);
   if (!id) {
@@ -960,6 +995,7 @@ function apiSaveStudent(p) {
   }
   if (p.licenseClass !== undefined) patch['Hang'] = p.licenseClass;
   writeRow_('HocVien', id, patch);
+  autoStatusProgress_(id);
   const st = findRow_('HocVien', id);
   logHistory_('saveStudent', st ? str_(st['MaHV']) : '', (num_(p.id) ? 'Cập nhật HV ' : 'Thêm HV ') + (p.name || ''));
   return { ok: true, id, code: st ? str_(st['MaHV']) : '', message: 'Đã lưu học viên' };
@@ -1010,6 +1046,7 @@ function apiCreateSchedule(p) {
     DiemDanh: p.attendance || 'Đã học', NhanNhom: p.groupLabel || '', GhiChu: p.note || ''
   });
   logHistory_('createSchedule', st ? st.code : '', 'Thêm buổi ' + (p.type || '') + ' ngày ' + (p.date || ''));
+  if (p.studentId) autoStatusProgress_(num_(p.studentId));
   return { ok: true, id: nid };
 }
 function apiUpdateSchedule(p) {
@@ -1030,11 +1067,15 @@ function apiUpdateSchedule(p) {
   if (p.attendance !== undefined) patch['DiemDanh'] = p.attendance;
   if (p.note !== undefined) patch['GhiChu'] = p.note;
   writeRow_('LichHoc', num_(p.id), patch);
+  const sRowU = findRow_('LichHoc', num_(p.id));
+  if (sRowU && num_(sRowU['IDHocVien'])) autoStatusProgress_(num_(sRowU['IDHocVien']));
   logHistory_('updateSchedule', 'LH' + p.id, 'Sửa buổi học');
   return { ok: true };
 }
 function apiDeleteSchedule(p) {
+  const sRowD = findRow_('LichHoc', num_(p.id));
   const ok = deleteRow_('LichHoc', num_(p.id));
+  if (ok && sRowD && num_(sRowD['IDHocVien'])) autoStatusProgress_(num_(sRowD['IDHocVien']));
   logHistory_('deleteSchedule', 'LH' + p.id, 'Xóa buổi học');
   return { ok: !!ok };
 }
@@ -1279,13 +1320,37 @@ function apiUpdateExamResult(p) {
 }
 /* Trang thai tu dong theo ket qua tot nghiep / sat hach. Chi ap dung khi HV dang
    o luong chinh; Bao luu / Da nghi hoc de tuy hoan canh xu ly tay, khong tu doi. */
-const AUTO_STATUS_OK_ = ['', 'Đang học', 'Chờ sát hạch', 'Chờ nhận bằng', 'Rớt Lý thuyết', 'Rớt Sa hình', 'Rớt Đường trường', 'Đã đậu sát hạch'];
+const AUTO_STATUS_OK_ = ['', 'Đang học', 'Chờ tốt nghiệp', 'Chờ sát hạch', 'Chờ nhận bằng', 'Rớt Lý thuyết', 'Rớt Sa hình', 'Rớt Đường trường', 'Đã đậu sát hạch'];
 function autoStatus_(studentId, status) {
   const st = findRow_('HocVien', num_(studentId));
   if (!st) return;
   const cur = str_(st['TrangThai']);
   if (cur === status || !AUTO_STATUS_OK_.includes(cur)) return;
   writeRow_('HocVien', num_(studentId), { TrangThai: status });
+}
+function autoStatusProgress_(sid) {
+  // Dat Cabin + du km DAT -> 'Cho tot nghiep' (user chot 20/11). Tinh truc tiep tu Sheet (khong qua memo) de thay ngay sau khi ghi.
+  // Khong dung Bao luu / Da nghi hoc; HV da Dat thi TN thi trang thai do luong thi tot nghiep quan ly.
+  const row = findRow_('HocVien', num_(sid));
+  if (!row) return;
+  const cur = str_(row['TrangThai']);
+  if (cur === 'Bảo lưu' || cur === 'Đã nghỉ học') return;
+  const grad = str_(row['KetQuaTotNghiep']);
+  if (grad === 'Đạt' || grad === 'Đậu') return;
+  const T = today_();
+  let kmSes = 0, cabSes = 0;
+  for (const s of tab_('LichHoc').objs) {
+    if (num_(s['IDHocVien']) !== num_(sid)) continue;
+    if (dstr_(s['Ngay']) > T) continue;
+    if (str_(s['DiemDanh']) !== 'Đã học') continue;
+    if (str_(s['LoaiBuoi']) === 'DAT') kmSes += (s['KmThucTe'] !== '' && s['KmThucTe'] !== null && s['KmThucTe'] !== undefined) ? num_(s['KmThucTe']) : num_(s['KmKeHoach']);
+    else if (str_(s['LoaiBuoi']) === 'Cabin') cabSes++;
+  }
+  const kmDone = num_(row['KmDATDaChay']) + kmSes;
+  const target = TARGET_KM[str_(row['Hang'])] || 810;
+  const ok = (num_(row['GioCabin']) >= 3 || cabSes >= 1) && kmDone >= target;
+  if (ok && (cur === '' || cur === 'Đang học')) writeRow_('HocVien', num_(sid), { TrangThai: 'Chờ tốt nghiệp' });
+  else if (!ok && cur === 'Chờ tốt nghiệp') writeRow_('HocVien', num_(sid), { TrangThai: 'Đang học' });
 }
 function apiUpdateGraduation(p) {
   const st = bystId_(num_(p.studentId));
@@ -1308,6 +1373,7 @@ function apiUpdateGraduation(p) {
     SoChungChi: vals.SoChungChi, NgayCapChungChi: vals.NgayCap });
   if (vals.KetQua === 'Đạt') autoStatus_(p.studentId, 'Chờ sát hạch');
   else { const curG = str_((findRow_('HocVien', num_(p.studentId)) || {})['TrangThai']); if (curG === 'Chờ sát hạch') autoStatus_(p.studentId, 'Đang học'); }
+  autoStatusProgress_(num_(p.studentId));
   logHistory_('updateGraduation', st ? st.code : '', 'Cập nhật thi tốt nghiệp: ' + (p.result || ''));
   return { ok: true };
 }
@@ -1456,7 +1522,7 @@ const READ_ACTIONS = {
   getcenterinfo: apiGetCenterInfo
 };
 const WRITE_ACTIONS = {
-  savestudent: apiSaveStudent, setstudentstatus: apiSetStudentStatus,
+  savestudent: apiSaveStudent, setstudentstatus: apiSetStudentStatus, saveprogressbulk: apiSaveProgressBulk,
   transferstudentcourse: apiTransferCourse, createschedule: apiCreateSchedule,
   updateschedule: apiUpdateSchedule, deleteschedule: apiDeleteSchedule,
   addpayment: apiAddPayment, saveteacher: apiSaveTeacher, savevehicle: apiSaveVehicle,
@@ -1506,6 +1572,7 @@ const READ_GROUP = {
 const ALL_GROUPS = ['dash', 'reports', 'students', 'sched', 'dat', 'fleet', 'exams', 'admissions', 'tuition', 'centers', 'alerts', 'config', 'lookups'];
 const WRITE_GROUPS = {
   savestudent: ['students', 'lookups', 'dash', 'exams', 'dat', 'reports'],
+  saveprogressbulk: ['students', 'lookups', 'dash', 'exams', 'dat', 'reports'],
   setstudentstatus: ['students', 'lookups', 'dash', 'exams', 'dat', 'reports'],
   transferstudentcourse: ['students', 'lookups', 'dash', 'exams', 'dat'],
   addpayment: ['tuition', 'students', 'dash', 'reports', 'exams'],
