@@ -2079,6 +2079,8 @@ async function saveCriteria_(id) {
     if (ltEl && !!ltEl.checked !== (ltEl.dataset.cur === '1')) payload.theoryPassed = !!ltEl.checked;
     if (cabEl && !!cabEl.checked !== (cabEl.dataset.cur === '1')) payload.cabinHours = cabEl.checked ? 3 : 0;
     if (kmEl && (Number(kmEl.value) || 0) !== (Number(kmEl.dataset.cur) || 0)) payload.datKm = Number(kmEl.value) || 0;
+    const hEl = document.getElementById('crit-dath');
+    if (hEl && (Number(hEl.value) || 0) !== (Number(hEl.dataset.cur) || 0)) payload.datHours = Number(hEl.value) || 0;
     let wrote = false;
     if (Object.keys(payload).length > 1) { await write('savestudent', payload); wrote = true; }
     if (gradEl && !!gradEl.checked !== (gradEl.dataset.cur === '1')) {
@@ -2106,7 +2108,7 @@ function renderStudentDetail_(s, q) {
     const critItems = [
       { ok: s.criteria.theory, label: `Lý thuyết ${s.theoryScore != null ? `(${s.theoryScore} điểm)` : ''}` },
       { ok: s.criteria.cabin, label: `Cabin — ${s.criteria.cabin ? 'Đạt' : 'Chưa đạt'}${s.cabinSessions ? ` · ${s.cabinSessions} ca đã học` : ''}` },
-      { ok: s.criteria.dat, label: `DAT ${s.datKmDone}/${s.datKmTotal} km${s.datKmManual ? ` (ngoài app ${s.datKmManual} + qua lịch ${s.datKmSessions || 0})` : ''}${s.datKmDone < s.datKmTotal ? ` · còn thiếu ${s.datKmTotal - s.datKmDone} km` : ''}` },
+      { ok: s.criteria.dat, label: `DAT ${s.datKmDone}/${s.datKmTotal} km${s.datKmManual ? ` (ngoài app ${s.datKmManual} + qua lịch ${s.datKmSessions || 0})` : ''}${s.datKmDone < s.datKmTotal ? ` · còn thiếu ${s.datKmTotal - s.datKmDone} km` : ''} · giờ đã chạy: ${String(s.datHoursDone || 0).replace('.', ',')}h` },
       { info: true, label: `Sa hình — đã học ${s.sahinhSessions || 0} buổi` },
       { ok: s.muaLL ? true : s.criteria.tuition, label: s.muaLL ? 'Học phí: Mua LL — GV tự thu' : `Học phí: ${myDots.length ? 'đã đóng đợt ' + myDots.join(', ') : 'chưa đóng đợt nào'} (${myDots.length}/3 đợt)` },
       { ok: s.gradResult === 'Đậu', label: `Tốt nghiệp${!s.gradResult || s.gradResult === 'Chưa thi' ? ' — chưa thi' : ` — ${s.gradResult}`}${s.certNo ? ` · CC ${s.certNo}` : ''}` },
@@ -2158,6 +2160,7 @@ function renderStudentDetail_(s, q) {
           <label style="font-size:13px;display:flex;gap:6px;align-items:center;padding-bottom:10px"><input id="crit-cabin" type="checkbox" data-cur="${s.criteria.cabin ? '1' : '0'}" ${s.criteria.cabin ? 'checked' : ''}> Đạt Cabin</label>
           <label style="font-size:13px;display:flex;gap:6px;align-items:center;padding-bottom:10px"><input id="crit-grad" type="checkbox" data-cur="${(s.gradResult === 'Đạt' || s.gradResult === 'Đậu') ? '1' : '0'}" ${(s.gradResult === 'Đạt' || s.gradResult === 'Đậu') ? 'checked' : ''}> Thi tốt nghiệp: Đậu</label>
           <label style="font-size:13px">Km DAT đã chạy ngoài app<br><input id="crit-datkm" type="number" min="0" step="1" class="input" style="width:110px" data-cur="${s.datKmManual || 0}" value="${s.datKmManual || 0}"></label>
+          <label style="font-size:13px">Giờ DAT ngoài app<br><input id="crit-dath" type="number" min="0" step="0.5" class="input" style="width:96px" data-cur="${s.datHoursManual || 0}" value="${s.datHoursManual || 0}"></label>
           <button type="button" class="btn" onclick="saveCriteria_(${s.id})">Lưu tiêu chí</button>
         </div>
       </div>
@@ -3869,12 +3872,12 @@ function bulkHtml_(rows) {
   const body = rows.map(x => {
     const ini = window._BK.init[x.id];
     const rem = (x.datKmTotal || 0) - (x.datKmDone || 0);
-    return `<tr id="bk-row-${x.id}" data-course="${esc(x.courseCode)}" data-search="${esc(normText((x.name || '') + ' ' + (x.code || '')))}" data-ses="${x.datKmSessions || 0}" data-tot="${x.datKmTotal || 0}">
+    return `<tr id="bk-row-${x.id}" data-course="${esc(x.courseCode)}" data-search="${esc(normText((x.name || '') + ' ' + (x.code || '')))}" data-ses="${x.datKmSessions || 0}" data-tot="${x.datKmTotal || 0}" data-hses="${x.datHoursSessions || 0}">
       <td><b>${esc(x.name)}</b><span style="display:block;font-size:12px;color:var(--dim)">${esc(x.code)} · ${esc(x.courseCode)} · ${esc(x.licenseClass)}</span></td>
       <td><input type="checkbox" class="bk-lt" ${ini.lt ? 'checked' : ''} onchange="bulkTouch_(${x.id})" aria-label="Đạt lý thuyết"></td>
       <td><input type="checkbox" class="bk-cab" ${ini.cab ? 'checked' : ''} onchange="bulkTouch_(${x.id})" aria-label="Đạt Cabin"></td>
-      <td><input type="number" class="bk-km input" min="0" step="1" style="width:88px" value="${ini.km}" oninput="bulkTouch_(${x.id})" aria-label="Km DAT đã chạy ngoài app"><span style="display:block;font-size:11px;color:var(--dim)">+ qua lịch ${x.datKmSessions || 0} km</span></td>
-      <td><b class="bk-tot">${x.datKmDone}/${x.datKmTotal}</b><span class="bk-rem" style="display:block;font-size:11px;color:var(--dim)">${rem > 0 ? 'còn thiếu ' + rem + ' km' : 'đã đủ'}</span></td>
+      <td><input type="number" class="bk-km input" min="0" step="1" style="width:88px" value="${ini.km}" oninput="bulkTouch_(${x.id})" aria-label="Km DAT đã chạy ngoài app"> <span style="font-size:11px;color:var(--dim)">km</span><br><input type="number" class="bk-hrs input" min="0" step="0.5" style="width:88px;margin-top:4px" value="${ini.hrs}" oninput="bulkTouch_(${x.id})" aria-label="Giờ DAT đã chạy ngoài app"> <span style="font-size:11px;color:var(--dim)">giờ</span><span style="display:block;font-size:11px;color:var(--dim)">+ qua lịch ${x.datKmSessions || 0} km · ${x.datHoursSessions || 0} giờ</span></td>
+      <td><b class="bk-tot">${x.datKmDone}/${x.datKmTotal}</b><span class="bk-rem" style="display:block;font-size:11px;color:var(--dim)">${rem > 0 ? 'còn thiếu ' + rem + ' km' : 'đã đủ'}</span><span class="bk-htot" style="display:block;font-size:11px;color:var(--dim)">giờ đã chạy: ${String(x.datHoursDone || 0).replace('.', ',')}h</span></td>
       <td><input type="checkbox" class="bk-grad" ${ini.grad ? 'checked' : ''} onchange="bulkTouch_(${x.id})" aria-label="Thi tốt nghiệp đậu"></td>
       <td>${StatusChip(x.status)}</td></tr>`;
   }).join('');
@@ -3883,7 +3886,7 @@ function bulkHtml_(rows) {
       <input id="bk-q" class="input" style="flex:1 1 160px;width:auto" placeholder="Tìm theo tên, mã HV…" oninput="bulkFilter_()">
       <button id="bk-save" type="button" class="btn btn-green-grad" onclick="bulkSave_()" disabled>Lưu tất cả</button>
     </div>
-    <div class="tbl-wrap"><table class="tbl bk-tbl"><thead><tr><th>Học viên</th><th>Đạt LT</th><th>Đạt Cabin</th><th>Km DAT ngoài app</th><th>Tổng DAT</th><th>Thi TN Đậu</th><th>Trạng thái</th></tr></thead><tbody>${body}</tbody></table></div>
+    <div class="tbl-wrap"><table class="tbl bk-tbl"><thead><tr><th>Học viên</th><th>Đạt LT</th><th>Đạt Cabin</th><th>DAT ngoài app</th><th>Tổng DAT</th><th>Thi TN Đậu</th><th>Trạng thái</th></tr></thead><tbody>${body}</tbody></table></div>
     <p class="note-dim" id="bk-count" style="margin-top:8px">Hiển thị ${rows.length}/${rows.length} học viên</p>`;
 }
 function bulkTouch_(id) {
@@ -3894,12 +3897,14 @@ function bulkTouch_(id) {
     lt: row.querySelector('.bk-lt').checked,
     cab: row.querySelector('.bk-cab').checked,
     km: Number(row.querySelector('.bk-km').value) || 0,
+    hrs: Number(row.querySelector('.bk-hrs').value) || 0,
     grad: row.querySelector('.bk-grad').checked,
   };
   const item = { id };
   if (cur.lt !== ini.lt) item.theoryPassed = cur.lt;
   if (cur.cab !== ini.cab) item.cabinHours = cur.cab ? 3 : 0;
   if (cur.km !== ini.km) item.datKm = cur.km;
+  if (cur.hrs !== ini.hrs) item.datHours = cur.hrs;
   if (cur.grad !== ini.grad) item.gradResult = cur.grad ? 'Đạt' : 'Chưa thi';
   if (Object.keys(item).length > 1) window._BK.dirty[id] = item; else delete window._BK.dirty[id];
   row.classList.toggle('bk-dirty', !!window._BK.dirty[id]);
@@ -3907,6 +3912,7 @@ function bulkTouch_(id) {
   const done = cur.km + ses;
   const totEl = row.querySelector('.bk-tot'); if (totEl) totEl.textContent = done + '/' + tot;
   const remEl = row.querySelector('.bk-rem'); if (remEl) remEl.textContent = tot - done > 0 ? 'còn thiếu ' + (tot - done) + ' km' : 'đã đủ';
+  const hTotEl = row.querySelector('.bk-htot'); if (hTotEl) hTotEl.textContent = 'giờ đã chạy: ' + (cur.hrs + (Number(row.dataset.hses) || 0)).toLocaleString('vi-VN') + 'h';
   const n = Object.keys(window._BK.dirty).length;
   const btn = document.getElementById('bk-save');
   if (btn) { btn.disabled = n === 0; btn.textContent = n ? `Lưu tất cả (${n} thay đổi)` : 'Lưu tất cả'; }
@@ -3951,7 +3957,7 @@ RENDERERS.progress = async (main) => {
   ]);
   const stuRows = (stuQ && stuQ.students) || [];
   window._BK = { init: {}, dirty: {} };
-  stuRows.forEach(x => { window._BK.init[x.id] = { lt: !!(x.criteria && x.criteria.theory), cab: !!(x.criteria && x.criteria.cabin), km: x.datKmManual || 0, grad: x.gradResult === 'Đạt' || x.gradResult === 'Đậu' }; });
+  stuRows.forEach(x => { window._BK.init[x.id] = { lt: !!(x.criteria && x.criteria.theory), cab: !!(x.criteria && x.criteria.cabin), km: x.datKmManual || 0, hrs: x.datHoursManual || 0, grad: x.gradResult === 'Đạt' || x.gradResult === 'Đậu' }; });
   const sp = (dash && dash.sessionsProgress) || null;
   const cabin = (range && range.cabinByCourse) || [];
   main.innerHTML = `<div class="stack">
@@ -4199,7 +4205,7 @@ RENDERERS.guide = (main) => {
       ${guideStep('3', '<b>Hồ sơ chi tiết:</b> bấm vào tên học viên để xem tiến độ DAT (thanh km + mốc âm/dương), 5 điều kiện thi, lịch sử đóng học phí và kết quả thi.')}
       ${guideStep('4', '<b>Chuyển trạng thái:</b> trong hồ sơ chi tiết có nút Bảo lưu / Nghỉ học / Hoàn phí. Hoàn phí sẽ hỏi số tiền hoàn và tự ghi 1 phiếu thu âm vào học phí.')}
       ${guideStep('5', '<b>Chuyển khóa:</b> dùng khi học viên xin dời sang khóa sau — chọn khóa đích trong hồ sơ chi tiết, tiến độ DAT và học phí được giữ nguyên.')}
-      ${guideStep('6', '<b>Nhập tiến độ cho học viên:</b> cách nhanh nhất là vào mục <b>Tiến độ khóa học → Nhập tiến độ chung</b>: cả danh sách hiện trên 1 trang, tick <b>Đạt lý thuyết</b>, <b>Đạt Cabin</b>, <b>Thi tốt nghiệp Đậu</b> và nhập <b>Km DAT đã chạy ngoài app</b> cho từng người rồi bấm <b>Lưu tất cả</b> — phần mềm tự tách về hồ sơ từng học viên. Vào từng hồ sơ chi tiết cũng chỉnh được các tick này. <b>Đạt Cabin + đủ km DAT</b> thì trạng thái tự chuyển <b>Chờ tốt nghiệp</b>; tick <b>Thi tốt nghiệp: Đậu</b> thì chuyển <b>Chờ sát hạch</b>. Sa hình không còn là tiêu chí đạt/chưa — app chỉ đếm số buổi đã học.')}
+      ${guideStep('6', '<b>Nhập tiến độ cho học viên:</b> cách nhanh nhất là vào mục <b>Tiến độ khóa học → Nhập tiến độ chung</b>: cả danh sách hiện trên 1 trang, tick <b>Đạt lý thuyết</b>, <b>Đạt Cabin</b>, <b>Thi tốt nghiệp Đậu</b> và nhập <b>DAT ngoài app (số km + số giờ)</b> cho từng người rồi bấm <b>Lưu tất cả</b> — phần mềm tự tách về hồ sơ từng học viên. Vào từng hồ sơ chi tiết cũng chỉnh được các tick này. <b>Đạt Cabin + đủ km DAT</b> thì trạng thái tự chuyển <b>Chờ tốt nghiệp</b>; tick <b>Thi tốt nghiệp: Đậu</b> thì chuyển <b>Chờ sát hạch</b>. Sa hình không còn là tiêu chí đạt/chưa — app chỉ đếm số buổi đã học.')}
       ${guideNote('Mã học viên (HP001, HP002…) được cấp tự động khi thêm mới, không sửa tay được để tránh trùng hồ sơ nộp Sở.')}`)}<div class="guide-imgs"><figure><img src="guide/g05-hoc-vien.jpg" alt="Danh sách học viên" loading="lazy" decoding="async"><figcaption>Danh sách học viên</figcaption></figure><figure><img src="guide/g06-ho-so-hv.jpg" alt="Hồ sơ chi tiết của một học viên" loading="lazy" decoding="async"><figcaption>Hồ sơ chi tiết của một học viên</figcaption></figure></div></section>
     <section class="panel gd" id="hd-dat">${Section('6 · DAT & Sa hình', '', `
       <p class="gtext">Chuẩn số km DAT theo hạng bằng: <b>B1: 710 km · B2: 810 km · C1: 825 km · C: 825 km</b>. Mốc km âm/dương được tính theo tiến độ lý thuyết của khóa: học viên chạy ít hơn mốc là <b>âm km</b> (chip vàng), chạy nhiều hơn là <b>dương km</b> (chip xanh ngọc).</p>
