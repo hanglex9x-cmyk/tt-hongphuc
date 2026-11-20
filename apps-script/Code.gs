@@ -194,6 +194,21 @@ function cabinByStudent_() {
     return m;
   });
 }
+function datHoursByStudent_() {
+  // Tong GIO DAT tu lich: buoi DAT diem danh 'Da hoc', ngay <= hom nay; gio tinh tu khung gio cua buoi.
+  return memo_('datHoursMap', () => {
+    const T = today_();
+    const m = {};
+    for (const s of tab_('LichHoc').objs) {
+      if (str_(s['LoaiBuoi']) !== 'DAT' || !s['IDHocVien']) continue;
+      if (dstr_(s['Ngay']) > T) continue;
+      if (str_(s['DiemDanh']) !== 'Đã học') continue;
+      const sid = num_(s['IDHocVien']);
+      m[sid] = (m[sid] || 0) + slotRangeMin_(s) / 60;
+    }
+    return m;
+  });
+}
 function sahinhByStudent_() {
   // So buoi 'Sa hinh' da hoc (diem danh 'Da hoc', khong tuong lai) — chi de HIEN THI, khong lam tieu chi (user chot 20/11: ben trung tam khong gioi han buoi sa hinh).
   return memo_('sahinhMap', () => {
@@ -209,7 +224,7 @@ function sahinhByStudent_() {
     return m;
   });
 }
-function studentObj_(o, payMap, kmMap, cabinMap, sahinhMap) {
+function studentObj_(o, payMap, kmMap, cabinMap, sahinhMap, datHoursMap) {
   const cm = courseMap_();
   const course = cm[str_(o['MaKhoa'])] || {};
   const sid = num_(o['ID']);
@@ -241,7 +256,9 @@ function studentObj_(o, payMap, kmMap, cabinMap, sahinhMap) {
     regDate: dstr_(o['NgayDangKy']), healthExamDate: dstr_(o['NgayKhamSK']), healthExpiry: dstr_(o['HanKhamSK']),
     cabinHours: cabinHours, cabinSessions: cabinSessions,
     theoryScore: o['DiemLyThuyet'] === '' ? null : num_(o['DiemLyThuyet']), theoryPassed: crit.theory,
-    sahinhSessions: sahinhMap && sahinhMap[sid] ? sahinhMap[sid] : 0, datKmDone: kmDone, datKmManual: kmMan, datKmSessions: kmSes, datKmTotal: target, datMarkerKm: num_(o['MocKmDAT']),
+    sahinhSessions: sahinhMap && sahinhMap[sid] ? sahinhMap[sid] : 0,
+    datHoursManual: num_(o['GioDATDaChay']), datHoursSessions: datHoursMap && datHoursMap[sid] ? Math.round(datHoursMap[sid] * 10) / 10 : 0,
+    datHoursDone: Math.round((num_(o['GioDATDaChay']) + (datHoursMap && datHoursMap[sid] ? datHoursMap[sid] : 0)) * 10) / 10, datKmDone: kmDone, datKmManual: kmMan, datKmSessions: kmSes, datKmTotal: target, datMarkerKm: num_(o['MocKmDAT']),
     datStartDate: course.datStart || '', datDeadline: course.closeDate || '',
     openDate: course.openDate || '', closeDate: course.closeDate || '',
     tuitionTotal: total, tuitionDiscount: discount, discountReason: str_(o['LyDoGiam']),
@@ -259,7 +276,7 @@ function allStudents_() {
     const payMap = paymentsByStudent_();
     const kmMap = datKmByStudent_();
     const cabinMap = cabinByStudent_();
-    return tab_('HocVien').objs.map(o => studentObj_(o, payMap, kmMap, cabinMap, sahinhByStudent_()));
+    return tab_('HocVien').objs.map(o => studentObj_(o, payMap, kmMap, cabinMap, sahinhByStudent_(), datHoursByStudent_()));
   });
 }
 function teacherLook_() {
@@ -931,6 +948,7 @@ function apiSaveProgressBulk(p) {
     if (it.theoryPassed !== undefined) patch['DatLyThuyet'] = it.theoryPassed ? 'Đạt' : 'Chưa đạt';
     if (it.cabinHours !== undefined) patch['GioCabin'] = num_(it.cabinHours);
     if (it.datKm !== undefined) patch['KmDATDaChay'] = num_(it.datKm);
+    if (it.datHours !== undefined) patch['GioDATDaChay'] = num_(it.datHours);
     if (Object.keys(patch).length) writeRow_('HocVien', id, patch);
     if (it.gradResult !== undefined) apiUpdateGraduation({ studentId: id, result: it.gradResult });
     else autoStatusProgress_(id);
@@ -984,6 +1002,7 @@ function apiSaveStudent(p) {
   if (p.cabinHours !== undefined) patch['GioCabin'] = num_(p.cabinHours);
   if (p.cabinSessions !== undefined) patch['BuoiCabin'] = num_(p.cabinSessions);
   if (p.datKm !== undefined) patch['KmDATDaChay'] = num_(p.datKm);
+  if (p.datHours !== undefined) patch['GioDATDaChay'] = num_(p.datHours);
   if (p.homeTeacherId !== undefined) {
     const t = tab_('GiaoVien').objs.find(o => num_(o['ID']) === num_(p.homeTeacherId));
     if (t) patch['GVChinh'] = str_(t['HoTen']);
