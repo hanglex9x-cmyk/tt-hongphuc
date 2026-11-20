@@ -15,6 +15,8 @@
 const SHEET_ID = '1_YsxPojVSBm9rJ2u4x-maKBddtozyfflO2ff-wRpD9A';
 
 const TARGET_KM = { 'B1': 710, 'B2': 810, 'C1': 825, 'C': 825 };
+const TARGET_HOURS = { 'B1': 11, 'B2': 21, 'C1': 24, 'C': 24 }; // Gio DAT chuan theo hang (khach chot 20/11)
+const DAT_PASS = 0.8; // DAT tinh dat o 80% km/gio chuan — du lieu may DAT co phien loi bi bo (khach chot 20/11)
 const TUITION = { 'B1': 18000000, 'B2': 20000000, 'C1': 25000000, 'C': 24000000, 'Nâng dấu': 13000000 };
 
 // ---------- Hạ tầng ----------
@@ -245,7 +247,7 @@ function studentObj_(o, payMap, kmMap, cabinMap, sahinhMap, datHoursMap) {
   const crit = {
     theory: str_(o['DatLyThuyet']) === 'Đạt',
     cabin: cabinHours >= 3 || cabinSessions >= 1, // Dat Cabin: tick tay (GioCabin=3) HOAC da di hoc >= 1 buoi Cabin duoc danh dau hoan thanh (user chot 20/11)
-    dat: kmDone >= target,
+    dat: kmDone >= target * DAT_PASS && (num_(o['GioDATDaChay']) + (datHoursMap && datHoursMap[sid] ? datHoursMap[sid] : 0)) >= (TARGET_HOURS[cls] || 21) * DAT_PASS && num_(o['GioDemTick']) >= 3,
     tuition: isMLL ? true : (payable - paid) <= 0 || hasAllDots_(sid) // dat neu thu du tien HOAC tick du 3 dot (user chot 12/11)
   };
   return {
@@ -257,7 +259,7 @@ function studentObj_(o, payMap, kmMap, cabinMap, sahinhMap, datHoursMap) {
     cabinHours: cabinHours, cabinSessions: cabinSessions,
     theoryScore: o['DiemLyThuyet'] === '' ? null : num_(o['DiemLyThuyet']), theoryPassed: crit.theory,
     sahinhSessions: sahinhMap && sahinhMap[sid] ? sahinhMap[sid] : 0,
-    datHoursManual: num_(o['GioDATDaChay']), datHoursSessions: datHoursMap && datHoursMap[sid] ? Math.round(datHoursMap[sid] * 10) / 10 : 0,
+    datHoursTarget: TARGET_HOURS[cls] || 21, nightTicks: Math.min(3, Math.max(0, num_(o['GioDemTick']))), datHoursManual: num_(o['GioDATDaChay']), datHoursSessions: datHoursMap && datHoursMap[sid] ? Math.round(datHoursMap[sid] * 10) / 10 : 0,
     datHoursDone: Math.round((num_(o['GioDATDaChay']) + (datHoursMap && datHoursMap[sid] ? datHoursMap[sid] : 0)) * 10) / 10, datKmDone: kmDone, datKmManual: kmMan, datKmSessions: kmSes, datKmTotal: target, datMarkerKm: num_(o['MocKmDAT']),
     datStartDate: course.datStart || '', datDeadline: course.closeDate || '',
     openDate: course.openDate || '', closeDate: course.closeDate || '',
@@ -949,6 +951,7 @@ function apiSaveProgressBulk(p) {
     if (it.cabinHours !== undefined) patch['GioCabin'] = num_(it.cabinHours);
     if (it.datKm !== undefined) patch['KmDATDaChay'] = num_(it.datKm);
     if (it.datHours !== undefined) patch['GioDATDaChay'] = num_(it.datHours);
+    if (it.nightTicks !== undefined) patch['GioDemTick'] = Math.min(3, Math.max(0, num_(it.nightTicks)));
     if (Object.keys(patch).length) writeRow_('HocVien', id, patch);
     if (it.gradResult !== undefined) apiUpdateGraduation({ studentId: id, result: it.gradResult });
     else autoStatusProgress_(id);
@@ -1003,6 +1006,7 @@ function apiSaveStudent(p) {
   if (p.cabinSessions !== undefined) patch['BuoiCabin'] = num_(p.cabinSessions);
   if (p.datKm !== undefined) patch['KmDATDaChay'] = num_(p.datKm);
   if (p.datHours !== undefined) patch['GioDATDaChay'] = num_(p.datHours);
+  if (p.nightTicks !== undefined) patch['GioDemTick'] = Math.min(3, Math.max(0, num_(p.nightTicks)));
   if (p.homeTeacherId !== undefined) {
     const t = tab_('GiaoVien').objs.find(o => num_(o['ID']) === num_(p.homeTeacherId));
     if (t) patch['GVChinh'] = str_(t['HoTen']);
@@ -1357,17 +1361,20 @@ function autoStatusProgress_(sid) {
   const grad = str_(row['KetQuaTotNghiep']);
   if (grad === 'Đạt' || grad === 'Đậu') return;
   const T = today_();
-  let kmSes = 0, cabSes = 0;
+  let kmSes = 0, cabSes = 0, hrsSes = 0;
   for (const s of tab_('LichHoc').objs) {
     if (num_(s['IDHocVien']) !== num_(sid)) continue;
     if (dstr_(s['Ngay']) > T) continue;
     if (str_(s['DiemDanh']) !== 'Đã học') continue;
-    if (str_(s['LoaiBuoi']) === 'DAT') kmSes += (s['KmThucTe'] !== '' && s['KmThucTe'] !== null && s['KmThucTe'] !== undefined) ? num_(s['KmThucTe']) : num_(s['KmKeHoach']);
+    if (str_(s['LoaiBuoi']) === 'DAT') { kmSes += (s['KmThucTe'] !== '' && s['KmThucTe'] !== null && s['KmThucTe'] !== undefined) ? num_(s['KmThucTe']) : num_(s['KmKeHoach']); hrsSes += slotRangeMin_(s) / 60; }
     else if (str_(s['LoaiBuoi']) === 'Cabin') cabSes++;
   }
   const kmDone = num_(row['KmDATDaChay']) + kmSes;
   const target = TARGET_KM[str_(row['Hang'])] || 810;
-  const ok = (num_(row['GioCabin']) >= 3 || cabSes >= 1) && kmDone >= target;
+  const hrsDone = num_(row['GioDATDaChay']) + hrsSes;
+  const hrsTarget = TARGET_HOURS[str_(row['Hang'])] || 21;
+  const datOk = kmDone >= target * DAT_PASS && hrsDone >= hrsTarget * DAT_PASS && num_(row['GioDemTick']) >= 3;
+  const ok = (num_(row['GioCabin']) >= 3 || cabSes >= 1) && datOk;
   if (ok && (cur === '' || cur === 'Đang học')) writeRow_('HocVien', num_(sid), { TrangThai: 'Chờ tốt nghiệp' });
   else if (!ok && cur === 'Chờ tốt nghiệp') writeRow_('HocVien', num_(sid), { TrangThai: 'Đang học' });
 }
